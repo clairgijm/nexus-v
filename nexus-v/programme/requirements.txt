@@ -1,0 +1,3 @@
+# Module Python nécessaire à NEXUS-V (serveur.py et verif_coherence.py).
+# Installation : python -m pip install -r requirements.txt
+openpyxl>=3.1

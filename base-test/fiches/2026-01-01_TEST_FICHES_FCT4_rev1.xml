@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_IHM_FCT4_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT4
+      <requirements>SSS_FCT4_REQ_006, SSS_FCT4_REQ_009, SSS_FCT4_REQ_015, SSS_FCT4_REQ_027, SSS_FCT4_REQ_021</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT4_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT4
+      <requirements>SSS_FCT4_REQ_027, SSS_FCT4_REQ_035, SSS_FCT4_REQ_039, SSS_FCT4_REQ_051, SSS_FCT4_REQ_054, SSS_FCT4_REQ_083, SSS_FCT4_REQ_084, SSS_FCT4_REQ_102, SSS_FCT4_REQ_147, SSS_FCT4_REQ_106, SSS_FCT4_REQ_108, SSS_FCT4_REQ_136</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 002 de FCT4
+      <requirements>SSS_FCT4_REQ_137, SSS_FCT4_REQ_147, SSS_FCT4_REQ_039, SSS_FCT4_REQ_083, SSS_FCT4_REQ_159</requirements>
+    </test_case>
+  </test>
+</fiches>

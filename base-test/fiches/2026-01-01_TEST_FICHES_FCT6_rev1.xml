@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_IHM_FCT6_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT6
+      <requirements>SSS_FCT6_REQ_010, SSS_FCT6_REQ_014, SSS_FCT6_REQ_126, SSS_FCT6_REQ_017, SSS_FCT6_REQ_026, SSS_FCT6_REQ_055, SSS_FCT6_REQ_057</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT6_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT6
+      <requirements>SSS_FCT6_REQ_073, SSS_FCT6_REQ_080, SSS_FCT6_REQ_089, SSS_FCT6_REQ_055, SSS_FCT6_REQ_095, SSS_FCT6_REQ_096</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 002 de FCT6
+      <requirements>SSS_FCT6_REQ_101, SSS_FCT6_REQ_102, SSS_FCT6_REQ_112, SSS_FCT6_REQ_095, SSS_FCT6_REQ_126, SSS_FCT6_REQ_130, SSS_FCT6_REQ_017, SSS_FCT6_REQ_140</requirements>
+    </test_case>
+  </test>
+</fiches>

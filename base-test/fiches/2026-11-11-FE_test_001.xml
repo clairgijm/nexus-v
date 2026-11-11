@@ -1,0 +1,143 @@
+<Project name="xx" path="xx">
+    <Configuration>
+        <Settings>
+            <TSRCreationGenerateTraceabilityContentEnable><![CDATA[true]]></TSRCreationGenerateTraceabilityContentEnable>
+            <TSRCreationSTDEnable><![CDATA[false]]></TSRCreationSTDEnable>
+            <TSREditionOverwriteTraceabilityEnable><![CDATA[false]]></TSREditionOverwriteTraceabilityEnable>
+            <TSREditionOverwriteSTDEnable><![CDATA[false]]></TSREditionOverwriteSTDEnable>
+            <CampaignCreationSTDSTREnable><![CDATA[true]]></CampaignCreationSTDSTREnable>
+            <ReloadTraceabilityForDocGen><![CDATA[PARTIAL]]></ReloadTraceabilityForDocGen>
+            <TestSpecificationsPrefixBase><![CDATA[TEST]]></TestSpecificationsPrefixBase>
+            <TestSpecificationsPrefixCounter><![CDATA[8]]></TestSpecificationsPrefixCounter>
+            <TestSpecificationsPrefixNumberOfDigits><![CDATA[3]]></TestSpecificationsPrefixNumberOfDigits>
+            <ActivateComparison><![CDATA[false]]></ActivateComparison>
+            <CompareToItSelf><![CDATA[true]]></CompareToItSelf>
+            <TraceabilityProjectEnvironment/>
+            <TraceabilityProjectName/>
+            <ReloadTraceabilityForCMG><![CDATA[PARTIAL]]></ReloadTraceabilityForCMG>
+            <CollectDataRequirements><![CDATA[true]]></CollectDataRequirements>
+            <CollectDataResults><![CDATA[true]]></CollectDataResults>
+            <CollectDataForCMG><![CDATA[true]]></CollectDataForCMG>
+            <GenerateMatrixForCMG><![CDATA[true]]></GenerateMatrixForCMG>
+            <OpenCMG><![CDATA[true]]></OpenCMG>
+            <UpdateRequirementProgressForCMG><![CDATA[true]]></UpdateRequirementProgressForCMG>
+            <DoorsViewForCMG><![CDATA[ORCH_IVVMngt_CMG_Interface]]></DoorsViewForCMG>
+            <DoorsViewForDocGen><![CDATA[ORCH_IVVMngt_Interface]]></DoorsViewForDocGen>
+            <DoorsViewForTraceabilityProject><![CDATA[ORCH_IVVMngt_Interface]]></DoorsViewForTraceabilityProject>
+        </Settings>
+        <Templates>
+            <Campaign_Dashboard_File><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\TCD.xlsm]]></Campaign_Dashboard_File>
+            <Configuration_Folder><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Conf]]></Configuration_Folder>
+            <Metrics_File><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\Metrics.xlsm]]></Metrics_File>
+            <Requirement_Traceability_For_Publication/>
+            <TestSuite_Folder><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\TestSuite]]></TestSuite_Folder>
+            <Traceability_Project_Folder><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\Traceability]]></Traceability_Project_Folder>
+            <TSR_Dashboard_File><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\TSRD.xlsm]]></TSR_Dashboard_File>
+            <Version_Control_File><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\.gitignore]]></Version_Control_File>
+            <CMG_File><![CDATA[O:\EngineeringDesk\GNV_PRD_CONNECTIVITE_TERRESTRE\Data\IVV\Templates\CMG.xlsm]]></CMG_File>
+        </Templates>
+        <RequirementsSources>
+            <RequirementsSource>
+                <Uri><![CDATA[xx]]></Uri>
+                <Label><![CDATA[xx]]></Label>
+            </RequirementsSource>
+            <RequirementsSource>
+                <Uri><![CDATA[xx]]></Uri>
+                <Label><![CDATA[xx]]></Label>
+            </RequirementsSource>
+         </RequirementsSources>
+        <RequirementsViewName><![CDATA[ORCH_IVVMngt_Interface]]></RequirementsViewName>
+        <TestSpecificationsViewName><![CDATA[ORCH_IVVMngt_Interface]]></TestSpecificationsViewName>
+        <CampaignIdentifiers>
+            <CampaignIdentifier name="xx"/>
+        </CampaignIdentifiers>
+        <ChangesRequestsSource>
+            <Uri><![CDATA[xx]]></Uri>
+            <Label><![CDATA[xx]]></Label>
+        </ChangesRequestsSource>
+    </Configuration>
+    <Tcr>
+        <Campaign name="Roadmap A">
+            <TestSuites>
+                <TestSuite name="SYS_PERF_FCT1_001">
+                    <Properties>
+                        <Property name="Title">SYS_PERF_FCT1_001</Property>
+                        <Property name="DefinitionVersion">1</Property>
+                        <Property name="VersionUnderTest"/>
+                        <Property name="Objectives"/>
+                        <Property name="RunDate">2026-09-24</Property>
+                        <Property name="ApproximativeRunDuration">0:00:38</Property>
+                        <Property name="Writer"/>
+                        <Property name="ManualOrAuto">MANUAL</Property>
+                        <Property name="Notes"/>
+                        <Property name="Method">T</Property>
+                        <Property name="IsRegression">false</Property>
+                        <Property name="WritingStatus">WRITTEN_NOT_REVIEWED</Property>
+                        <Property name="VerifiedRequirements"/>
+                    </Properties>
+                    <TestCases>
+                        <TestCase uid="1">
+                            <Properties>
+                                <Property name="Title">fiche 001 de FCT1</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="Description"/>
+                                <Property name="Objectives"/>
+                                <Property name="IsRegression">false</Property>
+                                <Property name="WritingStatus">WRITTEN_NOT_REVIEWED</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="2">
+                                    <Properties>
+                                        <Property name="Description">The networks ESSOR-HDR, CNR1 (PPS), and GEOMUX2 are deployed and operationals</Property>
+                                        <Property name="VerifiedRequirements"/>
+                                        <Property name="StepType">CONTEXT</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                        <TestCase uid="3">
+                            <Properties>
+                                <Property name="Title">xx</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="Description"/>
+                                <Property name="Objectives"/>
+                                <Property name="IsRegression">false</Property>
+                                <Property name="WritingStatus">WRITTEN_NOT_REVIEWED</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="4">
+                                    <Properties>
+                                        <Property name="Description">Rejouer la séquence opérateur : Le système doit horodater les comptes rendus d'exécution à la fermeture de session.</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT1_REQ_093</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="AssociatedDefects"/>
+                                        <Property name="CommentOnResult"/>
+                                        <Property name="RunResult">FAILED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="5">
+                                    <Properties>
+                                        <Property name="Description">Provoquer le cas dégradé : Le module de communication doit horodater l'état des capteurs sans interruption de service.</Property>
+                                        <Property name="VerifiedRequirements"/>
+                                        <Property name="ExpectedResult">No crash observed</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="AssociatedDefects"/>
+                                        <Property name="CommentOnResult"/>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                             </TestSteps>
+                        </TestCase>
+                    </TestCases>
+                </TestSuite>
+            </TestSuites>
+        </Campaign>
+    </Tcr>
+</Project>

@@ -1,0 +1,13 @@
+# Outils et environnement
+.venv/
+.idea/
+.claude/
+.mcp.json
+_avast_/
+__pycache__/
+~$*
+
+# Données locales, hors du dépôt
+sauvegardes/
+nexus-v/base/nexus-v.db*
+nexus-v/fichiers-references/

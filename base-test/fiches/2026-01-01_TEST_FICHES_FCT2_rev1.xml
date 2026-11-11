@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_COM_FCT2_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT2
+      <requirements>SSS_FCT2_REQ_009, SSS_FCT2_REQ_010, SSS_FCT2_REQ_028, SSS_FCT2_REQ_030</requirements>
+    </test_case>
+  </test>
+  <test>SYS_IHM_FCT2_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT2
+      <requirements>SSS_FCT2_REQ_044, SSS_FCT2_REQ_049, SSS_FCT2_REQ_059, SSS_FCT2_REQ_065, SSS_FCT2_REQ_093</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 002 de FCT2
+      <requirements>SSS_FCT2_REQ_102, SSS_FCT2_REQ_124, SSS_FCT2_REQ_114, SSS_FCT2_REQ_116, SSS_FCT2_REQ_119, SSS_FCT2_REQ_010</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT2_003
+    <test_case>TEST CASE #1 : fiche 003 de FCT2
+      <requirements>SSS_FCT2_REQ_127, SSS_FCT2_REQ_132</requirements>
+    </test_case>
+  </test>
+</fiches>

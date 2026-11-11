@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_IHM_FCT3_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT3
+      <requirements>SSS_FCT3_REQ_034, SSS_FCT3_REQ_063, SSS_FCT3_REQ_064, SSS_FCT3_REQ_068, SSS_FCT3_REQ_071, SSS_FCT3_REQ_072</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 001 de FCT3
+      <requirements>SSS_FCT3_REQ_078, SSS_FCT3_REQ_090, SSS_FCT3_REQ_096, SSS_FCT3_REQ_100, SSS_FCT3_REQ_064</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT3_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT3
+      <requirements>SSS_FCT3_REQ_117, SSS_FCT3_REQ_120</requirements>
+    </test_case>
+  </test>
+</fiches>

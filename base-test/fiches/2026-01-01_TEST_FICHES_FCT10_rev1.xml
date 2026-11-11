@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_SECU_FCT10_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT10
+      <requirements>SSS_FCT10_REQ_124, SSS_FCT10_REQ_022, SSS_FCT10_REQ_011, SSS_FCT10_REQ_016, SSS_FCT10_REQ_085, SSS_FCT10_REQ_055, SSS_FCT10_REQ_066, SSS_FCT10_REQ_138, SSS_FCT10_REQ_075</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 001 de FCT10
+      <requirements>SSS_FCT10_REQ_083, SSS_FCT10_REQ_085, SSS_FCT10_REQ_087, SSS_FCT10_REQ_124, SSS_FCT10_REQ_138, SSS_FCT10_REQ_152</requirements>
+    </test_case>
+  </test>
+</fiches>

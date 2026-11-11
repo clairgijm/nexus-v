@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_PERF_FCT7_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT7
+      <requirements>SSS_FCT7_REQ_001, SSS_FCT7_REQ_003, SSS_FCT7_REQ_008, SSS_FCT7_REQ_009, SSS_FCT7_REQ_016, SSS_FCT7_REQ_018, SSS_FCT7_REQ_055, SSS_FCT7_REQ_023, SSS_FCT7_REQ_029</requirements>
+    </test_case>
+  </test>
+  <test>SYS_IHM_FCT7_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT7
+      <requirements>SSS_FCT7_REQ_035, SSS_FCT7_REQ_077, SSS_FCT7_REQ_040, SSS_FCT7_REQ_046, SSS_FCT7_REQ_045, SSS_FCT7_REQ_049, SSS_FCT7_REQ_001</requirements>
+    </test_case>
+  </test>
+  <test>SYS_SECU_FCT7_003
+    <test_case>TEST CASE #1 : fiche 003 de FCT7
+      <requirements>SSS_FCT7_REQ_055, SSS_FCT7_REQ_068, SSS_FCT7_REQ_023, SSS_FCT7_REQ_074, SSS_FCT7_REQ_077, SSS_FCT7_REQ_088</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 003 de FCT7
+      <requirements>SSS_FCT7_REQ_101, SSS_FCT7_REQ_107, SSS_FCT7_REQ_113, SSS_FCT7_REQ_129, SSS_FCT7_REQ_130, SSS_FCT7_REQ_018, SSS_FCT7_REQ_040, SSS_FCT7_REQ_138, SSS_FCT7_REQ_145</requirements>
+    </test_case>
+  </test>
+</fiches>

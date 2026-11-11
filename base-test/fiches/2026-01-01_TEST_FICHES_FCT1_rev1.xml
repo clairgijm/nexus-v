@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_PERF_FCT1_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT1
+      <requirements>SSS_FCT1_REQ_008, SSS_FCT1_REQ_009, SSS_FCT1_REQ_049, SSS_FCT1_REQ_109, SSS_FCT1_REQ_031, SSS_FCT1_REQ_010, SSS_FCT1_REQ_017, SSS_FCT1_REQ_041</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 001 de FCT1
+      <requirements>SSS_FCT1_REQ_044, SSS_FCT1_REQ_049, SSS_FCT1_REQ_062, SSS_FCT1_REQ_056, SSS_FCT1_REQ_057, SSS_FCT1_REQ_061</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT1_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT1
+      <requirements>SSS_FCT1_REQ_062, SSS_FCT1_REQ_073, SSS_FCT1_REQ_074, SSS_FCT1_REQ_075, SSS_FCT1_REQ_076, SSS_FCT1_REQ_079, SSS_FCT1_REQ_082, SSS_FCT1_REQ_041, SSS_FCT1_REQ_083</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT1_003
+    <test_case>TEST CASE #1 : fiche 003 de FCT1
+      <requirements>SSS_FCT1_REQ_088, SSS_FCT1_REQ_008, SSS_FCT1_REQ_092, SSS_FCT1_REQ_100, SSS_FCT1_REQ_109, SSS_FCT1_REQ_112, SSS_FCT1_REQ_113, SSS_FCT1_REQ_116, SSS_FCT1_REQ_117</requirements>
+    </test_case>
+  </test>
+  <test>SYS_IHM_FCT1_004
+    <test_case>TEST CASE #1 : fiche 004 de FCT1
+      <requirements>SSS_FCT1_REQ_119</requirements>
+    </test_case>
+  </test>
+</fiches>

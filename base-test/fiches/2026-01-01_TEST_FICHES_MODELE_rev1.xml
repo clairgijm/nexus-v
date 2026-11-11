@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fiches d'essai – modèle NEXUS-V (format XML actuel). Ce fichier peut être chargé tel quel.
+
+  Nom du fichier : libre, par exemple <AAAA-MM-JJ>_TEST_FICHES_<TOME>_rev<n>.xml. Au chargement, le
+    fichier est rattaché à un tome, ou à aucun (il vaut alors pour tous les tomes).
+  Balises (configurables, Configuration > Fiches d'essai) :
+    <test>          un test ; son texte est le nom du test, SYS_<TYPE>_<TOME>_<n°>, comparé en entier
+                    au nom du test demandé par le STDHL ;
+    <test_case>     un test case du test ; son texte est le titre du test case ;
+    <requirements>  les exigences vérifiées par le test case, séparées par une virgule (une ou
+                    plusieurs balises par test case).
+  Numéros : SSS_<TOME>_REQ_<n°> ou HQ1/2_WF_<n°> (requirement_regex). Un test case sans exigence
+  n'est pas lu. La racine et les autres balises sont libres.
+  Exemple : les deux tests du STDHL MODELE, avec les mêmes exigences. -->
+<fiches>
+  <test>SYS_PERF_MODELE_001
+    <test_case>TEST CASE #1 : performances, partie 1
+      <requirements>SSS_MODELE_REQ_001</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : performances, partie 2
+      <requirements>SSS_MODELE_REQ_003</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_MODELE_002
+    <test_case>TEST CASE #1 : communications, partie 1
+      <requirements>SSS_MODELE_REQ_004, SSS_MODELE_REQ_006</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : communications, partie 2
+      <requirements>SSS_MODELE_REQ_007, HQ1/2_WF_001</requirements>
+    </test_case>
+  </test>
+</fiches>

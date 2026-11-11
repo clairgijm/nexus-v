@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_PERF_FCT5_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT5
+      <requirements>SSS_FCT5_REQ_003, SSS_FCT5_REQ_013, SSS_FCT5_REQ_019, SSS_FCT5_REQ_021, SSS_FCT5_REQ_031, SSS_FCT5_REQ_045, SSS_FCT5_REQ_134, SSS_FCT5_REQ_046, SSS_FCT5_REQ_124</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT5_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT5
+      <requirements>SSS_FCT5_REQ_048, SSS_FCT5_REQ_050, SSS_FCT5_REQ_053, SSS_FCT5_REQ_057, SSS_FCT5_REQ_178, SSS_FCT5_REQ_058, SSS_FCT5_REQ_161, SSS_FCT5_REQ_073, SSS_FCT5_REQ_074, SSS_FCT5_REQ_092, SSS_FCT5_REQ_093, SSS_FCT5_REQ_103</requirements>
+    </test_case>
+  </test>
+  <test>SYS_IHM_FCT5_003
+    <test_case>TEST CASE #1 : fiche 003 de FCT5
+      <requirements>SSS_FCT5_REQ_104, SSS_FCT5_REQ_112, SSS_FCT5_REQ_157, SSS_FCT5_REQ_114, SSS_FCT5_REQ_119, SSS_FCT5_REQ_124, SSS_FCT5_REQ_127, SSS_FCT5_REQ_046, SSS_FCT5_REQ_092</requirements>
+    </test_case>
+  </test>
+  <test>SYS_SECU_FCT5_004
+    <test_case>TEST CASE #1 : fiche 004 de FCT5
+      <requirements>SSS_FCT5_REQ_131, SSS_FCT5_REQ_134, SSS_FCT5_REQ_135, SSS_FCT5_REQ_139, SSS_FCT5_REQ_140, SSS_FCT5_REQ_141, SSS_FCT5_REQ_146, SSS_FCT5_REQ_112, SSS_FCT5_REQ_114</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 004 de FCT5
+      <requirements>SSS_FCT5_REQ_135, SSS_FCT5_REQ_149, SSS_FCT5_REQ_152, SSS_FCT5_REQ_156, SSS_FCT5_REQ_157, SSS_FCT5_REQ_050, SSS_FCT5_REQ_161, SSS_FCT5_REQ_164, SSS_FCT5_REQ_167</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT5_005
+    <test_case>TEST CASE #1 : fiche 005 de FCT5
+      <requirements>SSS_FCT5_REQ_173, SSS_FCT5_REQ_178</requirements>
+    </test_case>
+  </test>
+</fiches>

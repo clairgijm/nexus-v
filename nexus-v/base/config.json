@@ -1,0 +1,75 @@
+{
+  "general": {
+    "release": "A",
+    "slogan": "Le fil d’Ariane de la traçabilité, de la spécification à la fiche d'essai",
+    "server_port": 8000,
+    "open_browser": true,
+    "chart_max_parts": 6,
+    "chart_max_parts_platforms": 20,
+    "storage_dir": "fichiers-references"
+  },
+  "requirements": {
+    "folder": "exigences",
+    "requirement_regex": "\\b(?:SSS_(?:T\\d+_)?[A-Za-z0-9_-]+?_REQ_\\d+|HQ1/2_WF_\\d+(?:_REQ_\\d+)?)\\b",
+    "requirements_tome_regex": "(?i)^\\d{4}-\\d{2}-\\d{2}[-_](.+?)(?:[-_]|\\.xls)",
+    "release_separator_regex": ",",
+    "stdhl_separator_regex": "[,;/\\n]+",
+    "headers_requirements": {
+      "ID": "id",
+      "Titre": "title",
+      "Release": "releases",
+      "STDHL": "stdhl"
+    }
+  },
+  "plan": {
+    "folder": "plans",
+    "plan_tome_regex": "(?i)_PA_(.+?)_",
+    "code_separator_regex": "[,;+\\s]+",
+    "delegation_separator_regex": "[,;/+\\n]+",
+    "iadt_moc_rules": {
+      "D": [
+        "MOC4"
+      ],
+      "T": [
+        "MOC4"
+      ],
+      "I": [
+        "MOC7"
+      ],
+      "A": [
+        "MOC2",
+        "MOC3"
+      ],
+      "N/A": [
+        "N/A"
+      ]
+    },
+    "headers_plan": {
+      "Exigence": "exigence",
+      "Méthode": "ignore",
+      "IADT": "iadt",
+      "MOC": "moc",
+      "Délégation": "delegation"
+    }
+  },
+  "stdhl": {
+    "folder": "stdhl",
+    "use_requirement_stdhl": false,
+    "fiche_regex": "^\\s*(?:[\\d.]+\\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\\d+)(?![A-Za-z0-9_])",
+    "stdhl_name_regex": "(?i)STDHL_(.+?)_rev",
+    "headers_stdhl": {
+      "Description du test": "check",
+      "Résultat attendu": "check",
+      "Exigences associées": "requirements"
+    }
+  },
+  "fiches": {
+    "folder": "fiches",
+    "test_tag": "test",
+    "test_case_tag": "test_case",
+    "requirement_tag": "requirements"
+  },
+  "traceability": {
+    "folder": "tracabilite"
+  }
+}

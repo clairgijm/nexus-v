@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fiches d'essai – modèle NEXUS-V (format XML TestSuite, exporté par l'outil de campagne).
+
+  Format en préparation : ce format n'est pas encore lu par NEXUS-V ; ce modèle fixe ce qui sera lu.
+  Structure : Project / Tcr / Campaign / TestSuites / TestSuite / TestCases / TestCase / TestSteps /
+    TestStep. La partie Configuration du Project n'est pas lue.
+  TestSuite : un test ; son attribut name (et sa propriété Title) est le nom du test,
+    SYS_<TYPE>_<TOME>_<n°>, comparé en entier au nom du test demandé par le STDHL.
+  TestCase : un test case ; sa propriété Title est son titre.
+  Exigences : la propriété VerifiedRequirements, au niveau du TestSuite, du TestCase ou du TestStep ;
+    plusieurs numéros séparés par une virgule. Les exigences d'un TestStep appartiennent à son TestCase.
+  Campaign : l'attribut name porte la release (« Roadmap A »).
+  Exemple : les deux tests du STDHL MODELE, exigences portées par les TestStep. -->
+<Project name="MODELE" path="">
+  <Configuration/>
+  <Tcr>
+    <Campaign name="Roadmap A">
+      <TestSuites>
+        <TestSuite name="SYS_PERF_MODELE_001">
+          <Properties><Property name="Title">SYS_PERF_MODELE_001</Property><Property name="DefinitionVersion">1</Property><Property name="RunDate">2026-01-01</Property><Property name="ManualOrAuto">MANUAL</Property><Property name="Method">T</Property><Property name="VerifiedRequirements"/></Properties>
+          <TestCases>
+            <TestCase uid="1">
+              <Properties><Property name="Title">performances, partie 1</Property><Property name="RunDate">2026-01-01</Property><Property name="RunningStatus">RUN</Property><Property name="VerifiedRequirements"/></Properties>
+              <TestSteps>
+                <TestStep uid="2"><Properties><Property name="Description">Préparer le banc de test</Property><Property name="VerifiedRequirements"/><Property name="StepType">CONTEXT</Property></Properties></TestStep>
+                <TestStep uid="3"><Properties><Property name="Description">Vérifier : le système horodate chaque événement</Property><Property name="VerifiedRequirements">SSS_MODELE_REQ_001</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+              </TestSteps>
+            </TestCase>
+            <TestCase uid="4">
+              <Properties><Property name="Title">performances, partie 2</Property><Property name="RunDate">2026-01-01</Property><Property name="RunningStatus">RUN</Property><Property name="VerifiedRequirements"/></Properties>
+              <TestSteps>
+                <TestStep uid="5"><Properties><Property name="Description">Préparer le banc de test</Property><Property name="VerifiedRequirements"/><Property name="StepType">CONTEXT</Property></Properties></TestStep>
+                <TestStep uid="6"><Properties><Property name="Description">Vérifier : le temps de réponse est inférieur à 2 s</Property><Property name="VerifiedRequirements">SSS_MODELE_REQ_003</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+              </TestSteps>
+            </TestCase>
+          </TestCases>
+        </TestSuite>
+        <TestSuite name="SYS_COM_MODELE_002">
+          <Properties><Property name="Title">SYS_COM_MODELE_002</Property><Property name="DefinitionVersion">1</Property><Property name="RunDate">2026-01-01</Property><Property name="ManualOrAuto">MANUAL</Property><Property name="Method">T</Property><Property name="VerifiedRequirements"/></Properties>
+          <TestCases>
+            <TestCase uid="7">
+              <Properties><Property name="Title">communications, partie 1</Property><Property name="RunDate">2026-01-01</Property><Property name="RunningStatus">RUN</Property><Property name="VerifiedRequirements"/></Properties>
+              <TestSteps>
+                <TestStep uid="8"><Properties><Property name="Description">Préparer le banc de test</Property><Property name="VerifiedRequirements"/><Property name="StepType">CONTEXT</Property></Properties></TestStep>
+                <TestStep uid="9"><Properties><Property name="Description">Vérifier : l'ihm affiche l'état des équipements</Property><Property name="VerifiedRequirements">SSS_MODELE_REQ_004</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+                <TestStep uid="10"><Properties><Property name="Description">Vérifier : les messages sont acquittés par l'opérateur</Property><Property name="VerifiedRequirements">SSS_MODELE_REQ_006</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+              </TestSteps>
+            </TestCase>
+            <TestCase uid="11">
+              <Properties><Property name="Title">communications, partie 2</Property><Property name="RunDate">2026-01-01</Property><Property name="RunningStatus">RUN</Property><Property name="VerifiedRequirements"/></Properties>
+              <TestSteps>
+                <TestStep uid="12"><Properties><Property name="Description">Préparer le banc de test</Property><Property name="VerifiedRequirements"/><Property name="StepType">CONTEXT</Property></Properties></TestStep>
+                <TestStep uid="13"><Properties><Property name="Description">Vérifier : la liaison est rétablie après coupure</Property><Property name="VerifiedRequirements">SSS_MODELE_REQ_007</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+                <TestStep uid="14"><Properties><Property name="Description">Vérifier : le flux de travail est journalisé</Property><Property name="VerifiedRequirements">HQ1/2_WF_001</Property><Property name="StepType">ACTION</Property></Properties></TestStep>
+              </TestSteps>
+            </TestCase>
+          </TestCases>
+        </TestSuite>
+      </TestSuites>
+    </Campaign>
+  </Tcr>
+</Project>

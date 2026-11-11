@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fiches>
+  <test>SYS_COM_FCT9_001
+    <test_case>TEST CASE #1 : fiche 001 de FCT9
+      <requirements>SSS_FCT9_REQ_006, SSS_FCT9_REQ_012, SSS_FCT9_REQ_013, SSS_FCT9_REQ_016, SSS_FCT9_REQ_019, SSS_FCT9_REQ_021, SSS_FCT9_REQ_024</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT9_002
+    <test_case>TEST CASE #1 : fiche 002 de FCT9
+      <requirements>SSS_FCT9_REQ_025, SSS_FCT9_REQ_145, SSS_FCT9_REQ_027, SSS_FCT9_REQ_021, SSS_FCT9_REQ_032, SSS_FCT9_REQ_033, SSS_FCT9_REQ_034</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT9_003
+    <test_case>TEST CASE #1 : fiche 003 de FCT9
+      <requirements>SSS_FCT9_REQ_034, SSS_FCT9_REQ_038, SSS_FCT9_REQ_128, SSS_FCT9_REQ_051, SSS_FCT9_REQ_071, SSS_FCT9_REQ_075, SSS_FCT9_REQ_079, SSS_FCT9_REQ_083, SSS_FCT9_REQ_089, SSS_FCT9_REQ_091, SSS_FCT9_REQ_093, SSS_FCT9_REQ_097</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 003 de FCT9
+      <requirements>SSS_FCT9_REQ_100, SSS_FCT9_REQ_025, SSS_FCT9_REQ_121, SSS_FCT9_REQ_123, SSS_FCT9_REQ_141, SSS_FCT9_REQ_079, SSS_FCT9_REQ_125, SSS_FCT9_REQ_127</requirements>
+    </test_case>
+  </test>
+  <test>SYS_COM_FCT9_004
+    <test_case>TEST CASE #1 : fiche 004 de FCT9
+      <requirements>SSS_FCT9_REQ_128, SSS_FCT9_REQ_129, SSS_FCT9_REQ_134, SSS_FCT9_REQ_135, SSS_FCT9_REQ_012, SSS_FCT9_REQ_138, SSS_FCT9_REQ_141, SSS_FCT9_REQ_170</requirements>
+    </test_case>
+    <test_case>TEST CASE #2 : fiche 004 de FCT9
+      <requirements>SSS_FCT9_REQ_144, SSS_FCT9_REQ_145, SSS_FCT9_REQ_100, SSS_FCT9_REQ_152, SSS_FCT9_REQ_157, SSS_FCT9_REQ_123</requirements>
+    </test_case>
+  </test>
+  <test>SYS_PERF_FCT9_005
+    <test_case>TEST CASE #1 : fiche 005 de FCT9
+      <requirements>SSS_FCT9_REQ_160, SSS_FCT9_REQ_013, SSS_FCT9_REQ_161, SSS_FCT9_REQ_162, SSS_FCT9_REQ_164, SSS_FCT9_REQ_168, SSS_FCT9_REQ_170</requirements>
+    </test_case>
+  </test>
+</fiches>
