@@ -80,7 +80,7 @@ DEFAULT_CONFIG = {
     "fiche_regex": r"^\s*(?:[\d.]+\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\d+)(?![A-Za-z0-9_])",
     "stdhl_name_regex": r"(?i)STDHL_(.+?)_rev",
     # Folder of the imported files (relative to the folder of NEXUS-V) and its sub-folder for each type of file.
-    "storage_dir": "fichiers-references",
+    "storage_dir": ".",
     "requirements_folder": "exigences",
     "plan_folder": "plans",
     "stdhl_folder": "stdhl",
@@ -172,7 +172,8 @@ METHOD_PLATFORM = re.compile(r"^\s*V\s*&\s*V\s*\[\s*([^\]]*?)\s*\]", re.I)
 
 
 def storage_path(config, base):
-    """Folder of the imported files: general.storage_dir, relative to `base` (folder of NEXUS-V) unless absolute."""
+    """Folder of the imported files: general.storage_dir, relative to `base` (the folder that holds the folder base,
+    fichiers-references for NEXUS-V; « . » is that folder itself) unless absolute."""
     folder = Path(config.get("storage_dir"))
     return (folder if folder.is_absolute() else Path(base) / folder).resolve()
 

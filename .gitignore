@@ -9,5 +9,9 @@ __pycache__/
 
 # Données locales, hors du dépôt
 sauvegardes/
-nexus-v/base/nexus-v.db*
-nexus-v/fichiers-references/
+# Fichiers importés et base réelle exclus ; seuls config.json et le schéma de la base sont suivis.
+nexus-v/fichiers-references/*
+!nexus-v/fichiers-references/base/
+nexus-v/fichiers-references/base/*
+!nexus-v/fichiers-references/base/config.json
+!nexus-v/fichiers-references/base/nexus-v-schema.sql

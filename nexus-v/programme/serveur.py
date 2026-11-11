@@ -1,12 +1,12 @@
 """NEXUS-V — local server of the page.
 
 Serves the page and its JSON API. Started by nexus-v.py, at the root of NEXUS-V; this module is in the sub-folder
-programme. The files of NEXUS-V itself are in the folder base, at the root; its name is fixed:
+programme. The files of NEXUS-V itself are in the folder fichiers-references/base, at the root; its name is fixed:
   config.json         the configuration (see configuration.py);
   nexus-v-schema.sql  the definition of the tables and the version of the base;
   nexus-v.db          the SQLite base: files loaded, requirements, content of the documents and referentials.
-Each imported file is kept in the folder of imported files, general.storage_dir of config.json (fichiers-references
-by default), in one sub-folder per type, named « <n°>_<name of the file> ». That folder can be changed in the page.
+Each imported file is kept in the folder of imported files, general.storage_dir of config.json (by default « . »:
+the folder that holds base, that is fichiers-references), in one sub-folder per type, named « <n°>_<name of the file> ». That folder can be changed in the page.
 The help of the command line (HELP, in French) gives the usage.
 """
 import argparse

@@ -34,8 +34,8 @@ Exigences (Excel) -> Plan d'acceptation (Word) -> STDHL (Word) -> Fiches d'Essai
 
 Deux usages :
 
-  1. Sans fichier : vérifie la base de NEXUS-V, comme la page Vérification. La base est celle du dossier base de
-     NEXUS-V, ou --base. La base n'est pas modifiée : le travail se fait sur une copie, le serveur peut tourner.
+  1. Sans fichier : vérifie la base de NEXUS-V, comme la page Vérification. La base est celle du dossier
+     fichiers-references/base de NEXUS-V, ou --base. La base n'est pas modifiée : le travail se fait sur une copie, le serveur peut tourner.
 
   2. Avec des fichiers : les vérifie entre eux, sans toucher à la base dont seuls les référentiels et réglages sont
      repris. Toutes les exigences forment un seul tome, et chaque fichier s'applique à la release de la base et à
@@ -51,7 +51,7 @@ Exemples :
 """
 
 ROOT = Path(__file__).resolve().parent
-BASE_DIR = ROOT.parent / BASE_FOLDER   # base/ at the root of NEXUS-V, beside programme/
+BASE_DIR = ROOT.parent / BASE_FOLDER   # fichiers-references/base/ at the root of NEXUS-V
 TOME = "exigences"   # single tome of the files given on the command line
 SETTINGS = ("release", "platforms", "iadt", "mocs", "default_delegation")   # referentials taken over from the storage folder
 
@@ -77,7 +77,7 @@ class Workspace:
 
 
 def storage_folder(given):
-    """Folder of the files of NEXUS-V: --base, otherwise the folder base next to this script."""
+    """Folder of the files of NEXUS-V: --base, otherwise fichiers-references/base of NEXUS-V."""
     return given or BASE_DIR
 
 

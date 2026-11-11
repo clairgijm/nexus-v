@@ -24,8 +24,9 @@ import sqlite3
 import threading
 from pathlib import Path
 
-# Files of NEXUS-V itself, in a folder of fixed name next to the code: settings, definition of the tables, database.
-BASE_FOLDER = "base"
+# Files of NEXUS-V itself, in a folder of fixed name, relative to the folder of NEXUS-V: settings, definition of the
+# tables, database. It sits in the folder of the imported files, beside their sub-folders.
+BASE_FOLDER = "fichiers-references/base"
 CONFIG_NAME = "config.json"
 SCHEMA_NAME = "nexus-v-schema.sql"
 DATABASE_NAME = "nexus-v.db"
