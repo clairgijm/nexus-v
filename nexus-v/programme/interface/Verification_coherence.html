@@ -121,6 +121,13 @@
   .drop.loaded .name { color: var(--ok); }
   .drop.error .name { color: var(--ko); }
   .drop input { display: none; }
+  /* Card whose files can be checked before import: the check button takes its left edge. */
+  .drop.has-check { padding-left: 46px; }
+  .drop-check { position: absolute; left: 0; top: 0; bottom: 0; width: 32px; margin: 0; padding: 0; border: none;
+    border-right: 1px solid var(--border); border-radius: 8px 0 0 8px; background: var(--ok-bg); color: var(--ok);
+    cursor: pointer; display: grid; place-items: center; }
+  .drop-check:hover, .drop-check:focus-visible { filter: brightness(.94); color: var(--accent); }
+  .drop-check svg { width: 16px; height: 16px; }
   /* Arrow between two boxes: drawn, so that it is exactly centred (a font character is not). */
   .drop:not(:last-child)::after { content: ""; position: absolute; right: -13px; top: 50%; width: 12px; height: 10px;
           transform: translateY(-50%); background: var(--muted);
@@ -417,15 +424,15 @@
     <section>
       <h2>1. Fichiers</h2>
       <div class="chain">
-        <div class="drop" data-slot="requirements"><span class="step">Entrée · Excel</span><span class="kind">Exigences</span>
+        <div class="drop has-check" data-slot="requirements" data-check="requirements"><span class="step">Excel</span><span class="kind">Exigences</span>
           <span class="name"></span><input type="file" accept=".xlsx,.xlsm,.xls"></div>
-        <div class="drop" data-slot="plan"><span class="step">Étape 1 · Word</span><span class="kind">Plan d'acceptation</span>
+        <div class="drop has-check" data-slot="plan" data-check="plans"><span class="step">Word</span><span class="kind">Plan d'acceptation</span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop" data-slot="stdhl"><span class="step">Étape 2 · Word</span><span class="kind">STDHL</span>
+        <div class="drop" data-slot="stdhl"><span class="step">Word</span><span class="kind">STDHL</span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop" data-slot="xml"><span class="step">Sortie · XML</span><span class="kind">Fiches d'Essai</span>
+        <div class="drop" data-slot="xml"><span class="step">XML</span><span class="kind">Fiches d'Essai</span>
           <span class="name"></span><input type="file" accept=".xml" multiple></div>
-        <div class="drop" data-slot="traceability"><span class="step">Sortie · Excel</span>
+        <div class="drop" data-slot="traceability"><span class="step">Excel</span>
           <span class="kind">Traçabilité des autres plateformes</span>
           <span class="name"></span><input type="file" accept=".xlsx,.xlsm" multiple></div>
       </div>
@@ -851,6 +858,17 @@
   </div>
 </dialog>
 
+<dialog id="check-dialog" aria-labelledby="check-title">
+  <h2 id="check-title"></h2>
+  <p id="check-summary"></p>
+  <input type="file" id="check-input" multiple hidden>
+  <div class="toolbar dialog-actions">
+    <button class="primary" id="check-open">Ouvrir le rapport</button>
+    <button id="check-save">Enregistrer le rapport</button>
+    <button id="check-close">Fermer</button>
+  </div>
+</dialog>
+
 <dialog id="plan-check-dialog" aria-labelledby="plan-check-title">
   <h2 id="plan-check-title">Contrôle des Plans d'acceptation</h2>
   <div id="plan-check-body"></div>
@@ -1189,6 +1207,76 @@ document.addEventListener("click", e => {
   if (target) showPart(target.dataset.part);
 });
 $("#part-close").addEventListener("click", () => $("#part-dialog").close());
+
+// Check of files before their import, from the button on the left of a tile: the files of that stage are sent to
+// the server, which reads them without storing anything and answers with an HTML report, opened or saved here.
+const CHECKS = { requirements: { accept: ".xlsx,.xlsm", what: "d'exigences" }, plans: { accept: ".docx", what: "de plan" } };
+let checkReport = null;   // last answer of the server: {summary, file_name, html}
+
+// The check button, on the left edge of the cards of the stages that have one (data-check).
+function checkButton(step) {
+  return `<button class="drop-check" data-check="${step}" title="Vérifier des fichiers ${CHECKS[step].what} avant import"
+    aria-label="Vérifier des fichiers ${CHECKS[step].what} avant import"><svg viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></button>`;
+}
+
+for (const card of document.querySelectorAll(".drop[data-check]")) {
+  card.insertAdjacentHTML("afterbegin", checkButton(card.dataset.check));
+  // On the button itself: the card under it imports on a click, the check only reads.
+  card.querySelector(".drop-check").addEventListener("click", e => {
+    e.stopPropagation();
+    const $checkInput = $("#check-input");
+    $checkInput.accept = CHECKS[card.dataset.check].accept;
+    $checkInput.dataset.check = card.dataset.check;
+    $checkInput.value = "";
+    $checkInput.click();
+  });
+}
+
+// Files chosen: checked at once (requirements for both imports, replacement and complement).
+$("#check-input").addEventListener("change", e => {
+  const files = [...e.target.files];
+  const step = e.target.dataset.check;
+  if (!files.length) return;
+  $("#check-title").textContent = `Vérification avant import — fichiers ${CHECKS[step].what}`;
+  $("#check-dialog").showModal();
+  runCheck(step, files);
+});
+
+async function runCheck(step, files) {
+  const $checkSummary = $("#check-summary");
+  const $checkOpen = $("#check-open");
+  const $checkSave = $("#check-save");
+  $checkSummary.textContent = `Vérification de ${plural(files.length, "fichier")}…`;
+  $checkSummary.className = "hint";
+  $checkOpen.disabled = $checkSave.disabled = true;
+  checkReport = null;
+  // Body: the list of the files (name, size) in JSON, then their bytes in the same order.
+  const manifest = new TextEncoder().encode(JSON.stringify(files.map(f => ({ name: f.name, size: f.size }))));
+  try {
+    const response = await request(`api/check/${step}?manifest_size=${manifest.length}`,
+                                   { method: "POST", body: new Blob([manifest, ...files]) });
+    checkReport = await response.json();
+    $checkSummary.textContent = checkReport.summary.text;
+    $checkSummary.className = "";
+    $checkOpen.disabled = $checkSave.disabled = false;
+  } catch (err) {
+    $checkSummary.textContent = err.message;
+    $checkSummary.className = "cfg-status ko";
+  }
+}
+
+const reportUrl = () => URL.createObjectURL(new Blob([checkReport.html], { type: "text/html;charset=utf-8" }));
+$("#check-open").addEventListener("click", () => { if (checkReport) window.open(reportUrl(), "_blank"); });
+$("#check-save").addEventListener("click", () => {
+  if (!checkReport) return;
+  const link = document.createElement("a");
+  link.href = reportUrl();
+  link.download = checkReport.file_name;
+  link.click();
+});
+$("#check-close").addEventListener("click", () => $("#check-dialog").close());
 
 // The server writes the complete Excel report; the browser saves it.
 function exportReport() {

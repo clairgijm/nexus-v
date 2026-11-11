@@ -26,6 +26,7 @@ from nexus_db import random_platform_color
 try:
     from configuration import FOLDER_VARIABLES, Configuration, storage_path
     from fiches_db import FichesDatabase
+    from file_check import FileCheck
     from file_database import FileDatabase
     from nexus_db import BASE_FOLDER, CONFIG_NAME, DATABASE_NAME, NexusDatabase
     from plans_db import PlansDatabase
@@ -68,6 +69,7 @@ stdhl = None           # StdhlDatabase of the storage directory
 fiches = None          # FichesDatabase of the storage directory
 traceability = None    # TraceabilityDatabase of the storage directory
 verification = None    # Verification of the storage directory
+file_check = None      # FileCheck: files checked before their import
 sql = None             # NexusDatabase of the storage directory (file nexus-v.db)
 
 
@@ -81,6 +83,7 @@ def open_storage(base):
     # The objects below are module globals shared by every request thread; they are all rebuilt here, also when the
     # storage folder changes.
     global base_dir, files_dir, database, configuration, requirements, plans, stdhl, fiches, traceability, verification, sql
+    global file_check
     base_dir = Path(base).resolve()
     # A previous base (storage folder changed) is closed before the new one is opened.
     if sql is not None:
@@ -97,6 +100,7 @@ def open_storage(base):
     fiches = FichesDatabase(sql)
     traceability = TraceabilityDatabase(sql)
     verification = Verification(configuration, requirements, plans, stdhl, fiches, traceability)
+    file_check = FileCheck(configuration, requirements, plans, stdhl, fiches, traceability, sql)
     # Documents whose content is missing from the base (new base, migration, tables emptied) are read again from their
     # stored copy: the base can always be rebuilt from the files.
     for base in (plans, stdhl, fiches, traceability):
@@ -409,6 +413,29 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json(result)
+        if m := re.fullmatch(r"/api/check/(requirements|plans)", url.path):
+            # Files of one stage checked before their import, nothing stored: the body is the JSON list of the files
+            # [{name, size}] (manifest_size bytes), then the bytes of each file in that order. The answer carries the
+            # HTML report written by FileCheck.
+            if not configuration.get("release"):
+                return self.send_text_error(HTTPStatus.BAD_REQUEST, "définir d'abord la release dans la configuration "
+                                                                    "(Paramètres généraux)")
+            query = {k: v[0] for k, v in parse_qs(url.query).items()}
+            try:
+                body = self.read_body()
+                size = int(query.get("manifest_size") or 0)
+                manifest = json.loads(body[:size] or b"[]")
+                files, at = [], size
+                for f in manifest:
+                    files.append((str(f["name"]), body[at:at + int(f["size"])]))
+                    at += int(f["size"])
+                if not files:
+                    raise ValueError("aucun fichier à vérifier")
+                if m[1] == "requirements":   # checked for both imports: replacement and complement
+                    return self.send_json(file_check.check_requirements(files))
+                return self.send_json(file_check.check_plans(files))
+            except (ValueError, KeyError, TypeError) as e:   # also covers invalid JSON
+                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
         if url.path == "/api/storage/choose":
             try:
                 return self.send_json({"path": choose_directory(str(files_dir))})
