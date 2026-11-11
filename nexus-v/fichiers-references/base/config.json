@@ -61,7 +61,12 @@
       "Description du test": "check",
       "Résultat attendu": "check",
       "Exigences associées": "requirements"
-    }
+    },
+    "stdhl2_test_regex": "^\\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\\d+)\\s*:",
+    "stdhl2_requirements_label": "Exigences associées",
+    "stdhl2_release_label": "Applicabilité",
+    "stdhl2_release_regex": "(?i)release\\s+(\\S+)",
+    "stdhl2_test_case_regex": "(?i)^\\s*TEST CASE\\s*#\\s*\\d+"
   },
   "fiches": {
     "folder": "fiches",

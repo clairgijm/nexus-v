@@ -84,7 +84,7 @@ class TraceabilityDatabase:
         # Stored like a fiche: one test without name and without test case, the requirements of its tome (all of them
         # without tome).
         tome_id = db.execute("SELECT tome_id FROM files WHERE id = ?", (file_id,)).fetchone()[0]
-        FichesDatabase.store_tests(db, file_id, [("", "", list(dict.fromkeys(ids)))], tome_id)
+        FichesDatabase.store_tests(db, file_id, [("", "", list(dict.fromkeys(ids)))], tome_id, by_case=False)
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None, platform=""):
         """Load a fiches file of another platform (Excel): attached to a tome that has requirements or to none ("":

@@ -1,0 +1,25 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>STDHL « unique » de complément et de remplacement</title><style>
+body { font-family: "Segoe UI", system-ui, sans-serif; color: #1c2330; background: #ffffff; margin: 24px auto;
+  max-width: 1100px; padding: 0 16px; font-size: 14px; line-height: 1.5; }
+h1 { font-size: 1.6rem; margin: 0 0 12px; color: #0569a3; padding-bottom: 6px; border-bottom: 3px solid #10aed6; }
+h2 { font-size: 1.15rem; margin: 28px 0 8px; padding: 7px 12px; color: #0569a3; background: #e8f4fb;
+  border-left: 5px solid #0569a3; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 14px; }
+th, td { border: 1px solid #d8dce3; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #eef0f4; font-weight: 600; }
+code { font-family: Consolas, monospace; font-size: .92em; background: #eef0f4; padding: 1px 4px; border-radius: 3px; }
+p.file { margin: 18px 0 4px; }
+@media print { body { margin: 0; max-width: none; } tr { break-inside: avoid; } }
+</style></head><body>
+<h1>STDHL « unique » de complément et de remplacement</h1>
+<p>Prérequis : les exigences, les plans et les STDHL de test fct1 à fct10 sont chargés dans la base. Chaque document couvre les 10 tomes, au format unique.</p>
+<ul><li><code>complement/</code> : 5 % des exigences demandées pour un autre test du même tome, et 2 exigences nouvelles par tome (<code>SSS_FCTk_REQ_500</code>, <code>501</code>, celles des fichiers d&#x27;exigences de complément) sous un test <code>SYS_NOUVEAU_FCTk_001</code>. Dans le rapport, regarder la partie « Si le fichier modifie la base ».</li><li><code>remplacement/</code> : tout le contenu, moins 5 % d&#x27;exigences retirées, 5 % demandées pour un autre test, et 2 exigences nouvelles par tome (<code>SSS_FCTk_REQ_600</code>, <code>601</code>). Dans le rapport, regarder la partie « Si le fichier écrase la base ».</li></ul>
+<p>Tant que les exigences nouvelles ne sont pas importées, elles sont « exigences inconnues de la base » (À régler). Les exigences retirées « perdent leur STDHL avec l&#x27;import » si le fichier écrase la base.</p>
+<p>Régénérer : <code>python ../../base-test/generateurs/make_verification_stdhl_unique.py ../../base-test</code> depuis <code>nexus-v/programme</code>.</p>
+<table><thead><tr><th>Fichier</th><th>Mode</th><th>Retirées</th><th>Nouvelles</th><th>Test modifié</th></tr></thead><tbody><tr><td>2026-03-15_STDHL_UNIQUE-complement_rev1.docx</td><td>complément</td><td>—</td><td>20</td><td>13</td></tr><tr><td>2026-03-15_STDHL_UNIQUE_rev2.docx</td><td>remplacement</td><td>13</td><td>20</td><td>13</td></tr></tbody></table>
+<h2>Numéros par fichier</h2>
+<p class="file"><b>2026-03-15_STDHL_UNIQUE-complement_rev1.docx</b> (complément)</p>
+<ul><li>nouvelles : SSS_FCT1_REQ_500, SSS_FCT1_REQ_501, SSS_FCT2_REQ_500, SSS_FCT2_REQ_501, SSS_FCT3_REQ_500, SSS_FCT3_REQ_501, SSS_FCT4_REQ_500, SSS_FCT4_REQ_501, SSS_FCT5_REQ_500, SSS_FCT5_REQ_501, SSS_FCT6_REQ_500, SSS_FCT6_REQ_501, SSS_FCT7_REQ_500, SSS_FCT7_REQ_501, SSS_FCT8_REQ_500, SSS_FCT8_REQ_501, SSS_FCT9_REQ_500, SSS_FCT9_REQ_501, SSS_FCT10_REQ_500, SSS_FCT10_REQ_501</li><li>test modifié : SSS_FCT10_REQ_075, SSS_FCT1_REQ_075, SSS_FCT3_REQ_090, SSS_FCT4_REQ_102, SSS_FCT5_REQ_013, SSS_FCT5_REQ_046, SSS_FCT5_REQ_053, SSS_FCT6_REQ_073, SSS_FCT6_REQ_080, SSS_FCT6_REQ_112, SSS_FCT8_REQ_012, SSS_FCT8_REQ_117, SSS_FCT9_REQ_168</li></ul>
+<p class="file"><b>2026-03-15_STDHL_UNIQUE_rev2.docx</b> (remplacement)</p>
+<ul><li>retirées : SSS_FCT1_REQ_017, SSS_FCT1_REQ_083, SSS_FCT3_REQ_034, SSS_FCT4_REQ_106, SSS_FCT5_REQ_092, SSS_FCT5_REQ_114, SSS_FCT5_REQ_149, SSS_FCT5_REQ_161, SSS_FCT7_REQ_023, SSS_FCT8_REQ_099, SSS_FCT9_REQ_033, SSS_FCT9_REQ_157, SSS_FCT9_REQ_161</li><li>nouvelles : SSS_FCT1_REQ_600, SSS_FCT1_REQ_601, SSS_FCT2_REQ_600, SSS_FCT2_REQ_601, SSS_FCT3_REQ_600, SSS_FCT3_REQ_601, SSS_FCT4_REQ_600, SSS_FCT4_REQ_601, SSS_FCT5_REQ_600, SSS_FCT5_REQ_601, SSS_FCT6_REQ_600, SSS_FCT6_REQ_601, SSS_FCT7_REQ_600, SSS_FCT7_REQ_601, SSS_FCT8_REQ_600, SSS_FCT8_REQ_601, SSS_FCT9_REQ_600, SSS_FCT9_REQ_601, SSS_FCT10_REQ_600, SSS_FCT10_REQ_601</li><li>test modifié : SSS_FCT1_REQ_031, SSS_FCT5_REQ_124, SSS_FCT5_REQ_134, SSS_FCT5_REQ_135, SSS_FCT5_REQ_164, SSS_FCT6_REQ_055, SSS_FCT6_REQ_096, SSS_FCT8_REQ_054, SSS_FCT9_REQ_006, SSS_FCT9_REQ_024, SSS_FCT9_REQ_097, SSS_FCT9_REQ_145, SSS_FCT9_REQ_152</li></ul>
+</body></html>

@@ -83,9 +83,16 @@ MEANS = [("Banc de test V&V", "Configuration nominale"), ("Simulateur réseau", 
          ("Poste opérateur", "Profil administrateur"), ("Enregistreur", "Journalisation complète")]
 
 
+# The style Titre3 of the template indents its paragraphs by 19.5 cm and moves the text after the number to a tab at
+# 21.4 cm, off the page: the title is in the table of contents but cannot be seen. Each title cancels both itself.
+TITLE3_FIX = ('<w:tabs><w:tab w:val="clear" w:pos="12137"/><w:tab w:val="num" w:pos="1080"/></w:tabs>'
+              '<w:ind w:left="0" w:firstLine="0"/>')
+
+
 def p(text, style=""):
     """A paragraph of the document, with its style."""
-    ppr = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ""
+    fix = TITLE3_FIX if style == "Titre3" else ""
+    ppr = f'<w:pPr><w:pStyle w:val="{style}"/>{fix}</w:pPr>' if style else ""
     return f'<w:p>{ppr}<w:r><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>'
 
 

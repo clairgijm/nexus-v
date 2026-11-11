@@ -28,6 +28,11 @@ Variables:
   requirements_tome_regex         tome in the name of a requirements file: offered at import
   fiche_regex                     name of a fiche (test) in a paragraph of a STDHL
   stdhl_name_regex                name of the STDHL in the name of its file
+  stdhl2_*                        STDHL of format 2 (one document, no STDHL table), read by the check before import:
+    stdhl2_test_regex             title of a test, group 1 = name of the test (« TEST-001 : ZOULOU »)
+    stdhl2_requirements_label     label opening the list « Exigences associées » of a test (the list ends with it)
+    stdhl2_release_label          label of the release of a test, stdhl2_release_regex reading it (group 1)
+    stdhl2_test_case_regex        start of a test case: the requirements of its phases are the coverage of the test
   release_separator_regex         separator of the releases in a cell of a requirements file
   stdhl_separator_regex           separator of several values in a STDHL cell (several values: to settle)
   plan_tome_regex                 tome in the name of a plan file: preselected at load
@@ -78,6 +83,12 @@ DEFAULT_CONFIG = {
     # STDHL: test sheet SYS_<type>_<fonctionnalités>_<n°> at the start of a paragraph (possibly after a numbering),
     # TEST CASE paragraph, and STDHL name in [date]_[texte]_STDHL_[Nom du STDHL]_rev[texte].docx.
     "fiche_regex": r"^\s*(?:[\d.]+\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\d+)(?![A-Za-z0-9_])",
+    # STDHL of format 2: no table, one title per test, then labelled sections (labels: case and accents ignored).
+    "stdhl2_test_regex": r"^\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\d+)\s*:",
+    "stdhl2_requirements_label": "Exigences associées",
+    "stdhl2_release_label": "Applicabilité",
+    "stdhl2_release_regex": r"(?i)release\s+(\S+)",
+    "stdhl2_test_case_regex": r"(?i)^\s*TEST CASE\s*#\s*\d+",
     "stdhl_name_regex": r"(?i)STDHL_(.+?)_rev",
     # Folder of the imported files (relative to the folder of NEXUS-V) and its sub-folder for each type of file.
     "storage_dir": ".",
@@ -136,8 +147,9 @@ SECTIONS = {
              **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex", "iadt_moc_rules",
                                "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
-              **{n: n for n in ("use_requirement_stdhl", "fiche_regex", "stdhl_name_regex",
-                                "headers_stdhl")}},
+              **{n: n for n in ("use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
+                                "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
+                                "stdhl2_release_regex", "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
     "traceability": {"folder": "traceability_folder"},
 }
@@ -152,7 +164,7 @@ TAG_VARIABLES = ("test_tag", "test_case_tag", "requirement_tag")
 # Variables holding a regular expression.
 REGEX_VARIABLES = ("requirement_regex", "requirements_tome_regex", "fiche_regex", "stdhl_name_regex", "plan_tome_regex",
                    "release_separator_regex", "stdhl_separator_regex", "code_separator_regex",
-                   "delegation_separator_regex")
+                   "delegation_separator_regex", "stdhl2_test_regex", "stdhl2_release_regex", "stdhl2_test_case_regex")
 
 # Variables kept in the SQL database (nexus_db.py) rather than in the JSON file.
 REFERENTIALS = ("tomes", "platforms", "iadt", "mocs")

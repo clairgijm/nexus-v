@@ -101,6 +101,27 @@ class WordDocument:
 
         yield from walk(self.body)
 
+    def paragraphs(self):
+        """Paragraphs of the body outside the tables, in document order: [(style id, text, list item)]. The style id
+        is the one of the Word file (« Titre3 », « TM1 »...), "" for a paragraph without style; a list item is a
+        paragraph numbered or bulleted by Word (numPr), or of a list style (« Paragraphedeliste », « ListParagraph »)."""
+        found = []
+
+        def walk(parent):
+            """Paragraphs under `parent`, in order, without going inside a table."""
+            for el in parent:
+                if el.tag == f"{W}tbl":
+                    continue
+                if el.tag == f"{W}p":
+                    style = el.find(f"{W}pPr/{W}pStyle")
+                    style = style.get(f"{W}val") if style is not None else ""
+                    item = el.find(f"{W}pPr/{W}numPr") is not None or "list" in style.lower() or "liste" in style.lower()
+                    found.append((style, self.paragraph_text(el), item))
+                walk(el)
+
+        walk(self.body)
+        return found
+
     def text(self):
         """Full text: body, tables, headers, footers, notes, comments."""
         paragraphs = []
@@ -148,7 +169,7 @@ class FileDatabase:
     def _records(self, where="", params=()):
         """Records matching an SQL condition, each with its tome name and its releases."""
         # The column source of the table is the slot of the record; the tome is given by its name.
-        rows = self.sql.query(f"SELECT {COLUMNS}, source AS slot, (SELECT t.name FROM list_tomes t WHERE t.id = tome_id) AS tome "
+        rows = self.sql.query(f"SELECT {COLUMNS}, format, source AS slot, (SELECT t.name FROM list_tomes t WHERE t.id = tome_id) AS tome "
                               f"FROM files {where} ORDER BY id", params)
         releases = self.sql.file_releases()
         return [{**r, "releases": releases.get(r["id"], [])} for r in rows]

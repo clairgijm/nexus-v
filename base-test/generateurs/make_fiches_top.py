@@ -36,7 +36,7 @@ def stdhl_rows(content):
 
 base = Path(sys.argv[1])
 for fct in [f"FCT{k}" for k in range(1, 11)]:
-    src = base / "stdhl" / f"2026-01-01_TEST_STDHL_{fct}_rev1.docx"
+    src = base / "stdhl" / "perTome" / f"2026-01-01_TEST_STDHL_{fct}_rev1.docx"
     out = base / "fiches" / f"2026-01-01_TEST_FICHES_{fct}_rev1.xml"
     rows = stdhl_rows(src.read_bytes())
     ids = sorted({i for r in rows for i in r["requirements"]})

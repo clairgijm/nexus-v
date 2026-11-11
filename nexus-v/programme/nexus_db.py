@@ -89,7 +89,7 @@ def random_platform_color(taken=()):
 
 
 # First row of tabs of the page Tables de la base: the files and the content of the documents, along the chain.
-FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fiches_essai")
+FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fe_test_case", "fiches_essai")
 
 # Referential name (as in the configuration) -> table, key column, label column (None: a plain list).
 REFERENTIALS = {
@@ -127,6 +127,43 @@ def test_id(db, name):
     return db.execute("SELECT id FROM fe_tests WHERE name = ?", (name,)).fetchone()[0]
 
 
+def migrate_1_0(db, schema):
+    """Base 1.0 -> 2.0: files.format, the format recognised at import (STDHL « par tome » or « unique »);
+    stdhl_exi.deleted, a row deleted by the user in the page STDHL; fe_test_case, the test cases of the tests, and
+    fiches_essai rebuilt to point either to a test (fiches of the other platforms) or to a test case (fiches XML), with
+    the result of the test (NOT_RUN for the rows of before)."""
+    if "format" not in {r[1] for r in db.execute("PRAGMA table_info(files)")}:
+        db.execute("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT ''")
+    if "deleted" not in {r[1] for r in db.execute("PRAGMA table_info(stdhl_exi)")}:
+        db.execute("ALTER TABLE stdhl_exi ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+    db.execute("UPDATE files SET format = 'par tome' WHERE source = 'stdhl' AND format = ''")
+    if "test_case" in {r[1] for r in db.execute("PRAGMA table_info(fiches_essai)")}:
+        # The old table aside (its triggers with it), the new tables, indexes and triggers from the schema, then the
+        # rows copied: a fiche XML through its test case, a fiche of another platform through its test.
+        db.execute("DROP TRIGGER IF EXISTS fiches_essai_test_unused")
+        db.execute("DROP TRIGGER IF EXISTS stdhl_exi_test_unused")   # rewritten by the schema (fe_test_case too)
+        db.execute("ALTER TABLE fiches_essai RENAME TO fiches_essai_v1")
+        db.executescript(schema)
+        db.execute("INSERT OR IGNORE INTO fe_test_case (test_id, test_case) "
+                   "SELECT DISTINCT x.test_id, x.test_case FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
+                   "WHERE f.source = 'xml'")
+        db.execute("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_case_id) "
+                   "SELECT x.file_id, x.requirement_id, c.id FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
+                   "JOIN fe_test_case c ON c.test_id = x.test_id AND c.test_case = x.test_case "
+                   "WHERE f.source = 'xml' ORDER BY x.id")
+        db.execute("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_id) "
+                   "SELECT x.file_id, x.requirement_id, x.test_id FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
+                   "WHERE f.source != 'xml' ORDER BY x.id")
+        db.execute("DROP TABLE fiches_essai_v1")
+    db.execute("UPDATE meta SET value = '2.0' WHERE key = 'schema_version'")
+    db.commit()
+    return "2.0"
+
+
+# Migrations of the bases of an older version: {version: function(connection) -> next version}.
+MIGRATIONS = {"1.0": migrate_1_0}
+
+
 class NexusDatabase:
     """SQLite database of NEXUS-V. Every module of documents (file_database, requirements_db, plans_db, stdhl_db,
     fiches_db, traceability_db) and the configuration work on it."""
@@ -151,8 +188,14 @@ class NexusDatabase:
             self.db.execute("PRAGMA synchronous = NORMAL")
             # CREATE TABLE IF NOT EXISTS: a new base gets its tables, an existing one is left as it is (a change of a
             # table needs a migration).
+            # An older base of a known version is migrated first, step by step, up to the version of the schema: its
+            # tables do not have the columns the indexes and triggers of the schema need.
+            stored = self.db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").fetchone()
+            version = self.db.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone() if stored else None
+            version = version[0] if version else None
+            while version in MIGRATIONS and version != self.version:
+                version = MIGRATIONS[version](self.db, schema)
             self.db.executescript(schema)
-            version = self.meta("schema_version")
             self.created = version is None   # a new base: Configuration writes the default referentials into it
             if version not in (None, self.version):
                 self.db.close()
@@ -218,6 +261,24 @@ class NexusDatabase:
     # ------------------------------------------------------------------ #
     # meta
     # ------------------------------------------------------------------ #
+
+    def rename_test(self, old, new):
+        """Rename a test of the referential fe_tests: every STDHL and fiche that cites it shows the new name. Refused
+        (ValueError) for an empty name, an unknown test, or a name already taken by another test. The documents are not
+        changed: read again, they give back the name they hold."""
+        old, new = str(old or "").strip(), str(new or "").strip()
+        if not new:
+            raise ValueError("nom de test vide")
+        with self.transaction() as db:
+            row = db.execute("SELECT id FROM fe_tests WHERE name = ?", (old,)).fetchone()
+            if row is None:
+                raise ValueError(f"test inconnu : « {old} »")
+            if new == old:
+                return new
+            if db.execute("SELECT 1 FROM fe_tests WHERE name = ?", (new,)).fetchone():
+                raise ValueError(f"le test « {new} » existe déjà : un nom de test est unique")
+            db.execute("UPDATE fe_tests SET name = ? WHERE id = ?", (new, row[0]))
+        return new
 
     def meta(self, key, default=None):
         """Internal setting of the table meta, or `default`."""

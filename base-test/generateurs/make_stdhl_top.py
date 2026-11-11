@@ -1,4 +1,4 @@
-"""Test STDHL documents FCT1 .. FCT10 (2026-01-01_TEST_STDHL_FCTk_rev1.docx), from base-test.
+"""Test STDHL documents FCT1 .. FCT10 (stdhl/perTome/2026-01-01_TEST_STDHL_FCTk_rev1.docx), from base-test.
 
 Only the requirements delegated to TOP are specified in a STDHL: requirements of release A whose row in the acceptance
 plan of their tome has the delegation TOP (written or empty cell: default platform), not N/A. Each one goes into the
@@ -102,7 +102,8 @@ for k in range(1, 11):
     name = f"FCT{k}"
     reqs = sorted((rid, title) for rid, (title, stdhl) in requirements.items() if stdhl == name and rid in top)
     body, uncovered, repeated = build(name, reqs, random.Random(206 + k))
-    target = BASE / "stdhl" / f"2026-01-01_TEST_STDHL_{name}_rev1.docx"
+    target = BASE / "stdhl" / "perTome" / f"2026-01-01_TEST_STDHL_{name}_rev1.docx"
+    target.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as out:
         for info, data in parts.items():
             out.writestr(info, (document[:start] + body + document[end:]).encode("utf-8")

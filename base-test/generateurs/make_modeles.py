@@ -5,7 +5,7 @@ imported as is: the requirements of the tome MODELE, its acceptance plan, its ST
 Fiches d'Essai (current XML format and XML format TestSuite). The explanations only use placeholders such as
 SSS_<TOME>_REQ_<n°>, which the reading ignores: only the example numbers are imported.
 The Word templates are built on the styles of 2026-11-11-STDHL-template2.docx.
-Usage: python make_modeles.py <base-test>   (writes into exigences/, plans/, stdhl/ and fiches/)
+Usage: python make_modeles.py <base-test>   (writes into exigences/, plans/, stdhl/ (format 1 in stdhl/perTome/) and fiches/)
 """
 import re
 import sys
@@ -51,9 +51,16 @@ def run(text, bold=False, italic=False):
     return f'<w:r>{f"<w:rPr>{props}</w:rPr>" if props else ""}<w:t xml:space="preserve">{escape(text)}</w:t></w:r>'
 
 
+# The style Titre3 of the template indents its paragraphs by 19.5 cm and moves the text after the number to a tab at
+# 21.4 cm, off the page: the title is in the table of contents but cannot be seen. Each title cancels both itself.
+TITLE3_FIX = ('<w:tabs><w:tab w:val="clear" w:pos="12137"/><w:tab w:val="num" w:pos="1080"/></w:tabs>'
+              '<w:ind w:left="0" w:firstLine="0"/>')
+
+
 def p(text="", style="", bold=False, italic=False):
     """A paragraph; `text` may be a list of (text, bold) runs."""
-    ppr = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ""
+    fix = TITLE3_FIX if style == "Titre3" else ""
+    ppr = f'<w:pPr><w:pStyle w:val="{style}"/>{fix}</w:pPr>' if style else ""
     runs = "".join(run(t, b, italic) for t, b in text) if isinstance(text, list) else run(text, bold, italic)
     return f"<w:p>{ppr}{runs}</w:p>"
 
@@ -222,7 +229,7 @@ def stdhl_format1():
             rows = [header, ["Phase 1"], ["Préparer le banc de test", "Banc prêt", ""]]
             rows += [[f"Vérifier : {r[1].lower()}", "Conforme à l'exigence", r[0]] for r in reqs]
             body += [p(f"TEST CASE #{case} : {theme.lower()}, partie {case}"), table(rows, spans=(1,))]
-    write_docx(BASE / "stdhl" / "2026-01-01_STDHL_MODELE_rev1.docx", body)
+    write_docx(BASE / "stdhl" / "perTome" / "2026-01-01_STDHL_MODELE_rev1.docx", body)
 
 
 # ---------------------------------------------------------------- STDHL format 2 (.docx)

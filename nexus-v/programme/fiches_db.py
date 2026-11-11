@@ -102,22 +102,34 @@ class FichesDatabase:
                                    tome_id)
 
     @staticmethod
-    def store_tests(db, file_id, tests, tome_id=None):
+    def store_tests(db, file_id, tests, tome_id=None, by_case=True):
         """Replace the coverage of a fiches file (inside a transaction): one row of fiches_essai per requirement of a
-        test case [(test name, test case, [ID])], the test taken in the referential fe_tests (added when new); only the
-        requirements of the base (of the tome `tome_id` if given) are stored."""
+        test case [(test name, test case, [ID], optionally {ID: result})], the result PASSED or FAILED when the file
+        gives one (RunResult), NOT_RUN otherwise; the test taken in the referential fe_tests and the test case in
+        fe_test_case (added when new); only the requirements of the base (of the tome `tome_id` if given) are stored.
+        `by_case`: the rows point to the test case (fiches XML); otherwise to the test (fiches of the other platforms,
+        without test case)."""
         from nexus_db import test_id as test_of
         db.execute("DELETE FROM fiches_essai WHERE file_id = ?", (file_id,))   # tests no longer cited: removed
         # Requirement number -> id, of the tome if the file has one, of the whole base otherwise.
         known = {r[0]: r[1] for r in db.execute(
             "SELECT req_id, id FROM requirements" + (" WHERE tome_id = ?" if tome_id is not None else ""),
             (tome_id,) if tome_id is not None else ())}
-        for name, test_case, ids in tests:
+        for name, test_case, ids, *rest in tests:
+            results = rest[0] if rest else {}
+            result = lambda i: results.get(i) if results.get(i) in ("PASSED", "FAILED") else "NOT_RUN"
             # The test in the referential fe_tests (shared with the STDHL); the same requirement in the same test case
             # is stored once (INSERT OR IGNORE on the UNIQUE key).
             test_id = test_of(db, name)
-            db.executemany("INSERT OR IGNORE INTO fiches_essai (file_id, test_id, requirement_id, test_case) "
-                           "VALUES (?, ?, ?, ?)", [(file_id, test_id, known[i], test_case) for i in ids if i in known])
+            if by_case:
+                db.execute("INSERT OR IGNORE INTO fe_test_case (test_id, test_case) VALUES (?, ?)", (test_id, test_case))
+                case_id = db.execute("SELECT id FROM fe_test_case WHERE test_id = ? AND test_case = ?",
+                                     (test_id, test_case)).fetchone()[0]
+                db.executemany("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_case_id, result) "
+                               "VALUES (?, ?, ?, ?)", [(file_id, known[i], case_id, result(i)) for i in ids if i in known])
+            else:
+                db.executemany("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_id, result) "
+                               "VALUES (?, ?, ?, ?)", [(file_id, known[i], test_id, result(i)) for i in ids if i in known])
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None):
         """Load a fiches file (XML, default platform): it belongs to the `tome` given, or to none ("": every tome).
@@ -171,9 +183,12 @@ class FichesDatabase:
         releases = self.sql.file_releases()
         wanted = {h["file_id"] for h in heads}
         rows = {}
-        for r in self.sql.query("SELECT x.file_id, x.test_id, t.name AS test, x.test_case, q.req_id FROM fiches_essai x "
-                                "JOIN fe_tests t ON t.id = x.test_id JOIN requirements q ON q.id = x.requirement_id "
-                                "ORDER BY x.file_id, x.id"):
+        # A row points to a test case (fiches XML: its test through it) or to a test (other platforms: no test case).
+        for r in self.sql.query("SELECT x.file_id, COALESCE(x.test_id, c.test_id) AS test_id, t.name AS test, "
+                                "COALESCE(c.test_case, '') AS test_case, q.req_id FROM fiches_essai x "
+                                "LEFT JOIN fe_test_case c ON c.id = x.test_case_id "
+                                "JOIN fe_tests t ON t.id = COALESCE(x.test_id, c.test_id) "
+                                "JOIN requirements q ON q.id = x.requirement_id ORDER BY x.file_id, x.id"):
             if r["file_id"] not in wanted:
                 continue
             cases = rows.setdefault(r["file_id"], [])

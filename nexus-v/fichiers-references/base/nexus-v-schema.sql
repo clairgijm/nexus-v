@@ -1,6 +1,6 @@
 -- Définition des tables de la base NEXUS-V (nexus-v.db), lue au démarrage par nexus_db.py.
 -- La version ne change que lorsqu'une migration est décidée ; une base d'une autre version est refusée.
--- version : 1.0
+-- version : 2.0
 
 -- Réglages internes : version de la base, prochain numéro de fichier, référentiels initialisés
 CREATE TABLE IF NOT EXISTS meta (
@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS files (
     tome_id INTEGER REFERENCES list_tomes (id),
     stdhl_name TEXT NOT NULL DEFAULT '',                                                             -- STDHL : nom tiré du nom du fichier
     issues TEXT NOT NULL DEFAULT '',                                                                 -- STDHL : anomalies du document, une par ligne
-    platform_id INTEGER REFERENCES list_plateformes (id)                                             -- Fiches d'essai : plateforme d'où vient le fichier
+    platform_id INTEGER REFERENCES list_plateformes (id),                                            -- Fiches d'essai : plateforme d'où vient le fichier
+    format TEXT NOT NULL DEFAULT ''                                                                  -- Format reconnu à l'import (STDHL : par tome, unique)
 );
 
 -- Valeurs de la colonne STDHL des fichiers d'exigences
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS stdhl_exi (
     file_id INTEGER NOT NULL REFERENCES files (id) ON DELETE CASCADE,
     requirement_id INTEGER NOT NULL REFERENCES requirements (id) ON DELETE CASCADE,
     test_id INTEGER REFERENCES fe_tests (id) ON DELETE CASCADE,          -- Test (fiche SYS_) demandé ; vide hors fiche
+    deleted INTEGER NOT NULL DEFAULT 0,   -- 1 : supprimée par l'utilisateur dans la page STDHL (barrée, non vérifiée)
     UNIQUE (file_id, requirement_id, test_id)
 );
 
@@ -102,27 +104,55 @@ CREATE TABLE IF NOT EXISTS fe_tests (
     name TEXT NOT NULL UNIQUE                                             -- Nom du test
 );
 
--- Couverture des exigences par les Fiches d'essai : une ligne par exigence d'un test case d'un test (numéros absents
--- de la base non enregistrés)
+-- Test cases des tests : ceux des fiches d'essai XML
+CREATE TABLE IF NOT EXISTS fe_test_case (
+    id INTEGER PRIMARY KEY,
+    test_id INTEGER NOT NULL REFERENCES fe_tests (id) ON DELETE CASCADE,
+    test_case TEXT NOT NULL DEFAULT '',                                   -- Nom du test case
+    UNIQUE (test_id, test_case)
+);
+
+-- Couverture des exigences par les Fiches d'essai : une ligne par exigence, rattachée soit à un test (fiches des autres
+-- plateformes), soit à un test case (fiches d'essai XML) ; numéros absents de la base non enregistrés
 CREATE TABLE IF NOT EXISTS fiches_essai (
     id INTEGER PRIMARY KEY,
     file_id INTEGER NOT NULL REFERENCES files (id) ON DELETE CASCADE,
-    test_id INTEGER NOT NULL REFERENCES fe_tests (id) ON DELETE CASCADE,
     requirement_id INTEGER NOT NULL REFERENCES requirements (id) ON DELETE CASCADE,
-    test_case TEXT NOT NULL DEFAULT '',                                   -- Nom du test case (vide pour un fichier Excel)
-    UNIQUE (file_id, test_id, test_case, requirement_id)
+    test_id INTEGER REFERENCES fe_tests (id) ON DELETE CASCADE,           -- Test : fiches des autres plateformes
+    test_case_id INTEGER REFERENCES fe_test_case (id) ON DELETE CASCADE,  -- Test case : fiches d'essai XML
+    result TEXT NOT NULL DEFAULT 'NOT_RUN' CHECK (result IN ('NOT_RUN', 'PASSED', 'FAILED')),  -- Résultat (RunResult)
+    CHECK ((test_id IS NULL) != (test_case_id IS NULL))                  -- l'un ou l'autre, jamais les deux
 );
+CREATE UNIQUE INDEX IF NOT EXISTS fiches_essai_test ON fiches_essai (file_id, requirement_id, test_id)
+    WHERE test_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS fiches_essai_test_case ON fiches_essai (file_id, requirement_id, test_case_id)
+    WHERE test_case_id IS NOT NULL;
 
--- Un test que plus aucun STDHL ni aucune fiche ne cite est retiré du référentiel.
+-- Un test case que plus aucune fiche ne cite est retiré ; un test que plus aucun STDHL, aucune fiche ni aucun test
+-- case ne cite est retiré du référentiel.
 CREATE TRIGGER IF NOT EXISTS stdhl_exi_test_unused AFTER DELETE ON stdhl_exi WHEN OLD.test_id IS NOT NULL
 BEGIN
     DELETE FROM fe_tests WHERE id = OLD.test_id
         AND NOT EXISTS (SELECT 1 FROM stdhl_exi WHERE test_id = OLD.test_id)
-        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id);
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id)
+        AND NOT EXISTS (SELECT 1 FROM fe_test_case WHERE test_id = OLD.test_id);
 END;
-CREATE TRIGGER IF NOT EXISTS fiches_essai_test_unused AFTER DELETE ON fiches_essai
+CREATE TRIGGER IF NOT EXISTS fiches_essai_test_unused AFTER DELETE ON fiches_essai WHEN OLD.test_id IS NOT NULL
 BEGIN
     DELETE FROM fe_tests WHERE id = OLD.test_id
         AND NOT EXISTS (SELECT 1 FROM stdhl_exi WHERE test_id = OLD.test_id)
-        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id);
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id)
+        AND NOT EXISTS (SELECT 1 FROM fe_test_case WHERE test_id = OLD.test_id);
+END;
+CREATE TRIGGER IF NOT EXISTS fiches_essai_test_case_unused AFTER DELETE ON fiches_essai WHEN OLD.test_case_id IS NOT NULL
+BEGIN
+    DELETE FROM fe_test_case WHERE id = OLD.test_case_id
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_case_id = OLD.test_case_id);
+END;
+CREATE TRIGGER IF NOT EXISTS fe_test_case_test_unused AFTER DELETE ON fe_test_case
+BEGIN
+    DELETE FROM fe_tests WHERE id = OLD.test_id
+        AND NOT EXISTS (SELECT 1 FROM stdhl_exi WHERE test_id = OLD.test_id)
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id)
+        AND NOT EXISTS (SELECT 1 FROM fe_test_case WHERE test_id = OLD.test_id);
 END;

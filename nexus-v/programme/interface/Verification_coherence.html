@@ -428,7 +428,7 @@
           <span class="name"></span><input type="file" accept=".xlsx,.xlsm,.xls"></div>
         <div class="drop has-check" data-slot="plan" data-check="plans"><span class="step">Word</span><span class="kind">Plan d'acceptation</span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop" data-slot="stdhl"><span class="step">Word</span><span class="kind">STDHL</span>
+        <div class="drop has-check" data-slot="stdhl" data-check="stdhl"><span class="step">Word</span><span class="kind">STDHL</span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
         <div class="drop" data-slot="xml"><span class="step">XML</span><span class="kind">Fiches d'Essai</span>
           <span class="name"></span><input type="file" accept=".xml" multiple></div>
@@ -739,6 +739,23 @@
           <input type="text" class="mono" data-var="fiche_regex" spellcheck="false"></label>
         <label class="wide">Nom du STDHL (dans le nom du fichier)
           <input type="text" class="mono" data-var="stdhl_name_regex" spellcheck="false"></label>
+      </div>
+      <h3>Format 2 : un document pour tous les STDHL, sans tableau STDHL</h3>
+      <p class="hint">Lu à l'import et par la vérification avant import quand le document n'a aucun tableau STDHL
+        valide (format « unique »). Chaque test est un titre « nom : titre » ; ses exigences associées sont la liste
+        qui suit leur libellé (la fin de la liste termine les exigences) ; sa couverture est l'ensemble des exigences citées dans les phases de ses
+        test cases, et les deux doivent être identiques (sinon, le fichier est refusé). Les libellés sont reconnus sans tenir compte des majuscules ni des accents.</p>
+      <div class="params">
+        <label class="wide">Titre d'un test (groupe 1 = nom du test, par exemple TEST-001)
+          <input type="text" class="mono" data-var="stdhl2_test_regex" spellcheck="false"></label>
+        <label class="wide">Libellé des exigences associées
+          <input type="text" data-var="stdhl2_requirements_label" spellcheck="false"></label>
+        <label class="wide">Libellé de la release d'un test
+          <input type="text" data-var="stdhl2_release_label" spellcheck="false"></label>
+        <label class="wide">Release lue après ce libellé (groupe 1)
+          <input type="text" class="mono" data-var="stdhl2_release_regex" spellcheck="false"></label>
+        <label class="wide">Début d'un test case
+          <input type="text" class="mono" data-var="stdhl2_test_case_regex" spellcheck="false"></label>
       </div>
       </div>
 
@@ -1210,7 +1227,8 @@ $("#part-close").addEventListener("click", () => $("#part-dialog").close());
 
 // Check of files before their import, from the button on the left of a tile: the files of that stage are sent to
 // the server, which reads them without storing anything and answers with an HTML report, opened or saved here.
-const CHECKS = { requirements: { accept: ".xlsx,.xlsm", what: "d'exigences" }, plans: { accept: ".docx", what: "de plan" } };
+const CHECKS = { requirements: { accept: ".xlsx,.xlsm", what: "d'exigences" }, plans: { accept: ".docx", what: "de plan" },
+                 stdhl: { accept: ".docx,.docm", what: "STDHL" } };
 let checkReport = null;   // last answer of the server: {summary, file_name, html}
 
 // The check button, on the left edge of the cards of the stages that have one (data-check).
@@ -2231,18 +2249,72 @@ function renderStdhl() {
     : "Aucun STDHL : en charger depuis la page Vérification (après les Exigences).";
   // Titles are not stored with the STDHL: they are taken from the requirements.
   const titles = new Map(state.requirements.map(r => [r.id, r.title]));
-  const all = doc ? doc.rows.flatMap(row => row.requirements.map(id => ({ id, title: titles.get(id) ?? "", test: row.test }))) : [];
+  const all = doc ? doc.rows.flatMap(row => row.requirements.map(id => ({ id, title: titles.get(id) ?? "", test: row.test,
+                                                                            deleted: row.deleted }))) : [];
   const shown = searched(all, "stdhl", l => [l.id, l.title, l.test]);
   $("#stdhl-table").innerHTML = doc
-    ? `<thead><tr><th>Exigence</th><th>Titre (base des exigences)</th><th>Test demandé</th></tr></thead>` +
-      `<tbody>${shown.map(l => `<tr><td class="id">${escapeHtml(l.id)}</td>
-        <td class="wrap">${escapeHtml(l.title)}</td><td>${escapeHtml(l.test)}</td></tr>`).join("") ||
-        `<tr><td colspan="3" class="empty">${all.length ? "Aucune ligne pour ce filtre." : "Aucune exigence de la base dans ce STDHL."}</td></tr>`}</tbody>`
+    ? `<thead><tr><th>Exigence</th><th>Titre (base des exigences)</th><th>Test demandé</th><th></th></tr></thead>` +
+      `<tbody>${shown.map(l => `<tr class="${l.deleted ? "req-deleted" : ""}" data-stdhl-req="${escapeHtml(l.id)}"
+          data-stdhl-test="${escapeHtml(l.test)}" title="${l.deleted ? "supprimée à la main" : ""}"><td class="id">${escapeHtml(l.id)}</td>
+        <td class="wrap">${escapeHtml(l.title)}</td><td class="test-cell">${escapeHtml(l.test)}${l.test
+          ? ` <button class="small" data-rename-test="${escapeHtml(l.test)}" title="Modifier le nom du test (pour tous les STDHL et fiches qui le citent)"
+               aria-label="Modifier le nom du test ${escapeHtml(l.test)}">✎</button>` : ""}</td>
+        <td class="actions">${l.deleted
+          ? `<button class="small" data-stdhl-action="restore" title="Rétablir la ligne">Rétablir</button>`
+          : `<button class="small" data-stdhl-action="delete" title="Supprimer la ligne (gardée barrée, non vérifiée)"
+               aria-label="Supprimer la ligne ${escapeHtml(l.id)}">✕</button>`}</td></tr>`).join("") ||
+        `<tr><td colspan="4" class="empty">${all.length ? "Aucune ligne pour ce filtre." : "Aucune exigence de la base dans ce STDHL."}</td></tr>`}</tbody>`
     : "";
   $("#stdhl-issues").innerHTML = doc?.issues.length
     ? `<h3>Anomalies de ce document (${doc.issues.length})</h3>` + doc.issues.map(e => `<div class="doc">${escapeHtml(e)}</div>`).join("")
     : "";
 }
+
+// Name of a test changed in place: the cell becomes a field; the new name goes to the referential of the tests
+// (fe_tests), for every STDHL and fiche that cite it. The document itself is to be corrected too.
+$("#stdhl-table").addEventListener("click", async e => {
+  // A row deleted (kept struck through, left out of the check) or restored.
+  const act = e.target.closest("[data-stdhl-action]");
+  if (act) {
+    const tr = act.closest("tr");
+    const doc = state.stdhl.find(d => d.name === stdhlTab);
+    try {
+      await request("api/stdhl/edit", jsonOptions("POST", { file_id: doc.id, action: act.dataset.stdhlAction,
+                                                            requirement: tr.dataset.stdhlReq, test: tr.dataset.stdhlTest }));
+      await refresh();
+    } catch (err) {
+      showMessage(err.message);
+    }
+    return;
+  }
+  const edit = e.target.closest("[data-rename-test]");
+  if (edit) {
+    const cell = edit.closest("td");
+    const old = edit.dataset.renameTest;
+    cell.innerHTML = `<input type="text" class="mono" value="${escapeHtml(old)}" aria-label="Nouveau nom du test" spellcheck="false">
+      <button class="small primary" data-rename-ok>OK</button> <button class="small" data-rename-cancel>Annuler</button>
+      <div class="hint">Le nouveau nom s'applique à tous les STDHL et fiches d'essai qui citent ce test ; corriger aussi le
+        document, sinon il reprendra son ancien nom à sa prochaine lecture.</div><div class="cfg-status ko"></div>`;
+    cell.dataset.old = old;
+    cell.querySelector("input").focus();
+    return;
+  }
+  const cell = e.target.closest("td");
+  if (!cell) return;
+  if (e.target.closest("[data-rename-cancel]")) return renderStdhl();
+  if (e.target.closest("[data-rename-ok]")) {
+    try {
+      await request("api/tests/rename", jsonOptions("POST", { old: cell.dataset.old, new: cell.querySelector("input").value }));
+      await refresh();
+    } catch (err) {
+      cell.querySelector(".cfg-status").textContent = err.message;
+    }
+  }
+});
+$("#stdhl-table").addEventListener("keydown", e => {
+  if (e.target.matches(".test-cell input") && e.key === "Enter") e.target.closest("td").querySelector("[data-rename-ok]").click();
+  if (e.target.matches(".test-cell input") && e.key === "Escape") renderStdhl();
+});
 
 const FICHES_TAB_KEY = "nexus-v-fiches-tab";
 let fichesTab = (() => { try { return localStorage.getItem(FICHES_TAB_KEY); } catch { return null; } })();
@@ -2336,15 +2408,16 @@ function renderFiles() {
   filesShown = records.map(r => r.id);
   $("#files-table").innerHTML =
     `<thead><tr><th><input type="checkbox" id="files-all" title="Tout sélectionner" aria-label="Tout sélectionner"></th><th>N°</th><th>Fichier</th><th>Tome</th>` +
-    `<th></th></tr></thead>` +
+    `${filesTab === "stdhl" || filesTab === "xml" ? "<th>Format</th>" : ""}<th></th></tr></thead>` +
     `<tbody>${records.map(r => `<tr>
         <td><input type="checkbox" data-file-select="${r.id}" ${filesSelected.has(r.id) ? "checked" : ""}
                    aria-label="Sélectionner ${escapeHtml(r.name)}"></td>
         <td>${r.id}</td>
         <td>${escapeHtml(r.name)}<div class="hint">${escapeHtml(r.stored_name)}</div></td>
         <td>${escapeHtml(r.tome ?? (filesTab === "requirements" || filesTab === "plan" ? "" : "tous"))}</td>
+        ${filesTab === "stdhl" || filesTab === "xml" ? `<td>${escapeHtml(r.format ?? "")}</td>` : ""}
         <td><button class="small" data-delete="${r.id}">Supprimer</button></td></tr>`).join("") ||
-      `<tr><td colspan="5" class="empty">Aucun fichier de ce type chargé.</td></tr>`}</tbody>`;
+      `<tr><td colspan="6" class="empty">Aucun fichier de ce type chargé.</td></tr>`}</tbody>`;
   drawFilesSelection();
 }
 
@@ -2656,7 +2729,8 @@ async function loadFiles(slot, files) {
       const skipped = result.skipped?.length ? `, ${plural(result.skipped.length, "tableau ignoré", "tableaux ignorés")}` : "";
       const ignored = result.ignored ? `, ${slot !== "plan" ? plural(result.ignored, "numéro ignoré", "numéros ignorés")
                                                                      : plural(result.ignored, "ligne ignorée", "lignes ignorées")}` : "";
-      setLastLoad(slot, `${file.name}${where} : ${result.rows != null ? plural(result.rows, "ligne")
+      const format = result.format ? ` (format ${result.format})` : "";
+      setLastLoad(slot, `${file.name}${format}${where} : ${result.rows != null ? plural(result.rows, "ligne")
                                                                      : plural(result.ids, "numéro d'exigence", "numéros d'exigence")}${skipped}${ignored}`);
       // Plan: delegations that do not match the column STDHL of the requirements (only TOP is in a STDHL).
       if (result.stdhl_warnings?.length) errors.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
@@ -2801,7 +2875,9 @@ const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str",
                       stdhl_separator_regex: "str", code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
                       stdhl_name_regex: "str", plan_tome_regex: "str", requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
                       requirement_tag: "str", server_port: "int", chart_max_parts: "int", chart_max_parts_platforms: "int",
-                      open_browser: "bool", use_requirement_stdhl: "bool" };
+                      open_browser: "bool", use_requirement_stdhl: "bool", stdhl2_test_regex: "str",
+                      stdhl2_requirements_label: "str", stdhl2_release_label: "str",
+                      stdhl2_release_regex: "str", stdhl2_test_case_regex: "str" };
 
 // Table header settings of the configuration: setting -> { title, hint, roles: { role: label } }.
 // The columns with a role are read and stored by NEXUS-V: required (text editable, not removable). The others

@@ -323,6 +323,21 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:   # also covers invalid JSON
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json({"row": row})
+        if url.path == "/api/stdhl/edit":
+            # Row of a STDHL deleted or restored by the user: {file_id, action: delete|restore, requirement, test}.
+            try:
+                data = json.loads(self.read_body() or b"{}")
+                return self.send_json(stdhl.edit(int(data.get("file_id") or 0), data.get("action"),
+                                                 data.get("requirement"), data.get("test")))
+            except (ValueError, TypeError) as e:   # also covers invalid JSON
+                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+        if url.path == "/api/tests/rename":
+            # Name of a test changed in the page STDHL: {old, new}; every STDHL and fiche citing it follows.
+            try:
+                data = json.loads(self.read_body() or b"{}")
+                return self.send_json({"name": sql.rename_test(data.get("old"), data.get("new"))})
+            except ValueError as e:   # also covers invalid JSON
+                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
         if url.path == "/api/requirements/edit":
             # Manual change of one requirement: {tome, action: add|update|delete, id, requirement}.
             try:
@@ -413,7 +428,7 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json(result)
-        if m := re.fullmatch(r"/api/check/(requirements|plans)", url.path):
+        if m := re.fullmatch(r"/api/check/(requirements|plans|stdhl)", url.path):
             # Files of one stage checked before their import, nothing stored: the body is the JSON list of the files
             # [{name, size}] (manifest_size bytes), then the bytes of each file in that order. The answer carries the
             # HTML report written by FileCheck.
@@ -431,9 +446,10 @@ class Handler(SimpleHTTPRequestHandler):
                     at += int(f["size"])
                 if not files:
                     raise ValueError("aucun fichier à vérifier")
-                if m[1] == "requirements":   # checked for both imports: replacement and complement
-                    return self.send_json(file_check.check_requirements(files))
-                return self.send_json(file_check.check_plans(files))
+                # Each stage checked for both imports: replacement and complement.
+                check = {"requirements": file_check.check_requirements, "plans": file_check.check_plans,
+                         "stdhl": file_check.check_stdhl}[m[1]]
+                return self.send_json(check(files))
             except (ValueError, KeyError, TypeError) as e:   # also covers invalid JSON
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
         if url.path == "/api/storage/choose":
@@ -475,7 +491,9 @@ class Handler(SimpleHTTPRequestHandler):
             # The STDHL content depends on these settings: when they change, the stored files are read again.
             # The values before the update, to know afterward what changed.
             folders = {name: configuration.get(name) for name in FOLDER_VARIABLES}
-            settings = ("requirement_regex", "fiche_regex", "stdhl_name_regex", "headers_stdhl")
+            settings = ("requirement_regex", "fiche_regex", "stdhl_name_regex", "headers_stdhl", "release",
+                        "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
+                        "stdhl2_release_regex", "stdhl2_test_case_regex")
             tags = ("requirement_regex", "test_tag", "test_case_tag", "requirement_tag")
             reading = ("requirement_regex", "code_separator_regex", "headers_plan")   # how plans are read
             before = {name: configuration.get(name) for name in settings + tags + reading}
