@@ -24,7 +24,7 @@ from plans_db import PlansDatabase
 BASE, OUT = Path(sys.argv[1]), Path(sys.argv[2])
 TEMPLATE = BASE / "stdhl" / "2026-11-11-STDHL-template2.docx"
 rng = random.Random(20261111)
-cfg = Configuration(Path("../base/config.json"))   # read only: how plans are read
+cfg = Configuration(Path("../fichiers-references/base/config.json"))   # read only: how plans are read
 
 # Requirements of FCT1 delegated to TOP.
 titles = {r[0]: r[1] for r in openpyxl.load_workbook(BASE / "exigences" / "2026-01-01-fct1.xlsx").active.iter_rows(min_row=2, values_only=True)

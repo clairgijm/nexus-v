@@ -19,7 +19,7 @@ from configuration import Configuration
 from plans_db import PlansDatabase
 
 BASE, TEMPLATE = Path(sys.argv[1]), Path(sys.argv[2])
-cfg = Configuration(Path("../base/config.json"))   # read only: how plans are read
+cfg = Configuration(Path("../fichiers-references/base/config.json"))   # read only: how plans are read
 DEFAULT = "TOP"
 TYPES = ("IHM", "COM", "PERF", "SECU")
 ACTIONS = ("Lancer le scénario nominal", "Provoquer le cas dégradé", "Rejouer la séquence opérateur",
