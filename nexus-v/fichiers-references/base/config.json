@@ -17,8 +17,12 @@
     "headers_requirements": {
       "ID": "id",
       "Titre": "title",
-      "Release": "releases",
-      "STDHL": "stdhl"
+      "Specification releases": "releases",
+      "Validation releases": "validation",
+      "STDHL": "stdhl",
+      "IADT": "iadt",
+      "MOC": "moc",
+      "Délégation": "delegation"
     }
   },
   "plan": {

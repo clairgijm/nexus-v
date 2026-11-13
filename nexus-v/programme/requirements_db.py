@@ -11,7 +11,13 @@ Reading a requirements file (read_excel): a header row, then the columns found b
 releases separated by commas, STDHL, IADT, MOC, delegation). The file is the reference of each requirement: one IADT
 code, one MOC code and one delegation (platform), values of the configuration; a delegation is required. A row with
 an empty delegation, an IADT or MOC code unknown of the configuration or several values refuses the file; a
-delegation to a platform absent from the configuration is a new platform, added to the referential at import. The import has two steps: analysis (analyse: sheets, requirements,
+delegation to a platform absent from the configuration is a new platform, added to the referential at import.
+The column « Specification releases » gives the releases where the requirement applies (only those of the release of
+the base are imported); « Validation releases » the releases where it is tested, separated by commas, and/or
+QUALIFIE. It gives the field validation of the requirement, for the release of the base: qualified when QUALIFIE is
+written (only that counts: the releases written with it are those of tests done before), to_qualify when the release
+of the base is in the list, out_of_scope otherwise (an empty cell included: the requirement is outside the validation
+of this release). It never refuses the file. The import has two steps: analysis (analyse: sheets, requirements,
 requirements outside the release, differences with the tome), then, once approved in the page, storing of the file
 and its requirements (import_file). The rows without the release of the base (another release, or none) are shown
 to the user grouped by releases: each group is ignored or imported into the release of the base (choice "force").
@@ -38,7 +44,10 @@ from configuration import DEFAULT_CONFIG, fold, match_header, plural
 MODES = ("replace", "complement")
 
 # Fields compared between the requirements of a tome and those of a file.
-DIFF_FIELDS = ("title", "releases", "stdhl", "iadt", "moc", "delegation")
+DIFF_FIELDS = ("title", "releases", "validation", "stdhl", "iadt", "moc", "delegation")
+QUALIFIED = "QUALIFIE"   # value of « Validation releases »: the requirement is qualified
+# Validation of a requirement in the release of the base (field validation), and its label.
+VALIDATION_STATES = {"to_qualify": "à qualifier", "qualified": "qualifiée", "out_of_scope": "hors scope"}
 # Reference of a requirement: (field, table, column of the value).
 REFERENCE = (("iadt", "list_iadt", "code"), ("moc", "list_moc", "code"), ("delegation", "list_plateformes", "name"))
 
@@ -78,9 +87,29 @@ class RequirementsDatabase:
             "title": str(req.get("title") or "").strip(),
             "releases": list(dict.fromkeys(str(r).strip().upper() for r in releases if str(r).strip())),
             "stdhl": str(req.get("stdhl") or "").strip(),
+            # Validation in the release of the base (see validation_state).
+            "validation": req.get("validation") if req.get("validation") in VALIDATION_STATES else "out_of_scope",
             **{f: str(req.get(f) or "").strip() for f, _, _ in REFERENCE},
             "file_id": file_id if file_id is not None else (int(req["file_id"]) if req.get("file_id") is not None else None),
         }
+
+    @staticmethod
+    def validation_values(value, separator=","):
+        """Values of « Validation releases » (text or list): the releases upper-cased, in order, then QUALIFIE when
+        written (whatever its case and accent)."""
+        if isinstance(value, str):
+            value = re.split(separator, value)
+        values = [str(v).strip().upper() for v in value or () if str(v).strip()]
+        qualified = any(fold(v) == fold(QUALIFIED) for v in values)
+        return list(dict.fromkeys(v for v in values if fold(v) != fold(QUALIFIED))) + ([QUALIFIED] if qualified else [])
+
+    @staticmethod
+    def validation_state(values, release):
+        """Validation of a requirement in `release` from its « Validation releases »: qualified (QUALIFIE written,
+        whatever the releases), to_qualify (the release is in the list) or out_of_scope."""
+        if QUALIFIED in values:
+            return "qualified"
+        return "to_qualify" if release and release.upper() in values else "out_of_scope"
 
     @staticmethod
     def _stdhl_id(db, name):
@@ -98,10 +127,11 @@ class RequirementsDatabase:
         # cascade and rebuilt by the server, which reads these documents again after an import.
         db.execute("DELETE FROM requirements WHERE tome_id = ?", (tome_id,))
         for r in reqs:
-            db.execute("INSERT INTO requirements (req_id, file_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                       (r["id"], r["file_id"], RequirementsDatabase._stdhl_id(db, r["stdhl"]), tome_id, r["title"],
-                        *RequirementsDatabase._reference_ids(db, r)))
+            db.execute(
+                "INSERT INTO requirements (req_id, file_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
+                "validation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (r["id"], r["file_id"], RequirementsDatabase._stdhl_id(db, r["stdhl"]), tome_id, r["title"],
+                 *RequirementsDatabase._reference_ids(db, r), r["validation"]))
 
     @staticmethod
     def _reference_ids(db, req):
@@ -117,7 +147,7 @@ class RequirementsDatabase:
         # Every requirement gets the release of the base: it is not stored, the whole base works on one release.
         rows = self.sql.query(
             f"""SELECT t.name AS tome, r.id, r.req_id, r.title, s.name AS stdhl, r.file_id, r.manual, r.deleted,
-                       i.code AS iadt, m.code AS moc, p.name AS delegation
+                       i.code AS iadt, m.code AS moc, p.name AS delegation, r.validation
                 FROM requirements r JOIN list_tomes t ON t.id = r.tome_id LEFT JOIN list_stdhl s ON s.id = r.stdhl_id
                 LEFT JOIN list_iadt i ON i.id = r.iadt_id LEFT JOIN list_moc m ON m.id = r.moc_id
                 LEFT JOIN list_plateformes p ON p.id = r.delegation_id
@@ -125,6 +155,7 @@ class RequirementsDatabase:
 
         return [{"id": r["req_id"], "title": r["title"], "releases": [self.sql.release] if self.sql.release else [],
                  "stdhl": r["stdhl"] or "", "iadt": r["iadt"] or "", "moc": r["moc"] or "",
+                 "validation": r["validation"],
                  "delegation": r["delegation"] or "",
                  "file_id": r["file_id"], "manual": r["manual"], "deleted": bool(r["deleted"]),
                  "tome": r["tome"]} for r in rows]
@@ -247,8 +278,8 @@ class RequirementsDatabase:
             # Every row after the header; `number` is the row number shown to the user (Excel numbering).
             for number, row in enumerate(workbook[name].iter_rows(min_row=2, values_only=True), start=2):
                 value = lambda field: cls._cell_text(row[cols[field]] if cols[field] < len(row) else None)
-                req_id, title, rels, stdhl, iadt, moc, delegation = (
-                    value(f) for f in ("id", "title", "releases", "stdhl", "iadt", "moc", "delegation"))
+                req_id, title, rels, validation, stdhl, iadt, moc, delegation = (
+                    value(f) for f in ("id", "title", "releases", "validation", "stdhl", "iadt", "moc", "delegation"))
                 rels = [r.strip().upper() for r in re.split(get("release_separator_regex"), rels) if r.strip()]
                 releases.update(dict.fromkeys(rels))
                 req_id = req_id.strip()
@@ -259,7 +290,9 @@ class RequirementsDatabase:
                     found.setdefault(req_id, []).append(
                         {"id": req_id, "title": title.strip(), "releases": list(dict.fromkeys(rels)),
                          "stdhl": stdhl.strip(), "stdhl_values": values, "iadt": iadt.strip(), "moc": moc.strip(),
-                         "delegation": delegation.strip(), "row": number})
+                         "delegation": delegation.strip(), "row": number,
+                         # « Validation releases » as written; the field validation is set by check_reference.
+                         "validation_releases": cls.validation_values(validation, get("release_separator_regex"))})
             # A number found on several rows: the row chosen by the user (`rows`), else the first row for now, with
             # "chosen" None so that the page asks.
             rows = {str(k): int(v) for k, v in (rows or {}).items()}
@@ -278,7 +311,8 @@ class RequirementsDatabase:
     @staticmethod
     def check_reference(requirements, config=None):
         """The reference of each requirement read: one IADT code, one MOC code and one delegation, values of the
-        configuration (written as there), the delegation required. ValueError listing the rows otherwise. A
+        configuration (written as there), the delegation required; its field validation set for the release of the
+        base from its « Validation releases » (never an error). ValueError listing the rows otherwise. A
         delegation to a platform absent from the configuration is not an error: returns those new platforms,
         {name: [numbers]}."""
         get = config.get if config is not None else DEFAULT_CONFIG.get
@@ -287,6 +321,8 @@ class RequirementsDatabase:
         separator = get("code_separator_regex") or r"[,;+\s]+"
         problems, new = [], {}
         for r in requirements:
+            # « Validation releases » never refuses the file: it only gives the validation in the release of the base.
+            r["validation"] = RequirementsDatabase.validation_state(r.get("validation_releases", []), get("release"))
             for field in ("iadt", "moc", "delegation"):
                 value = r[field]
                 if not value:
@@ -345,7 +381,7 @@ class RequirementsDatabase:
         current = self.get(tome)
         # Compared field by field (releases as a text); in a complement, nothing is removed.
         old = {r["id"]: r for r in (current["requirements"] if current else []) if not r["deleted"]}
-        value = lambda r, f: ", ".join(r[f]) if f == "releases" else r[f]
+        value = lambda r, f: ", ".join(r[f]) if isinstance(r[f], list) else r[f]
         added, updated, fresh = [], [], {}
         for r in requirements:
             fresh.setdefault(r["id"], r)
@@ -582,8 +618,9 @@ class RequirementsDatabase:
             if existing is not None:
                 # A field of the reference not sent by the page keeps its value.
                 before = self._requirements("WHERE r.id = ?", (existing["id"],))[0]
-                for field, _, _ in REFERENCE:
-                    if field not in (requirement or {}):
+                for field in [f for f, _, _ in REFERENCE] + ["validation"]:
+                    if field not in (requirement or {}) or (field == "validation"
+                                                            and requirement[field] not in VALIDATION_STATES):
                         req[field] = before[field]
             self.check_reference([{**req, "row": "saisie"}], config)
             if existing is None:
@@ -594,9 +631,9 @@ class RequirementsDatabase:
                 # "modified".
                 current = self._requirements("WHERE r.id = ?", (existing["id"],))[0]
                 if (current["id"], current["title"], current["stdhl"], sorted(current["releases"]),
-                        current["iadt"], current["moc"], current["delegation"]) == \
+                        current["iadt"], current["moc"], current["delegation"], current["validation"]) == \
                         (req["id"], req["title"], req["stdhl"], sorted(req["releases"]),
-                         req["iadt"], req["moc"], req["delegation"]):
+                         req["iadt"], req["moc"], req["delegation"], req["validation"]):
                     return current
             if not req["releases"]:
                 raise ValueError("une exigence doit s'appliquer à au moins une release")
@@ -620,13 +657,14 @@ class RequirementsDatabase:
                 stdhl_id = self._stdhl_id(db, req["stdhl"])
                 reference = self._reference_ids(db, req)
                 if action == "add":
-                    db.execute("INSERT INTO requirements (req_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
-                               "manual) VALUES (?, ?, ?, ?, ?, ?, ?, 'added')",
-                               (req["id"], stdhl_id, tome_id, req["title"], *reference))
+                    db.execute(
+                        "INSERT INTO requirements (req_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
+                        "validation, manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'added')",
+                        (req["id"], stdhl_id, tome_id, req["title"], *reference, req["validation"]))
                 else:
                     db.execute("UPDATE requirements SET req_id = ?, stdhl_id = ?, title = ?, iadt_id = ?, moc_id = ?, "
-                               "delegation_id = ?, manual = ? WHERE id = ?",
-                               (req["id"], stdhl_id, req["title"], *reference,
+                               "delegation_id = ?, validation = ?, manual = ? WHERE id = ?",
+                               (req["id"], stdhl_id, req["title"], *reference, req["validation"],
                                 "added" if existing["manual"] == "added" else "modified", existing["id"]))
             return req
 

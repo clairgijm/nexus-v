@@ -205,6 +205,7 @@ class FileDatabase:
                 params = (*fields.values(), file_id)
 
                 db.execute(query, params)
+
         return self.get(file_id)
 
     def path_of(self, file_id):

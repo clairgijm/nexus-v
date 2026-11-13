@@ -1,6 +1,6 @@
 -- Définition des tables de la base NEXUS-V (nexus-v.db), lue au démarrage par nexus_db.py.
 -- La version ne change que lorsqu'une migration est décidée ; une base d'une autre version est refusée.
--- version : 2.1
+-- version : 1.0
 
 -- Réglages internes : version de la base, prochain numéro de fichier, référentiels initialisés
 CREATE TABLE IF NOT EXISTS meta (
@@ -67,6 +67,11 @@ CREATE TABLE IF NOT EXISTS requirements (
     stdhl_id INTEGER REFERENCES list_stdhl (id),
     tome_id INTEGER NOT NULL REFERENCES list_tomes (id),
     title TEXT NOT NULL DEFAULT '',
+    iadt_id INTEGER REFERENCES list_iadt (id),               -- Méthode de vérification (référence)
+    moc_id INTEGER REFERENCES list_moc (id),                 -- Moyen de vérification (référence)
+    delegation_id INTEGER REFERENCES list_plateformes (id),  -- Plateforme qui vérifie l'exigence (référence)
+    validation TEXT NOT NULL DEFAULT 'out_of_scope'          -- Validation dans la release de la base (« Validation releases ») :
+        CHECK (validation IN ('to_qualify', 'qualified', 'out_of_scope')),  -- à qualifier, qualifiée, hors scope
     manual TEXT CHECK (manual IN ('added', 'modified')),     -- Modifiée à la main depuis le dernier import
     deleted INTEGER NOT NULL DEFAULT 0,                      -- Supprimée à la main : affichée barrée, non vérifiée
     UNIQUE (req_id)

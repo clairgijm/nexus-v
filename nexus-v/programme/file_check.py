@@ -13,7 +13,7 @@ from datetime import datetime
 
 from configuration import plural
 from plans_db import PlansDatabase
-from requirements_db import RequirementsDatabase
+from requirements_db import VALIDATION_STATES, RequirementsDatabase
 from stdhl_db import StdhlDatabase, unique
 from verification import Verification
 
@@ -28,7 +28,8 @@ FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl", "
 MODE_LABELS = {"replace": "Si le fichier écrase la base (import en remplacement)",
                "complement": "Si le fichier modifie la base (import en complément)"}
 MODE_SHORT = {"replace": "écrase la base", "complement": "modifie la base"}
-FIELD_LABELS = {"title": "titre", "releases": "release", "stdhl": "STDHL", "iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
+FIELD_LABELS = {"title": "titre", "releases": "release", "validation": "validation", "stdhl": "STDHL",
+                "iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
 LIMIT = 30   # numbers listed in one problem, beyond: « … et N autres »
 
 
@@ -150,7 +151,7 @@ class FileCheck:
             if not r["deleted"]:
                 tomes.setdefault(r["tome"], {})[r["id"]] = {k: v for k, v in r.items() if k != "tome"}
         base = {i: (t, r) for t, rs in tomes.items() for i, r in rs.items()}
-        value = lambda r, f: ", ".join(r[f]) if f == "releases" else (r[f] or "")
+        value = lambda r, f: ", ".join(r[f]) if isinstance(r[f], list) else (r[f] or "")
         results, touched_all = [], set()
         for name, content in files:
             found = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
@@ -164,7 +165,7 @@ class FileCheck:
                     BLOCKING, f"fichier illisible ou refusé : {e}",
                     "corriger le classeur : la ligne 1 doit porter les en-têtes attendus, dans n'importe quel ordre "
                     "(textes réglés dans Configuration > Exigences)"
-                    if "en-tête" in str(e) else "corriger la référence des lignes citées (IADT, MOC, délégation)"))
+                    if "en-tête" in str(e) else "corriger les lignes citées (IADT, MOC, délégation)"))
                 continue
             p = found["problems"]
             if len(sheets) > 1:
@@ -173,18 +174,20 @@ class FileCheck:
                                  "à l'import, choisir la feuille à lire"))
             reqs = data["requirements"]
             outside = [r for g in data["outside"] for r in g["requirements"]]
+            states = {s: sum(r["validation"] == s for r in data["requirements"]) for s in VALIDATION_STATES}
             found["facts"] += [f"{plural(data['count'], 'exigence')} en release {release}",
+                               "validation : " + ", ".join(f"{n} {VALIDATION_STATES[s]}" for s, n in states.items()),
                                f"releases lues : {', '.join(f'{r} ({n})' for r, n in data['release_counts'].items()) or 'aucune'}"]
             if not reqs:
                 p.append(problem(BLOCKING, f"aucune exigence en release {release}",
-                                 f"renseigner la colonne Release (la base est en release {release})"))
+                                 f"renseigner la colonne Specification releases (la base est en release {release})"))
             for group in data["outside"]:
                 label = (f"release{'s' if ',' in group['key'] else ''} {group['key']}" if group["key"]
                          else "sans release")
                 p.append(problem(SETTLE, f"{plural(group['count'], 'exigence')} {label}, hors de la release {release} : "
                                          + listed(r["id"] for r in group["requirements"]),
                                  f"ignorées par défaut à l'import ; si elles concernent la release {release}, corriger "
-                                 "la colonne Release ou les importer en forçant leur groupe"))
+                                 "la colonne Specification releases ou les importer en forçant leur groupe"))
             for r in data["repeated"]:
                 rows = ", ".join(str(v["row"]) for v in r["rows"])
                 p.append(problem(SETTLE, f"{r['id']} présente sur plusieurs lignes ({rows})",
@@ -250,7 +253,9 @@ class FileCheck:
                 changed = [i for i, fields in changes.items() if field in fields]
                 if changed:
                     where = sorted({base[i][0] for i in changed})
-                    what = "à la délégation modifiée" if field == "delegation" else f"au {label} modifié"
+                    what = {"delegation": "à la délégation modifiée",
+                            "validation": "à la validation modifiée (à qualifier, qualifiée, hors scope)"}.get(
+                        field, f"au {label} modifié")
                     p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base {what} "
                                            f"(tome{'s' if len(where) > 1 else ''} {', '.join(where)}) : " + listed(changed)))
             left = [r["id"] for r in outside if r["id"] in base]

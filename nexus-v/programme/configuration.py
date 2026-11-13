@@ -56,7 +56,7 @@ Variables:
   headers_plan                    headers expected in the tables of the acceptance plans
   headers_stdhl                   headers expected in the tables of the STDHL
                                   Each one is an ordered list « header text -> role »: the role says which column
-                                  NEXUS-V reads and stores (id, title, releases, stdhl, iadt, moc, delegation; exigence, iadt, moc,
+                                  NEXUS-V reads and stores (id, title, releases, validation, stdhl, iadt, moc, delegation; exigence, iadt, moc,
                                   delegation; requirements): those columns are required. The other columns are
                                   « check » (checked to validate the table) or « ignore » (only documented); they
                                   may be added or removed. A header is recognised when it contains the expected
@@ -121,15 +121,16 @@ DEFAULT_CONFIG = {
     "default_delegation": "TOP",
     # Expected headers of the tables, in order: header text -> role ("" = column only checked).
     # A header cell must contain the text (case and accents ignored).
-    "headers_requirements": {"ID": "id", "Titre": "title", "Release": "releases", "STDHL": "stdhl", "IADT": "iadt",
-                             "MOC": "moc", "Délégation": "delegation"},
+    "headers_requirements": {"ID": "id", "Titre": "title", "Specification releases": "releases",
+                             "Validation releases": "validation", "STDHL": "stdhl", "IADT": "iadt", "MOC": "moc",
+                             "Délégation": "delegation"},
     "headers_plan": {"Exigence": "exigence", "Méthode": "ignore", "IADT": "iadt", "MOC": "moc", "Délégation": "delegation"},
     "headers_stdhl": {"Description du test": "check", "Résultat attendu": "check", "Exigences associées": "requirements"},
 }
 
 # Roles of the columns of each table header setting: each one must be given exactly once.
 HEADER_ROLES = {
-    "headers_requirements": ("id", "title", "releases", "stdhl", "iadt", "moc", "delegation"),
+    "headers_requirements": ("id", "title", "releases", "validation", "stdhl", "iadt", "moc", "delegation"),
     "headers_plan": ("exigence", "iadt", "moc", "delegation"),
     "headers_stdhl": ("requirements",),
 }
