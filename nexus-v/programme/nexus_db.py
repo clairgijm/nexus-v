@@ -128,42 +128,8 @@ def test_id(db, name):
     return db.execute("SELECT id FROM fe_tests WHERE name = ?", (name,)).fetchone()[0]
 
 
-def migrate_1_0(db, schema):
-    """Base 1.0 -> 2.0: files.format, the format recognised at import (STDHL « par tome » or « unique »);
-    stdhl_exi.deleted, a row deleted by the user in the page STDHL; fe_test_case, the test cases of the tests, and
-    fiches_essai created again, empty, to point always to a test and, for the fiches XML, also to a test case, with
-    the result of the test case (its content is not migrated: the fiches files are read again at the start)."""
-    if "format" not in {r[1] for r in db.execute("PRAGMA table_info(files)")}:
-        db.execute("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT ''")
-    if "deleted" not in {r[1] for r in db.execute("PRAGMA table_info(stdhl_exi)")}:
-        db.execute("ALTER TABLE stdhl_exi ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
-    db.execute("UPDATE files SET format = 'par tome' WHERE source = 'stdhl' AND format = ''")
-    if "test_case" in {r[1] for r in db.execute("PRAGMA table_info(fiches_essai)")}:
-        # The old table and its triggers are dropped, then created again by the schema, empty: the content of the
-        # fiches is not migrated; the fiches files still stored are read again at the start (read_missing).
-        db.execute("DROP TRIGGER IF EXISTS fiches_essai_test_unused")
-        db.execute("DROP TRIGGER IF EXISTS stdhl_exi_test_unused")   # rewritten by the schema (fe_test_case too)
-        db.execute("DROP TABLE fiches_essai")
-        db.executescript(schema)
-    db.execute("UPDATE meta SET value = '2.0' WHERE key = 'schema_version'")
-    db.commit()
-    return "2.0"
-
-
-def migrate_2_0(db, schema):
-    """Base 2.0 -> 2.1: stdhl_test_case, the test cases asked by a STDHL « unique »; the trigger removing an unused
-    test case rewritten by the schema (it must also look at stdhl_test_case). The STDHL are read again at the start."""
-    db.execute("DROP TRIGGER IF EXISTS fiches_essai_test_case_unused")
-    db.executescript(schema)
-    # The STDHL « unique » read again (read_missing reads the files without rows): their test cases with them.
-    db.execute("DELETE FROM stdhl_exi WHERE file_id IN (SELECT id FROM files WHERE source = 'stdhl' AND format = 'unique')")
-    db.execute("UPDATE meta SET value = '2.1' WHERE key = 'schema_version'")
-    db.commit()
-    return "2.1"
-
-
 # Migrations of the bases of an older version: {version: function(connection) -> next version}.
-MIGRATIONS = {"1.0": migrate_1_0, "2.0": migrate_2_0}
+MIGRATIONS = {}
 
 
 class NexusDatabase:

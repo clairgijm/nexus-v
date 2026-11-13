@@ -8,7 +8,10 @@ An import into a tome that already exists is either a replacement (the tome gets
 complement (new requirements are added, those already there are updated).
 
 Reading a requirements file (read_excel): a header row, then the columns found by their header (ID, title,
-releases separated by commas, STDHL). The import has two steps: analysis (analyse: sheets, requirements,
+releases separated by commas, STDHL, IADT, MOC, delegation). The file is the reference of each requirement: one IADT
+code, one MOC code and one delegation (platform), values of the configuration; a delegation is required. A row with
+an empty delegation, an IADT or MOC code unknown of the configuration or several values refuses the file; a
+delegation to a platform absent from the configuration is a new platform, added to the referential at import. The import has two steps: analysis (analyse: sheets, requirements,
 requirements outside the release, differences with the tome), then, once approved in the page, storing of the file
 and its requirements (import_file). The rows without the release of the base (another release, or none) are shown
 to the user grouped by releases: each group is ignored or imported into the release of the base (choice "force").
@@ -22,7 +25,8 @@ overwrites those changes: the file stays the reference.
 For the page, requirements are given by tome (to_dict):
 
     {"tomes": {"fct1": {"description": "...", "files": [3, 7],
-                        "requirements": [{"id", "title", "releases", "stdhl", "file_id", "manual", "deleted"}, ...]}}}
+                        "requirements": [{"id", "title", "releases", "stdhl", "iadt", "moc", "delegation", "file_id",
+                                          "manual", "deleted"}, ...]}}}
 """
 import io
 import re
@@ -34,7 +38,9 @@ from configuration import DEFAULT_CONFIG, fold, match_header, plural
 MODES = ("replace", "complement")
 
 # Fields compared between the requirements of a tome and those of a file.
-DIFF_FIELDS = ("title", "releases", "stdhl")
+DIFF_FIELDS = ("title", "releases", "stdhl", "iadt", "moc", "delegation")
+# Reference of a requirement: (field, table, column of the value).
+REFERENCE = (("iadt", "list_iadt", "code"), ("moc", "list_moc", "code"), ("delegation", "list_plateformes", "name"))
 
 # Characters Word / Excel put in place of ordinary spaces and hyphens.
 # A requirement number pasted from Word or a web page often carries such characters: they would not match.
@@ -72,6 +78,7 @@ class RequirementsDatabase:
             "title": str(req.get("title") or "").strip(),
             "releases": list(dict.fromkeys(str(r).strip().upper() for r in releases if str(r).strip())),
             "stdhl": str(req.get("stdhl") or "").strip(),
+            **{f: str(req.get(f) or "").strip() for f, _, _ in REFERENCE},
             "file_id": file_id if file_id is not None else (int(req["file_id"]) if req.get("file_id") is not None else None),
         }
 
@@ -91,19 +98,35 @@ class RequirementsDatabase:
         # cascade and rebuilt by the server, which reads these documents again after an import.
         db.execute("DELETE FROM requirements WHERE tome_id = ?", (tome_id,))
         for r in reqs:
-            db.execute("INSERT INTO requirements (req_id, file_id, stdhl_id, tome_id, title) VALUES (?, ?, ?, ?, ?)",
-                             (r["id"], r["file_id"], RequirementsDatabase._stdhl_id(db, r["stdhl"]), tome_id, r["title"]))
+            db.execute("INSERT INTO requirements (req_id, file_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                       (r["id"], r["file_id"], RequirementsDatabase._stdhl_id(db, r["stdhl"]), tome_id, r["title"],
+                        *RequirementsDatabase._reference_ids(db, r)))
+
+    @staticmethod
+    def _reference_ids(db, req):
+        """(iadt_id, moc_id, delegation_id) of the reference of a requirement (None for an empty or unknown value)."""
+        ids = []
+        for field, table, column in REFERENCE:
+            row = db.execute(f"SELECT id FROM {table} WHERE {column} = ? COLLATE NOCASE", (req.get(field) or "",)).fetchone()
+            ids.append(row[0] if row else None)
+        return ids
 
     def _requirements(self, where="", params=()):
         """Requirements (with their tome), in tome then file order."""
         # Every requirement gets the release of the base: it is not stored, the whole base works on one release.
         rows = self.sql.query(
-            f"""SELECT t.name AS tome, r.id, r.req_id, r.title, s.name AS stdhl, r.file_id, r.manual, r.deleted
+            f"""SELECT t.name AS tome, r.id, r.req_id, r.title, s.name AS stdhl, r.file_id, r.manual, r.deleted,
+                       i.code AS iadt, m.code AS moc, p.name AS delegation
                 FROM requirements r JOIN list_tomes t ON t.id = r.tome_id LEFT JOIN list_stdhl s ON s.id = r.stdhl_id
+                LEFT JOIN list_iadt i ON i.id = r.iadt_id LEFT JOIN list_moc m ON m.id = r.moc_id
+                LEFT JOIN list_plateformes p ON p.id = r.delegation_id
                 {where} ORDER BY t.id, r.id""", params)
 
         return [{"id": r["req_id"], "title": r["title"], "releases": [self.sql.release] if self.sql.release else [],
-                 "stdhl": r["stdhl"] or "", "file_id": r["file_id"], "manual": r["manual"], "deleted": bool(r["deleted"]),
+                 "stdhl": r["stdhl"] or "", "iadt": r["iadt"] or "", "moc": r["moc"] or "",
+                 "delegation": r["delegation"] or "",
+                 "file_id": r["file_id"], "manual": r["manual"], "deleted": bool(r["deleted"]),
                  "tome": r["tome"]} for r in rows]
 
     # ------------------------------------------------------------------ #
@@ -192,12 +215,13 @@ class RequirementsDatabase:
     @classmethod
     def read_excel(cls, content, sheet=None, config=None, rows=None):
         """Read a requirements workbook (bytes). Returns {"sheets": names, "sheet": sheet read,
-        "requirements": [{id, title, releases, stdhl, row}], "releases": releases named in the file,
+        "requirements": [{id, title, releases, stdhl, iadt, moc, delegation, row}], "releases": releases named in the file,
         "repeated": [{id, rows: [{row, title, releases, stdhl}], chosen}] numbers found on several rows}.
 
         Row 1 is the header: it must contain every expected text (configuration headers_requirements, text ->
-        role); the columns of the roles id, title, releases, stdhl are located by it. Otherwise, the file is
-        refused (ValueError).
+        role); the columns of the roles id, title, releases, stdhl, iadt, moc, delegation are located by it. Otherwise,
+        the file is refused (ValueError). The reference of the rows imported is checked after the choice of the
+        releases (see check_reference, in analyse and import_file).
         Releases are upper-cased, their separator is in the configuration. A number found on several rows keeps the
         row chosen by the user, `rows` = {number: row number}; until it is chosen, its first row stands in and its
         "chosen" is None. The first sheet is read when `sheet` is not given.
@@ -215,14 +239,16 @@ class RequirementsDatabase:
             cells = [cls._cell_text(v) for v in first]
             cols, missing = match_header(cells, headers)
             if missing:
-                raise ValueError(f"feuille « {name} » : {'en-têtes attendus introuvables' if len(missing) > 1 else 'en-tête attendu introuvable'} en ligne 1 : "
-                                 + ", ".join(f"« {m} »" for m in missing)
-                                 + f" (en-têtes lus : {', '.join(c for c in cells if c) or 'aucun'})")
+                # One message: the header is not the expected one (the columns are found by their name, anywhere).
+                raise ValueError(f"en-tête non conforme à l'attendu (ligne 1 de la feuille « {name} » : colonnes "
+                                 + ", ".join(f"« {h} »" for h in headers if headers[h] not in ("check", "ignore"))
+                                 + ")")
             found, releases = {}, {}
             # Every row after the header; `number` is the row number shown to the user (Excel numbering).
             for number, row in enumerate(workbook[name].iter_rows(min_row=2, values_only=True), start=2):
                 value = lambda field: cls._cell_text(row[cols[field]] if cols[field] < len(row) else None)
-                req_id, title, rels, stdhl = (value(f) for f in ("id", "title", "releases", "stdhl"))
+                req_id, title, rels, stdhl, iadt, moc, delegation = (
+                    value(f) for f in ("id", "title", "releases", "stdhl", "iadt", "moc", "delegation"))
                 rels = [r.strip().upper() for r in re.split(get("release_separator_regex"), rels) if r.strip()]
                 releases.update(dict.fromkeys(rels))
                 req_id = req_id.strip()
@@ -232,7 +258,8 @@ class RequirementsDatabase:
                 if req_id:
                     found.setdefault(req_id, []).append(
                         {"id": req_id, "title": title.strip(), "releases": list(dict.fromkeys(rels)),
-                         "stdhl": stdhl.strip(), "stdhl_values": values, "row": number})
+                         "stdhl": stdhl.strip(), "stdhl_values": values, "iadt": iadt.strip(), "moc": moc.strip(),
+                         "delegation": delegation.strip(), "row": number})
             # A number found on several rows: the row chosen by the user (`rows`), else the first row for now, with
             # "chosen" None so that the page asks.
             rows = {str(k): int(v) for k, v in (rows or {}).items()}
@@ -247,6 +274,43 @@ class RequirementsDatabase:
                     "repeated": repeated}
         finally:
             workbook.close()
+
+    @staticmethod
+    def check_reference(requirements, config=None):
+        """The reference of each requirement read: one IADT code, one MOC code and one delegation, values of the
+        configuration (written as there), the delegation required. ValueError listing the rows otherwise. A
+        delegation to a platform absent from the configuration is not an error: returns those new platforms,
+        {name: [numbers]}."""
+        get = config.get if config is not None else DEFAULT_CONFIG.get
+        known = {"iadt": list(get("iadt") or {}), "moc": list(get("mocs") or {}), "delegation": list(get("platforms") or [])}
+        names = {"iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
+        separator = get("code_separator_regex") or r"[,;+\s]+"
+        problems, new = [], {}
+        for r in requirements:
+            for field in ("iadt", "moc", "delegation"):
+                value = r[field]
+                if not value:
+                    if field == "delegation":
+                        problems.append(f"ligne {r['row']} ({r['id']}) : délégation vide")
+                    continue
+                match = next((k for k in known[field] if fold(k) == fold(value)), None)
+                if match:
+                    r[field] = match
+                elif field == "delegation" and not re.search(r"[,;/+\n]", value):
+                    # A new platform: added to the referential at import (one name whatever its case).
+                    key = next((k for k in new if fold(k) == fold(value)), value)
+                    new.setdefault(key, []).append(r["id"])
+                    r[field] = key
+                elif len([v for v in re.split(separator if field != "delegation" else r"[,;/+\n]+", value) if v]) > 1:
+                    problems.append(f"ligne {r['row']} ({r['id']}) : plusieurs valeurs {names[field]} « {value} »")
+                else:
+                    problems.append(f"ligne {r['row']} ({r['id']}) : {names[field]} « {value} » absent de la configuration")
+        if problems:
+            more = len(problems) - 10
+            raise ValueError(f"{plural(len(problems), 'erreur')} dans la référence des exigences (IADT, MOC, délégation) : "
+                             + " ; ".join(problems[:10]) + (f" … et {more} autre{'s' if more > 1 else ''}" if more > 0 else "")
+                             + " : fichier non importé")
+        return new
 
     @staticmethod
     def filter_releases(requirements, selected, forced=()):
@@ -311,7 +375,7 @@ class RequirementsDatabase:
         # A number already in the base is a conflict, unless the import replaces the very tome that holds it.
         existing = {r["id"]: r for r in self._requirements()}
         names = {r["id"]: r["name"] for r in self.sql.query("SELECT id, name FROM files")}
-        fields = ("title", "releases", "stdhl")
+        fields = DIFF_FIELDS
         duplicates = []
         for r in requirements:
             e = existing.get(r["id"])
@@ -361,7 +425,10 @@ class RequirementsDatabase:
         # Number of requirements per release named in the file, before filtering.
         counts = {x: sum(x in r["releases"] for r in data["requirements"]) for x in data["releases"]}
         reqs, outside = self.filter_releases(data["requirements"], releases, (choices or {}).get("force"))
-        data = {**data, "requirements": reqs, "release_counts": counts, "outside": outside}
+        # The rows imported: a wrong reference refuses the file; a new platform is added at import.
+        new_platforms = self.check_reference(reqs, config)
+        data = {**data, "requirements": reqs, "release_counts": counts, "outside": outside,
+                "new_platforms": new_platforms}
         found = self.conflicts(reqs, tome, mode) if tome else {"duplicates": [], "multi_stdhl": []}
         found["repeated"] = data["repeated"]
         resolved, _ = self._resolve(reqs, found, choices, False)
@@ -393,6 +460,7 @@ class RequirementsDatabase:
         data = self.read_excel(content, sheet, config, (choices or {}).get("row"))
         forced = (choices or {}).get("force") or ()
         selected, outside = self.filter_releases(data["requirements"], releases, forced)
+        new_platforms = self.check_reference(selected, config)
         found = {**self.conflicts(selected, tome, mode), "repeated": data["repeated"]}
         reqs, moved = self._resolve(selected, found, choices, True)
         if not reqs:
@@ -401,6 +469,10 @@ class RequirementsDatabase:
         previous = self.get(tome)
         record = files.add("requirements", name, content, tome=tome)
         try:
+            # New platforms of the delegations: added to the referential first (their colour drawn at reading).
+            if new_platforms:
+                with self.sql.transaction() as db:
+                    self.sql.ensure("platforms", list(new_platforms), db)
             summary = self.import_requirements(tome, reqs, mode, record["id"], moved)
         except Exception:
             files.remove(record["id"])   # nothing imported: the file is not kept
@@ -414,6 +486,7 @@ class RequirementsDatabase:
                     summary["removed_files"].append(old["name"])
         forced_count = sum(g["count"] for g in outside if g["key"] in forced)
         return {**summary, "file_id": record["id"], "kept": len(selected) - len(reqs), "forced": forced_count,
+                "new_platforms": list(new_platforms),
                 "ignored": sum(g["count"] for g in outside) - forced_count, "releases": data["releases"]}
 
     # ------------------------------------------------------------------ #
@@ -442,7 +515,7 @@ class RequirementsDatabase:
             new.setdefault(r["id"], r)   # an ID listed twice keeps its first row, as when reading the file
         with self.sql.lock:
             current = self.get(tome)
-            old = {r["id"]: {k: r[k] for k in ("id", "title", "releases", "stdhl", "file_id")}
+            old = {r["id"]: {k: r[k] for k in ("id", *DIFF_FIELDS, "file_id")}
                    for r in current["requirements"] if not r["deleted"]} if current else {}
             # Replace: the tome becomes exactly the file. Complement: the requirements of the file replace those of the
             # same ID, the others are added at the end; requirements deleted by hand are dropped either way (the file is
@@ -506,6 +579,13 @@ class RequirementsDatabase:
                 raise ValueError(f"l'exigence {old_id} est supprimée : la rétablir avant de la modifier")
             req = self._clean(requirement or {}, existing["file_id"] if existing else None)
             req["releases"] = [self.sql.release] if self.sql.release else []   # the release of the base
+            if existing is not None:
+                # A field of the reference not sent by the page keeps its value.
+                before = self._requirements("WHERE r.id = ?", (existing["id"],))[0]
+                for field, _, _ in REFERENCE:
+                    if field not in (requirement or {}):
+                        req[field] = before[field]
+            self.check_reference([{**req, "row": "saisie"}], config)
             if existing is None:
                 req["file_id"] = None
             else:
@@ -513,8 +593,10 @@ class RequirementsDatabase:
                 # Saved without any change: nothing is written, so that an imported requirement does not become
                 # "modified".
                 current = self._requirements("WHERE r.id = ?", (existing["id"],))[0]
-                if (current["id"], current["title"], current["stdhl"], sorted(current["releases"])) == \
-                        (req["id"], req["title"], req["stdhl"], sorted(req["releases"])):
+                if (current["id"], current["title"], current["stdhl"], sorted(current["releases"]),
+                        current["iadt"], current["moc"], current["delegation"]) == \
+                        (req["id"], req["title"], req["stdhl"], sorted(req["releases"]),
+                         req["iadt"], req["moc"], req["delegation"]):
                     return current
             if not req["releases"]:
                 raise ValueError("une exigence doit s'appliquer à au moins une release")
@@ -536,12 +618,16 @@ class RequirementsDatabase:
                     raise ValueError(f"l'exigence {req['id']} existe déjà dans le tome « {other} »")
             with self.sql.transaction() as db:
                 stdhl_id = self._stdhl_id(db, req["stdhl"])
+                reference = self._reference_ids(db, req)
                 if action == "add":
-                    db.execute("INSERT INTO requirements (req_id, stdhl_id, tome_id, title, manual) "
-                                        "VALUES (?, ?, ?, ?, 'added')", (req["id"], stdhl_id, tome_id, req["title"])).lastrowid
+                    db.execute("INSERT INTO requirements (req_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
+                               "manual) VALUES (?, ?, ?, ?, ?, ?, ?, 'added')",
+                               (req["id"], stdhl_id, tome_id, req["title"], *reference))
                 else:
-                    db.execute("UPDATE requirements SET req_id = ?, stdhl_id = ?, title = ?, manual = ? WHERE id = ?",
-                               (req["id"], stdhl_id, req["title"], "added" if existing["manual"] == "added" else "modified", existing["id"]))
+                    db.execute("UPDATE requirements SET req_id = ?, stdhl_id = ?, title = ?, iadt_id = ?, moc_id = ?, "
+                               "delegation_id = ?, manual = ? WHERE id = ?",
+                               (req["id"], stdhl_id, req["title"], *reference,
+                                "added" if existing["manual"] == "added" else "modified", existing["id"]))
             return req
 
     def linked_to_file(self, file_id):

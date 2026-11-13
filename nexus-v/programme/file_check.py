@@ -28,7 +28,7 @@ FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl", "
 MODE_LABELS = {"replace": "Si le fichier écrase la base (import en remplacement)",
                "complement": "Si le fichier modifie la base (import en complément)"}
 MODE_SHORT = {"replace": "écrase la base", "complement": "modifie la base"}
-FIELD_LABELS = {"title": "titre", "releases": "release", "stdhl": "STDHL"}
+FIELD_LABELS = {"title": "titre", "releases": "release", "stdhl": "STDHL", "iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
 LIMIT = 30   # numbers listed in one problem, beyond: « … et N autres »
 
 
@@ -162,8 +162,9 @@ class FileCheck:
             except ValueError as e:
                 found["problems"].append(problem(
                     BLOCKING, f"fichier illisible ou refusé : {e}",
-                    "corriger le classeur : la ligne 1 doit porter les en-têtes ID, Titre, Release et STDHL (textes "
-                    "réglés dans Configuration > Exigences)"))
+                    "corriger le classeur : la ligne 1 doit porter les en-têtes attendus, dans n'importe quel ordre "
+                    "(textes réglés dans Configuration > Exigences)"
+                    if "en-tête" in str(e) else "corriger la référence des lignes citées (IADT, MOC, délégation)"))
                 continue
             p = found["problems"]
             if len(sheets) > 1:
@@ -198,6 +199,10 @@ class FileCheck:
                 p.append(problem(CHECK, f"{plural(len(bad), 'numéro')} hors du format des exigences : {listed(bad)}",
                                  "corriger le numéro : les plans et les STDHL ne pourront pas le citer (format réglé "
                                  "dans Configuration > Expressions régulières)"))
+            for platform, ids in (data.get("new_platforms") or {}).items():
+                p.append(problem(CHECK, f"nouvelle plateforme à ajouter : {platform} ({plural(len(ids), 'exigence')} "
+                                        "déléguée" + ("s" if len(ids) > 1 else "") + " : " + listed(ids) + ")",
+                                 "elle sera ajoutée aux plateformes à l'import ; sinon, corriger la délégation"))
             untitled = [r["id"] for r in reqs if not r["title"].strip()]
             if untitled:
                 p.append(problem(CHECK, f"{plural(len(untitled), 'exigence')} sans titre : {listed(untitled)}",
@@ -245,7 +250,8 @@ class FileCheck:
                 changed = [i for i, fields in changes.items() if field in fields]
                 if changed:
                     where = sorted({base[i][0] for i in changed})
-                    p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base au {label} modifié "
+                    what = "à la délégation modifiée" if field == "delegation" else f"au {label} modifié"
+                    p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base {what} "
                                            f"(tome{'s' if len(where) > 1 else ''} {', '.join(where)}) : " + listed(changed)))
             left = [r["id"] for r in outside if r["id"] in base]
             if left:

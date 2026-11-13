@@ -56,7 +56,7 @@ Variables:
   headers_plan                    headers expected in the tables of the acceptance plans
   headers_stdhl                   headers expected in the tables of the STDHL
                                   Each one is an ordered list « header text -> role »: the role says which column
-                                  NEXUS-V reads and stores (id, title, releases, stdhl; exigence, iadt, moc,
+                                  NEXUS-V reads and stores (id, title, releases, stdhl, iadt, moc, delegation; exigence, iadt, moc,
                                   delegation; requirements): those columns are required. The other columns are
                                   « check » (checked to validate the table) or « ignore » (only documented); they
                                   may be added or removed. A header is recognised when it contains the expected
@@ -117,18 +117,19 @@ DEFAULT_CONFIG = {
     # Test methods are written "V&V [PLATFORM] : ..."; TOP is the platform of V&V itself.
     "platforms": ["TOP"],
     "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test", "N/A": "Non applicable"},
-    "mocs": {f"MOC{i}": "" for i in range(10)},
+    "mocs": {**{f"MOC{i}": "" for i in range(10)}, "N/A": "Non applicable"},   # N/A: the MOC of an IADT N/A
     "default_delegation": "TOP",
     # Expected headers of the tables, in order: header text -> role ("" = column only checked).
     # A header cell must contain the text (case and accents ignored).
-    "headers_requirements": {"ID": "id", "Titre": "title", "Release": "releases", "STDHL": "stdhl"},
+    "headers_requirements": {"ID": "id", "Titre": "title", "Release": "releases", "STDHL": "stdhl", "IADT": "iadt",
+                             "MOC": "moc", "Délégation": "delegation"},
     "headers_plan": {"Exigence": "exigence", "Méthode": "ignore", "IADT": "iadt", "MOC": "moc", "Délégation": "delegation"},
     "headers_stdhl": {"Description du test": "check", "Résultat attendu": "check", "Exigences associées": "requirements"},
 }
 
 # Roles of the columns of each table header setting: each one must be given exactly once.
 HEADER_ROLES = {
-    "headers_requirements": ("id", "title", "releases", "stdhl"),
+    "headers_requirements": ("id", "title", "releases", "stdhl", "iadt", "moc", "delegation"),
     "headers_plan": ("exigence", "iadt", "moc", "delegation"),
     "headers_stdhl": ("requirements",),
 }
@@ -195,24 +196,36 @@ def plural(n, singular, several=None):
     return f"{n} {(several or singular + 's') if n > 1 else singular}"
 
 
-def header_column(cells, expected):
-    """Index of the header cell matching the expected text (case and accents ignored): a cell equal to it
-    first, otherwise the first cell containing it; None when there is none."""
+def header_column(cells, expected, taken=()):
+    """Index of the header cell matching the expected text (case and accents ignored), wherever it is: a cell equal to
+    it first, otherwise a cell where it starts a word (« Titre de l'exigence », « Releases »; not « ID » inside
+    « Validation »), the shortest one; the cells `taken` by another column are skipped. None when there is none."""
     key = fold(expected)
-    folded = [fold(str(c or "")) for c in cells]
-    # A cell equal to the expected text wins over a cell that only contains it ("ID" is also in "Titre IDentifié").
-    exact = next((i for i, f in enumerate(folded) if f == key), None)
-    return exact if exact is not None else next((i for i, f in enumerate(folded) if key and key in f), None)
+    folded = [fold(str(c or "")).strip() for c in cells]
+    free = [i for i in range(len(folded)) if i not in taken]
+    exact = next((i for i in free if folded[i] == key), None)
+    if exact is not None or not key:
+        return exact
+    word = re.compile(r"(?<![a-z0-9])" + re.escape(key))
+    found = [i for i in free if word.search(folded[i])]
+    return min(found, key=lambda i: len(folded[i])) if found else None
 
 
 def match_header(cells, headers):
     """Columns of a header row for a header setting (text -> role): ({role: column index} for the columns
-    found that have a role, [expected texts not found])."""
-    cols, missing = {}, []
-    for text, role in headers.items():
-        if role == "ignore":   # documented only: not used to validate the table
-            continue
-        k = header_column(cells, text)
+    found that have a role, [expected texts not found]). The order of the columns does not matter: the cells equal to
+    an expected text are taken first, then the others, each cell for one column only."""
+    cols, missing, taken = {}, [], set()
+    wanted = [(text, role) for text, role in headers.items() if role != "ignore"]   # « ignore »: documented only
+    found = {}
+    for text, role in sorted(wanted, key=lambda w: header_column(cells, w[0]) is None or
+                             fold(str(cells[header_column(cells, w[0])] or "")).strip() != fold(w[0])):
+        k = header_column(cells, text, taken)
+        if k is not None:
+            taken.add(k)
+        found[text] = k
+    for text, role in wanted:
+        k = found[text]
         if k is None:
             missing.append(text)
         elif role not in ("check", ""):
