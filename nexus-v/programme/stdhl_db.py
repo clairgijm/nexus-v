@@ -168,7 +168,9 @@ class StdhlDatabase:
             rows += [{"fiche": t["name"], "requirements": [i]} for i in covered]
         return {"stdhl_name": data["stdhl_name"], "rows": rows, "tables": len(tests), "skipped": [], "issues": issues,
                 "format": FORMATS[2], "gaps": gaps, "refusals": refusals,
-                "cases": sum(len(t["cases"]) for t in tests)}
+                "cases": sum(len(t["cases"]) for t in tests),
+                # The test cases asked, by their full name: a fiche of another test case is ignored.
+                "test_cases": list(dict.fromkeys((t["name"], c["name"]) for t in tests for c in t["cases"]))}
 
     @classmethod
     def read_text_format(cls, content, file_name, config=None):
@@ -275,6 +277,13 @@ class StdhlDatabase:
         issues = data["issues"] + ([plural(len(unknown), "numéro d'exigence absent de la base, non enregistré",
                                            "numéros d'exigence absents de la base, non enregistrés")
                                     + " : " + ", ".join(unknown)] if unknown else [])
+        # The test cases asked by a STDHL « unique », in the referential fe_test_case (added when new).
+        db.execute("DELETE FROM stdhl_test_case WHERE file_id = ?", (file_id,))
+        for test, case in data.get("test_cases", []):
+            test = test_of(db, test)
+            db.execute("INSERT OR IGNORE INTO fe_test_case (test_id, test_case) VALUES (?, ?)", (test, case))
+            db.execute("INSERT OR IGNORE INTO stdhl_test_case (file_id, test_case_id) SELECT ?, id FROM fe_test_case "
+                       "WHERE test_id = ? AND test_case = ?", (file_id, test, case))
         # The STDHL name and the anomalies are kept on the file row: the page STDHL shows them.
         db.execute("UPDATE files SET stdhl_name = ?, issues = ?, format = ? WHERE id = ?",
                    (data["stdhl_name"], "\n".join(issues), data.get("format", ""), file_id))

@@ -110,7 +110,7 @@ def load_files(work, args, settings):
     for path in args.stdhl:
         work.stdhl.load_file(work.files, work.requirements, path.read_bytes(), path.name, "", found, config=work.config)
     work.fiches.load_file(work.files, work.requirements, args.xml.read_bytes(), args.xml.name, "", found,
-                          config=work.config, decisions={"accept_all": True})
+                          config=work.config)
 
 
 def print_report(result):

@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project name="NEXUS-V tests" path="base-test">
+    <Tcr>
+        <Campaign name="Roadmap A">
+            <TestSuites>
+                <TestSuite name="SYS_IHM_FCT6_001">
+                    <Properties>
+                        <Property name="Title">SYS_IHM_FCT6_001</Property>
+                        <Property name="RunDate">2026-09-24</Property>
+                        <Property name="Method">T</Property>
+                        <Property name="VerifiedRequirements"/>
+                    </Properties>
+                    <TestCases>
+                        <TestCase uid="1">
+                            <Properties>
+                                <Property name="Title">TEST CASE#2 : cas 2</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="2">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_014</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_014</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="3">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_017</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_017</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="4">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_126</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_126</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                        <TestCase uid="5">
+                            <Properties>
+                                <Property name="Title">TEST CASE#3 : cas 3</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="6">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_010</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_010</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="7">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_014</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_014</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="8">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_057</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_057</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="9">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_055</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_055</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                    </TestCases>
+                </TestSuite>
+                <TestSuite name="SYS_COM_FCT6_002">
+                    <Properties>
+                        <Property name="Title">SYS_COM_FCT6_002</Property>
+                        <Property name="RunDate">2026-09-24</Property>
+                        <Property name="Method">T</Property>
+                        <Property name="VerifiedRequirements"/>
+                    </Properties>
+                    <TestCases>
+                        <TestCase uid="10">
+                            <Properties>
+                                <Property name="Title">TEST CASE#1 : cas 1</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="11">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_116</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_116</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="12">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_126</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_126</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="13">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_130</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_130</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                        <TestCase uid="14">
+                            <Properties>
+                                <Property name="Title">TEST CASE#2 : cas 2</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="15">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_101</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_101</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate"/>
+                                        <Property name="RunResult"/>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="16">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_102</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_102</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate"/>
+                                        <Property name="RunResult"/>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="17">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_112</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_112</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate"/>
+                                        <Property name="RunResult"/>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                        <TestCase uid="18">
+                            <Properties>
+                                <Property name="Title">TEST CASE#3 : cas 3</Property>
+                                <Property name="RunDate">2026-09-24</Property>
+                                <Property name="RunningStatus">RUN</Property>
+                                <Property name="VerifiedRequirements"/>
+                            </Properties>
+                            <TestSteps>
+                                <TestStep uid="19">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_073</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_073</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="20">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_080</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_080</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="21">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_089</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_089</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="22">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_055</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_055</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="23">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_095</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_095</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="24">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_096</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_096</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="25">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_017</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_017</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                                <TestStep uid="26">
+                                    <Properties>
+                                        <Property name="Description">Vérifier SSS_FCT6_REQ_140</Property>
+                                        <Property name="VerifiedRequirements">SSS_FCT6_REQ_140</Property>
+                                        <Property name="ExpectedResult">Comportement conforme à l'exigence</Property>
+                                        <Property name="RunDate">2026-09-24</Property>
+                                        <Property name="RunResult">PASSED</Property>
+                                        <Property name="StepType">NORMAL</Property>
+                                    </Properties>
+                                </TestStep>
+                            </TestSteps>
+                        </TestCase>
+                    </TestCases>
+                </TestSuite>
+            </TestSuites>
+        </Campaign>
+    </Tcr>
+</Project>

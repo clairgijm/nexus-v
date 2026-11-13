@@ -1,6 +1,6 @@
 -- Définition des tables de la base NEXUS-V (nexus-v.db), lue au démarrage par nexus_db.py.
 -- La version ne change que lorsqu'une migration est décidée ; une base d'une autre version est refusée.
--- version : 2.0
+-- version : 2.1
 
 -- Réglages internes : version de la base, prochain numéro de fichier, référentiels initialisés
 CREATE TABLE IF NOT EXISTS meta (
@@ -112,19 +112,26 @@ CREATE TABLE IF NOT EXISTS fe_test_case (
     UNIQUE (test_id, test_case)
 );
 
--- Couverture des exigences par les Fiches d'essai : une ligne par exigence, rattachée soit à un test (fiches des autres
--- plateformes), soit à un test case (fiches d'essai XML) ; numéros absents de la base non enregistrés
+-- Test cases demandés par un STDHL (format unique) : une fiche d'essai dont le test case n'y est pas est ignorée
+CREATE TABLE IF NOT EXISTS stdhl_test_case (
+    id INTEGER PRIMARY KEY,
+    file_id INTEGER NOT NULL REFERENCES files (id) ON DELETE CASCADE,
+    test_case_id INTEGER NOT NULL REFERENCES fe_test_case (id) ON DELETE CASCADE,
+    UNIQUE (file_id, test_case_id)
+);
+
+-- Couverture des exigences par les Fiches d'essai : une ligne par exigence, rattachée toujours à un test et, pour les
+-- fiches d'essai XML, aussi à un test case dont elle prend le résultat ; numéros absents de la base non enregistrés
 CREATE TABLE IF NOT EXISTS fiches_essai (
     id INTEGER PRIMARY KEY,
     file_id INTEGER NOT NULL REFERENCES files (id) ON DELETE CASCADE,
     requirement_id INTEGER NOT NULL REFERENCES requirements (id) ON DELETE CASCADE,
-    test_id INTEGER REFERENCES fe_tests (id) ON DELETE CASCADE,           -- Test : fiches des autres plateformes
-    test_case_id INTEGER REFERENCES fe_test_case (id) ON DELETE CASCADE,  -- Test case : fiches d'essai XML
-    result TEXT NOT NULL DEFAULT 'NOT_RUN' CHECK (result IN ('NOT_RUN', 'PASSED', 'FAILED')),  -- Résultat (RunResult)
-    CHECK ((test_id IS NULL) != (test_case_id IS NULL))                  -- l'un ou l'autre, jamais les deux
+    test_id INTEGER NOT NULL REFERENCES fe_tests (id) ON DELETE CASCADE,  -- Test
+    test_case_id INTEGER REFERENCES fe_test_case (id) ON DELETE CASCADE,  -- Test case (fiches d'essai XML), facultatif
+    result TEXT NOT NULL DEFAULT 'NOT_RUN' CHECK (result IN ('NOT_RUN', 'PASSED', 'FAILED'))  -- Résultat du test case
 );
 CREATE UNIQUE INDEX IF NOT EXISTS fiches_essai_test ON fiches_essai (file_id, requirement_id, test_id)
-    WHERE test_id IS NOT NULL;
+    WHERE test_case_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS fiches_essai_test_case ON fiches_essai (file_id, requirement_id, test_case_id)
     WHERE test_case_id IS NOT NULL;
 
@@ -137,7 +144,7 @@ BEGIN
         AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_id = OLD.test_id)
         AND NOT EXISTS (SELECT 1 FROM fe_test_case WHERE test_id = OLD.test_id);
 END;
-CREATE TRIGGER IF NOT EXISTS fiches_essai_test_unused AFTER DELETE ON fiches_essai WHEN OLD.test_id IS NOT NULL
+CREATE TRIGGER IF NOT EXISTS fiches_essai_test_unused AFTER DELETE ON fiches_essai
 BEGIN
     DELETE FROM fe_tests WHERE id = OLD.test_id
         AND NOT EXISTS (SELECT 1 FROM stdhl_exi WHERE test_id = OLD.test_id)
@@ -147,7 +154,14 @@ END;
 CREATE TRIGGER IF NOT EXISTS fiches_essai_test_case_unused AFTER DELETE ON fiches_essai WHEN OLD.test_case_id IS NOT NULL
 BEGIN
     DELETE FROM fe_test_case WHERE id = OLD.test_case_id
-        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_case_id = OLD.test_case_id);
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_case_id = OLD.test_case_id)
+        AND NOT EXISTS (SELECT 1 FROM stdhl_test_case WHERE test_case_id = OLD.test_case_id);
+END;
+CREATE TRIGGER IF NOT EXISTS stdhl_test_case_unused AFTER DELETE ON stdhl_test_case
+BEGIN
+    DELETE FROM fe_test_case WHERE id = OLD.test_case_id
+        AND NOT EXISTS (SELECT 1 FROM fiches_essai WHERE test_case_id = OLD.test_case_id)
+        AND NOT EXISTS (SELECT 1 FROM stdhl_test_case WHERE test_case_id = OLD.test_case_id);
 END;
 CREATE TRIGGER IF NOT EXISTS fe_test_case_test_unused AFTER DELETE ON fe_test_case
 BEGIN

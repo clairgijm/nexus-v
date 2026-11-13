@@ -89,7 +89,8 @@ def random_platform_color(taken=()):
 
 
 # First row of tabs of the page Tables de la base: the files and the content of the documents, along the chain.
-FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fe_test_case", "fiches_essai")
+FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fe_test_case", "stdhl_test_case",
+                "fiches_essai")
 
 # Referential name (as in the configuration) -> table, key column, label column (None: a plain list).
 REFERENTIALS = {
@@ -130,38 +131,39 @@ def test_id(db, name):
 def migrate_1_0(db, schema):
     """Base 1.0 -> 2.0: files.format, the format recognised at import (STDHL « par tome » or « unique »);
     stdhl_exi.deleted, a row deleted by the user in the page STDHL; fe_test_case, the test cases of the tests, and
-    fiches_essai rebuilt to point either to a test (fiches of the other platforms) or to a test case (fiches XML), with
-    the result of the test (NOT_RUN for the rows of before)."""
+    fiches_essai created again, empty, to point always to a test and, for the fiches XML, also to a test case, with
+    the result of the test case (its content is not migrated: the fiches files are read again at the start)."""
     if "format" not in {r[1] for r in db.execute("PRAGMA table_info(files)")}:
         db.execute("ALTER TABLE files ADD COLUMN format TEXT NOT NULL DEFAULT ''")
     if "deleted" not in {r[1] for r in db.execute("PRAGMA table_info(stdhl_exi)")}:
         db.execute("ALTER TABLE stdhl_exi ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
     db.execute("UPDATE files SET format = 'par tome' WHERE source = 'stdhl' AND format = ''")
     if "test_case" in {r[1] for r in db.execute("PRAGMA table_info(fiches_essai)")}:
-        # The old table aside (its triggers with it), the new tables, indexes and triggers from the schema, then the
-        # rows copied: a fiche XML through its test case, a fiche of another platform through its test.
+        # The old table and its triggers are dropped, then created again by the schema, empty: the content of the
+        # fiches is not migrated; the fiches files still stored are read again at the start (read_missing).
         db.execute("DROP TRIGGER IF EXISTS fiches_essai_test_unused")
         db.execute("DROP TRIGGER IF EXISTS stdhl_exi_test_unused")   # rewritten by the schema (fe_test_case too)
-        db.execute("ALTER TABLE fiches_essai RENAME TO fiches_essai_v1")
+        db.execute("DROP TABLE fiches_essai")
         db.executescript(schema)
-        db.execute("INSERT OR IGNORE INTO fe_test_case (test_id, test_case) "
-                   "SELECT DISTINCT x.test_id, x.test_case FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
-                   "WHERE f.source = 'xml'")
-        db.execute("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_case_id) "
-                   "SELECT x.file_id, x.requirement_id, c.id FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
-                   "JOIN fe_test_case c ON c.test_id = x.test_id AND c.test_case = x.test_case "
-                   "WHERE f.source = 'xml' ORDER BY x.id")
-        db.execute("INSERT OR IGNORE INTO fiches_essai (file_id, requirement_id, test_id) "
-                   "SELECT x.file_id, x.requirement_id, x.test_id FROM fiches_essai_v1 x JOIN files f ON f.id = x.file_id "
-                   "WHERE f.source != 'xml' ORDER BY x.id")
-        db.execute("DROP TABLE fiches_essai_v1")
     db.execute("UPDATE meta SET value = '2.0' WHERE key = 'schema_version'")
     db.commit()
     return "2.0"
 
 
+def migrate_2_0(db, schema):
+    """Base 2.0 -> 2.1: stdhl_test_case, the test cases asked by a STDHL « unique »; the trigger removing an unused
+    test case rewritten by the schema (it must also look at stdhl_test_case). The STDHL are read again at the start."""
+    db.execute("DROP TRIGGER IF EXISTS fiches_essai_test_case_unused")
+    db.executescript(schema)
+    # The STDHL « unique » read again (read_missing reads the files without rows): their test cases with them.
+    db.execute("DELETE FROM stdhl_exi WHERE file_id IN (SELECT id FROM files WHERE source = 'stdhl' AND format = 'unique')")
+    db.execute("UPDATE meta SET value = '2.1' WHERE key = 'schema_version'")
+    db.commit()
+    return "2.1"
+
+
 # Migrations of the bases of an older version: {version: function(connection) -> next version}.
-MIGRATIONS = {"1.0": migrate_1_0}
+MIGRATIONS = {"1.0": migrate_1_0, "2.0": migrate_2_0}
 
 
 class NexusDatabase:

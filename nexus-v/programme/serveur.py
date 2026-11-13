@@ -419,7 +419,7 @@ class Handler(SimpleHTTPRequestHandler):
                 decisions = json.loads(query["decisions"]) if query.get("decisions") else None
                 if base in (plans, traceability, fiches):   # decisions of the user on the rows to settle, in JSON
                     extra = {**extra, "decisions": decisions}
-                if base is traceability:   # the platform the fiches file comes from
+                if base in (traceability, fiches):   # the platform the fiches file comes from
                     extra["platform"] = (query.get("platform") or "").strip()
                 result = base.load_file(database, requirements, content, query["name"], (query.get("tome") or "").strip(),
                                         [configuration.get("release")], configuration, **extra)
@@ -428,7 +428,7 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json(result)
-        if m := re.fullmatch(r"/api/check/(requirements|plans|stdhl)", url.path):
+        if m := re.fullmatch(r"/api/check/(requirements|plans|stdhl|fiches)", url.path):
             # Files of one stage checked before their import, nothing stored: the body is the JSON list of the files
             # [{name, size}] (manifest_size bytes), then the bytes of each file in that order. The answer carries the
             # HTML report written by FileCheck.
@@ -442,13 +442,15 @@ class Handler(SimpleHTTPRequestHandler):
                 manifest = json.loads(body[:size] or b"[]")
                 files, at = [], size
                 for f in manifest:
-                    files.append((str(f["name"]), body[at:at + int(f["size"])]))
+                    # A fiches file comes with the platform chosen for it.
+                    files.append((str(f["name"]), body[at:at + int(f["size"])])
+                                 + ((str(f.get("platform") or ""),) if m[1] == "fiches" else ()))
                     at += int(f["size"])
                 if not files:
                     raise ValueError("aucun fichier à vérifier")
                 # Each stage checked for both imports: replacement and complement.
                 check = {"requirements": file_check.check_requirements, "plans": file_check.check_plans,
-                         "stdhl": file_check.check_stdhl}[m[1]]
+                         "stdhl": file_check.check_stdhl, "fiches": file_check.check_fiches}[m[1]]
                 return self.send_json(check(files))
             except (ValueError, KeyError, TypeError) as e:   # also covers invalid JSON
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))

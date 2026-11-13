@@ -23,8 +23,8 @@ SEVERITY_LABELS = {BLOCKING: "Bloquant", SETTLE: "À régler", CHECK: "À vérif
 # Verdict of a file, from its most serious problem.
 VERDICTS = {BLOCKING: "Refusé à l'import", SETTLE: "Chargeable, avec des choix à faire", CHECK: "Chargeable, à vérifier",
             INFO: "Chargeable"}
-STEP_TITLES = {"requirements": "Exigences", "plans": "Plans d'acceptation", "stdhl": "STDHL"}
-FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl"}
+STEP_TITLES = {"requirements": "Exigences", "plans": "Plans d'acceptation", "stdhl": "STDHL", "fiches": "Fiches d'essai"}
+FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl", "fiches": "fiches"}
 MODE_LABELS = {"replace": "Si le fichier écrase la base (import en remplacement)",
                "complement": "Si le fichier modifie la base (import en complément)"}
 MODE_SHORT = {"replace": "écrase la base", "complement": "modifie la base"}
@@ -82,6 +82,17 @@ class StdhlInMemory:
         self.list = documents
 
     def documents(self):
+        return self.list
+
+
+class FichesInMemory:
+    """The fiches XML of the base as left by checked fiches files: what Verification reads."""
+
+    def __init__(self, documents):
+        """documents: in the form of FichesDatabase.documents."""
+        self.list = documents
+
+    def documents(self, source="xml"):
         return self.list
 
 
@@ -740,6 +751,122 @@ class FileCheck:
         return found
 
     # ------------------------------------------------------------------ #
+    # Fiches d'essai
+    # ------------------------------------------------------------------ #
+
+    def check_fiches(self, files):
+        """Check fiches d'essai XML [(name, bytes, platform)], formats « balises » and « campagne », each one coming
+        from its platform (the default one if empty), with the rules of the import
+        (FichesDatabase.screen). A fiche does not modify the base: one result per file, the file loaded as it is (a
+        file of the same name replaced). The tome named in the file name is not used: each requirement is looked up in
+        the whole base. The files are taken in turn, each one after the previous ones."""
+        from fiches_db import FichesDatabase
+        release = self.config.get("release")
+        default = self.config.get("default_delegation")
+        tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
+        docs = self.fiches.documents()
+        covered_before = {i for d in docs for i in d["ids"]}
+        results, names = [], [f[0] for f in files]
+        for k, (name, content, *rest) in enumerate(files, start=1):
+            p, facts = [], []
+            platform = (rest[0] if rest else "") or default
+            if not self.config.is_platform(platform):
+                raise ValueError(f"{name} : plateforme {platform} absente de la configuration")
+            try:
+                data = FichesDatabase._readable(content, self.config)
+            except Exception as e:   # malformed XML, no requirement number
+                results.append({"name": name, "tome": "", "platform": platform, "problems": [problem(BLOCKING, str(e),
+                                "corriger le fichier (XML bien formé, balises ou format campagne)")], "facts": []})
+                continue
+            found = self.fiches.screen(data, None, self.config, platform)
+            if found["na"]:
+                p.append(problem(BLOCKING, f"{plural(len(found['na']), 'exigence N/A', 'exigences N/A')} dans les plans, "
+                                           "citée" + ("s" if len(found["na"]) > 1 else "") + " par la fiche : "
+                                           + listed(found["na"]),
+                                 "changer d'abord leur état (IADT, MOC) dans le plan d'acceptation et le STDHL, ou les "
+                                 "retirer de la fiche"))
+            if found["not_specified"]:
+                p.append(problem(BLOCKING, f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son "
+                                           "tome : " + listed(found["not_specified"]),
+                                 "les spécifier d'abord dans le STDHL de leur tome, ou les retirer de la fiche"))
+            if found["unknown"]:
+                p.append(problem(INFO, f"{plural(len(found['unknown']), 'numéro')} absent"
+                                       f"{'s' if len(found['unknown']) > 1 else ''} de la base des exigences, "
+                                       "ignoré" + ("s" if len(found["unknown"]) > 1 else "") + " : " + listed(found["unknown"])))
+            if found["delegated"]:
+                p.append(problem(INFO, f"{plural(len(found['delegated']), 'exigence')} déléguée"
+                                       f"{'s' if len(found['delegated']) > 1 else ''} à une autre plateforme que "
+                                       f"{platform} : chargée{'s' if len(found['delegated']) > 1 else ''}, résultat non "
+                                       "conservé : " + listed(found["delegated"])))
+            if found["ignored_tests"]:
+                p.append(problem(INFO, f"{plural(len(found['ignored_tests']), 'test')} qu'aucun STDHL ne demande, "
+                                       "ignoré" + ("s" if len(found["ignored_tests"]) > 1 else "") + " : "
+                                       + listed(found["ignored_tests"])))
+            if found["ignored_cases"]:
+                p.append(problem(INFO, f"{plural(len(found['ignored_cases']), 'test case')} absent"
+                                       f"{'s' if len(found['ignored_cases']) > 1 else ''} du STDHL de leur test, "
+                                       "ignoré" + ("s" if len(found["ignored_cases"]) > 1 else "") + " : "
+                                       + listed(found["ignored_cases"])))
+            if found["untitled"]:
+                p.append(problem(INFO, f"{plural(len(found['untitled']), 'test case')} sans titre, ignoré"
+                                       f"{'s' if len(found['untitled']) > 1 else ''} (test"
+                                       f"{'s' if len(set(found['untitled'])) > 1 else ''} "
+                                       + listed(unique(found["untitled"])) + ")"))
+            # Results of the test cases kept (format campagne): those failed, those not run.
+            cases = {}
+            for test, case, ids, result in found["rows"]:
+                if result != "NOT_RUN" or (test, case) not in cases:
+                    cases[(test, case)] = result
+            if data["format"] == "campagne":
+                failed = [f"{t} / {c}" for (t, c), r in cases.items() if r == "FAILED"]
+                not_run = [f"{t} / {c}" for (t, c), r in cases.items() if r == "NOT_RUN"]
+                if failed:
+                    p.append(problem(INFO, f"{plural(len(failed), 'test case')} FAILED : " + listed(failed)))
+                if not_run:
+                    p.append(problem(INFO, f"{plural(len(not_run), 'test case')} non exécuté"
+                                           f"{'s' if len(not_run) > 1 else ''} : " + listed(not_run)))
+            kept = unique(i for _, _, ids, _ in found["rows"] for i in ids
+                          if i not in found["na"] and i not in found["not_specified"])
+            touched = sorted({tome_of[i] for i in kept if i in tome_of})
+            new = [i for i in kept if i not in covered_before]
+            if new:
+                p.append(problem(INFO, f"{plural(len(new), 'exigence')} sans fiche dans la base, couverte"
+                                       f"{'s' if len(new) > 1 else ''} par ce fichier : " + listed(new)))
+            if any(d["name"] == name for d in docs):
+                p.append(problem(INFO, f"une fiche de même nom est déjà chargée : elle sera remplacée"))
+            facts = [f"plateforme {platform}", f"format {data['format']}", plural(len({t for t, _ in cases}), "test"),
+                     plural(len(cases), "test case"), plural(len(kept), "exigence chargée", "exigences chargées")]
+            # The fiches after this file: a file of the same name gives way to it; refused, the base stays as it was.
+            blocked = bool(found["na"] or found["not_specified"])
+            if not blocked:
+                docs = [d for d in docs if d["name"] != name]
+                rows = [{"test_id": 0, "test": t, "test_case": c, "result": r, "requirements": list(ids)}
+                        for t, c, ids, r in found["rows"]]
+                docs.append({"file_id": -k, "name": name, "source": "xml", "platform": platform,
+                             "tome": touched[0] if len(touched) == 1 else None, "releases": [release],
+                             "ids": unique(i for row in rows for i in row["requirements"]), "rows": rows})
+            results.append({"name": name, "tome": ", ".join(touched), "tomes": touched, "platform": platform,
+                            "problems": p, "facts": facts,
+                            "kept": kept})
+        # Tests asked by the STDHL and absent from every fiche after the import, for the requirements of each file.
+        after = Verification(self.config, self.requirements, self.plans, self.stdhl, FichesInMemory(docs),
+                             self.traceability).run(())
+        missing = {r["id"]: r.get("tests_absent") or [] for r in after.get("rows", []) if r["statuses"][2] == "test"}
+        for r in results:
+            absent = [f"{i} ({', '.join(missing[i])})" for i in r.pop("kept", []) if i in missing]
+            if absent:
+                r["problems"].append(problem(CHECK, f"{plural(len(absent), 'exigence')} sans tous les tests demandés par "
+                                                    "le STDHL après import (TEST MANQUANT) : " + listed(absent),
+                                             "ajouter les tests manquants dans une fiche"))
+        between = [problem(SETTLE, f"fichier {n} sélectionné plusieurs fois", "n'en garder qu'un")
+                   for n in sorted({n for n in names if names.count(n) > 1})]
+        return self._result("fiches", results, between, self.requirements, self.plans,
+                            "le fichier est chargé tel quel (une fiche de même nom est remplacée) ; les exigences "
+                            "inconnues, les tests qu'aucun STDHL ne demande, les test cases absents du STDHL et les test "
+                            "cases sans titre sont ignorés ; un fichier refusé laisse la base telle quelle ; le nom du "
+                            "fichier n'est pas utilisé", fiches=FichesInMemory(docs))
+
+    # ------------------------------------------------------------------ #
     # Result and report
     # ------------------------------------------------------------------ #
 
@@ -759,17 +886,18 @@ class FileCheck:
         return (f"{refused} refusé{'s' if refused > 1 else ''}, {settle} avec des choix à faire, "
                 f"{loadable} chargeable{'s' if loadable > 1 else ''}")
 
-    def _result(self, step, results, between, requirements, plans, hypothesis, modes=None, between_by_mode=None):
+    def _result(self, step, results, between, requirements, plans, hypothesis, modes=None, between_by_mode=None,
+                fiches=None):
         """Verdict of each file, tiles before and after, and the HTML report. With `modes` ({mode: (requirements,
         plans) in memory}), the files are judged for each import: verdict and tiles per mode, `hypothesis` being
-        then {mode: text}."""
+        then {mode: text}. `fiches`: the fiches after import (check of fiches files), those of the base otherwise."""
         for r in results:
             r["verdict"], r["counts"] = self._verdict(r["problems"])
             for m, extra in (r.get("by_mode") or {}).items():
                 r.setdefault("verdicts", {})[m] = self._verdict(r["problems"] + extra)[0]
         before = Verification(self.config, self.requirements, self.plans, self.stdhl, self.fiches,
                               self.traceability).run(())
-        afters = {m: Verification(self.config, q, pl, st, self.fiches, self.traceability).run(())
+        afters = {m: Verification(self.config, q, pl, st, fiches or self.fiches, self.traceability).run(())
                   for m, (q, pl, st) in (modes or {None: (requirements, plans, self.stdhl)}).items()}
         labels = [t["label"] for t in next(iter(afters.values())).get("tiles", []) or before.get("tiles", [])]
         tiles = []

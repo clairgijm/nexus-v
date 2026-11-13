@@ -48,7 +48,10 @@ NEUTRAL = (NO_PLAN, NOT_COVERED)   # « nothing found » parts of the charts
 # (not tested); green for the covered part of a chart of one platform (page Fiches d'Essai). No platform takes them.
 COVERED_COLOR = "var(--ok)"
 COVERED = "Couvert"
-RESERVED = {NOT_COVERED: "var(--not-covered)", ENDED_PLAN: "var(--muted)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR}
+# Results of the fiches XML: green passed, red failed, grey not run (or another value).
+PASSED, FAILED, NOT_RUN = "PASSED", "FAILED", "Non exécuté"
+RESERVED = {NOT_COVERED: "var(--not-covered)", ENDED_PLAN: "var(--muted)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
+            PASSED: "var(--ok)", FAILED: "var(--not-covered)", NOT_RUN: "var(--muted)"}
 REPORT_COLOURS = {OK: "C6EFCE", MISSING: "FFC7CE", ERROR: "FFC7CE", NO_DOC: "FFEB9C", TEST_MISSING: "FFC7CE"}   # status cells of the report
 
 
@@ -128,7 +131,8 @@ class Verification:
                 "status_labels": STATUS_LABELS, "defects": sum(1 for r in rows if r["lost_at"]),
                 "lost": [[name, sum(1 for r in rows if r["lost_at"] == name)] for name in STAGES],
                 "verdict": self._verdict(rows, waiting, releases), "tiles": self._tiles(rows, waiting, releases),
-                "charts": self._charts(rows, plans, fiches), "platform_charts": self._platform_charts(rows, fiches)}
+                "charts": self._charts(rows, plans, fiches), "platform_charts": self._platform_charts(rows, fiches),
+                "result_charts": self._result_charts(rows, fiches)}
 
     def _sheets(self, fiches, requirement, selected):
         """Fiches files that may cover a requirement: one of its releases, and its tome (or no tome)."""
@@ -198,7 +202,16 @@ class Verification:
             # The stage where the requirement is lost: the first one that is a defect (OK, to load, ended, another
             # platform and not asked are not defects).
             lost = next((name for name, s in zip(STAGES, statuses) if s not in (OK, PENDING, ENDED, OTHER, UNTAGGED)), "")
-            rows.append({**r, "statuses": statuses, "lost_at": lost,
+            # Result of the tests of the requirement, by platform covering it: FAILED if one failed, PASSED if all
+            # passed, Non exécuté otherwise (the Excel files of the other platforms have no result).
+            def result_of(values):
+                return FAILED if "FAILED" in values else PASSED if values and all(v == "PASSED" for v in values) \
+                    else NOT_RUN
+            results = {p: result_of([c.get("result") for x in sheets if x["platform"] == p for c in x["rows"]
+                                     if req_id in c["requirements"]]) for p in ([] if ended else covering)}
+            fiche_result = result_of(list(results.values())) if results else None
+            rows.append({**r, "statuses": statuses, "lost_at": lost, "fiche_result": fiche_result,
+                         "results_by": results,
                          # Delegated platforms whose fiches cover the requirement (None: ended at the plan).
                          "covered_by": None if ended else covering, "delegated_to": sorted(platforms),
                          "iadt": ", ".join(unique(c for h in hits for c in h["iadt_codes"])),
@@ -306,6 +319,23 @@ class Verification:
                 charts.append(chart)
         return charts
 
+    def _result_charts(self, rows, fiches):
+        """One pie chart per platform covering requirements with its fiches: the state of their tests (PASSED,
+        FAILED, Non exécuté), like the coverage by platform (page Statistiques)."""
+        if not fiches:
+            return []
+        known = list(self.config.get("platforms"))
+        platforms = known + sorted({p for r in rows for p in r.get("results_by") or {}} - set(known), key=by_name)
+        charts = []
+        for platform in platforms:
+            covered = [r for r in rows if platform in (r.get("results_by") or {})]
+            if covered:
+                charts.append(self._chart(
+                    f"Plateforme {platform}", f"Exigences couvertes par les fiches de {platform} : état de leurs tests.",
+                    [(label, [r for r in covered if r["results_by"][platform] == label])
+                     for label in (PASSED, FAILED, NOT_RUN)]))
+        return charts
+
     def _charts(self, rows, plans, fiches):
         """Requirements by platform and by IADT, then their coverage. A requirement is in one plan row only, with one
         delegation: each one counts in one part. Order of the parts: from the largest to the smallest (see _chart)."""
@@ -347,6 +377,14 @@ class Verification:
                 "des plans n'est pas couverte).",
                 [(COVERED, [r for r in tested if r["covered_by"]]),
                  (NOT_COVERED, [r for r in tested if not r["covered_by"]])]))
+        # Results of the fiches XML: one part per requirement they cite.
+        with_result = [r for r in rows if r.get("fiche_result")]
+        if with_result:
+            charts.append(self._chart(
+                "Résultats des fiches d'essai",
+                "Exigences couvertes par les fiches (hors N/A), toutes plateformes : PASSED si tous leurs tests sont "
+                "passés, FAILED si l'un a échoué, Non exécuté sinon.",
+                [(label, [r for r in with_result if r["fiche_result"] == label]) for label in (PASSED, FAILED, NOT_RUN)]))
         return charts
 
     # ------------------------------------------------------------------ #

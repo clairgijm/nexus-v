@@ -98,17 +98,9 @@
 
   /* File chain */
   .chain { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 14px; }
-  /* Second branch after the plan: traceability of the other platforms, in parallel with STDHL -> Fiches d'Essai. */
+  /* The Fiches d'Essai box ends the chain: no arrow after it. It takes the fiches XML and the Excel files of the
+     other platforms (traceability). */
   .chain .drop[data-slot=xml]::after { content: none; }
-  .drop[data-slot=traceability] { grid-column: 4; }   /* same size as the Fiches d'Essai box, under it */
-  /* Connector from the plan: down from the plan box, then along the second row to this box. */
-  .drop[data-slot=plan]::before { content: ""; position: absolute; left: 50%; top: 100%; height: calc(50% + 18px);
-                                  border-left: 1px solid var(--muted); }
-  .drop[data-slot=traceability]::before { content: ""; position: absolute; right: calc(100% + 13px); top: calc(50% - 1px); width: calc(150% + 22px);
-                                          border-top: 1px solid var(--muted); }
-  .drop[data-slot=traceability]::after { content: ""; position: absolute; left: -14px; top: 50%; width: 12px; height: 10px;
-          transform: translateY(-50%); background: var(--muted);   /* same arrow as on the first row */
-          -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M0 4.5h9L5.5 1l.7-.7L11 5l-4.8 4.7-.7-.7L9 5.5H0z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M0 4.5h9L5.5 1l.7-.7L11 5l-4.8 4.7-.7-.7L9 5.5H0z'/%3E%3C/svg%3E") center / contain no-repeat; }
   .drop { position: relative; border: 2px dashed var(--border); border-radius: 10px; padding: 14px;
           min-height: 118px; cursor: pointer; background: var(--surface-2);
           display: flex; flex-direction: column; gap: 6px; transition: border-color .15s; }
@@ -430,11 +422,8 @@
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
         <div class="drop has-check" data-slot="stdhl" data-check="stdhl"><span class="step">Word</span><span class="kind">STDHL</span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop" data-slot="xml"><span class="step">XML</span><span class="kind">Fiches d'Essai</span>
-          <span class="name"></span><input type="file" accept=".xml" multiple></div>
-        <div class="drop" data-slot="traceability"><span class="step">Excel</span>
-          <span class="kind">Traçabilité des autres plateformes</span>
-          <span class="name"></span><input type="file" accept=".xlsx,.xlsm" multiple></div>
+        <div class="drop has-check" data-slot="xml" data-check="fiches"><span class="step">XML / Excel</span><span class="kind">Fiches d'Essai</span>
+          <span class="name"></span><input type="file" accept=".xml,.xlsx,.xlsm" multiple></div>
       </div>
       <div class="msg" id="msg" hidden></div>
     </section>
@@ -584,6 +573,9 @@
       <h3>Couverture par les fiches d'essai, par plateforme</h3>
       <p class="hint">Exigences déléguées à chaque plateforme dans les plans d'acceptation, couvertes ou non par ses fiches.</p>
       <div class="charts" id="fiches-charts"></div>
+      <h3>État des tests, par plateforme</h3>
+      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, Non exécuté sinon (les fiches Excel des autres plateformes n'ont pas de résultat).</p>
+      <div class="charts" id="result-charts"></div>
     </section>
   </div>
 
@@ -877,6 +869,11 @@
 
 <dialog id="check-dialog" aria-labelledby="check-title">
   <h2 id="check-title"></h2>
+  <div id="check-platforms" hidden>
+    <p class="hint">Plateforme d'où vient chaque fichier : les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme par défaut.</p>
+    <table class="data"><thead><tr><th>Fichier</th><th>Plateforme</th></tr></thead><tbody id="check-platform-rows"></tbody></table>
+    <div class="toolbar"><button class="primary" id="check-run">Vérifier</button></div>
+  </div>
   <p id="check-summary"></p>
   <input type="file" id="check-input" multiple hidden>
   <div class="toolbar dialog-actions">
@@ -907,7 +904,7 @@
   </div>
   <div id="plan-platform-part" hidden>
     <h3>Plateforme d'où vient ce fichier</h3>
-    <p class="hint">Les Fiches d'essai XML viennent de la plateforme par défaut ; un fichier Excel vient d'une autre plateforme.</p>
+    <p class="hint">Une fiche d'essai XML vient en général de la plateforme par défaut (proposée) ; un fichier Excel vient d'une autre plateforme. Les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme par défaut ; une exigence non déléguée à la plateforme du fichier est chargée sans son résultat.</p>
     <div id="plan-platforms"></div>
   </div>
   <div class="toolbar dialog-actions">
@@ -952,6 +949,9 @@ const SLOT_NAMES = { requirements: SOURCE_NAME, ...STAGE_NAMES, traceability: "T
 const MULTI_SLOTS = new Set(["plan", "stdhl", "xml", "traceability"]);   // several files in use at the same time
 // Files attached, when loaded, to a tome (with requirements) and to releases; they are all used (no "Utilisé").
 const ATTACHED = new Set(["plan", "stdhl", "xml", "traceability"]);
+// Slots without a box of their own: the Excel files of the other platforms are dropped on the Fiches d'Essai box.
+const CARD_OF = { traceability: "xml" };
+const SLOTS_OF_CARD = { xml: ["xml", "traceability"] };
 const ATTACHED_API = { plan: "plans", stdhl: "stdhl", xml: "fiches", traceability: "traceability" };   // addresses of their classes on the server
 // Releases selected in the header: every view only shows what applies to them (nothing selected = everything).
 const inSelection = releases => !selectedReleases.size || (releases ?? []).some(x => selectedReleases.has(x));
@@ -1173,6 +1173,7 @@ function showResults() {
   $("#charts").innerHTML = charts.map((c, i) => pieChart(c, `charts:${i}`)).join("");
   // Page Statistiques: coverage of each platform by its fiches, against the delegation of the plans.
   $("#fiches-charts").innerHTML = (state.result.platform_charts ?? []).map((c, i) => pieChart(c, `platform_charts:${i}`)).join("");
+  $("#result-charts").innerHTML = (state.result.result_charts ?? []).map((c, i) => pieChart(c, `result_charts:${i}`)).join("");
 
   const query = $("#search").value.trim().toUpperCase();
   // Filter on the stage where requirements are lost, with the number of requirements of each stage.
@@ -1228,7 +1229,7 @@ $("#part-close").addEventListener("click", () => $("#part-dialog").close());
 // Check of files before their import, from the button on the left of a tile: the files of that stage are sent to
 // the server, which reads them without storing anything and answers with an HTML report, opened or saved here.
 const CHECKS = { requirements: { accept: ".xlsx,.xlsm", what: "d'exigences" }, plans: { accept: ".docx", what: "de plan" },
-                 stdhl: { accept: ".docx,.docm", what: "STDHL" } };
+                 stdhl: { accept: ".docx,.docm", what: "STDHL" }, fiches: { accept: ".xml", what: "de fiches d'essai" } };
 let checkReport = null;   // last answer of the server: {summary, file_name, html}
 
 // The check button, on the left edge of the cards of the stages that have one (data-check).
@@ -1258,11 +1259,20 @@ $("#check-input").addEventListener("change", e => {
   const step = e.target.dataset.check;
   if (!files.length) return;
   $("#check-title").textContent = `Vérification avant import — fichiers ${CHECKS[step].what}`;
+  $("#check-platforms").hidden = step !== "fiches";
+  $("#check-summary").textContent = "";
+  $("#check-open").disabled = $("#check-save").disabled = true;
   $("#check-dialog").showModal();
-  runCheck(step, files);
+  if (step !== "fiches") return runCheck(step, files);
+  // Fiches: the platform of each file chosen first, the default one proposed.
+  const platforms = state.config.platforms ?? [], chosen = state.config.default_delegation;
+  $("#check-platform-rows").innerHTML = files.map((f, i) => `<tr><td>${escapeHtml(f.name)}</td><td><select data-check-platform="${i}">${
+    platforms.map(p => `<option ${p === chosen ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td></tr>`).join("");
+  $("#check-run").onclick = () => runCheck(step, files,
+    files.map((_, i) => document.querySelector(`[data-check-platform="${i}"]`).value));
 });
 
-async function runCheck(step, files) {
+async function runCheck(step, files, platforms = null) {
   const $checkSummary = $("#check-summary");
   const $checkOpen = $("#check-open");
   const $checkSave = $("#check-save");
@@ -1271,7 +1281,8 @@ async function runCheck(step, files) {
   $checkOpen.disabled = $checkSave.disabled = true;
   checkReport = null;
   // Body: the list of the files (name, size) in JSON, then their bytes in the same order.
-  const manifest = new TextEncoder().encode(JSON.stringify(files.map(f => ({ name: f.name, size: f.size }))));
+  const manifest = new TextEncoder().encode(JSON.stringify(files.map((f, i) => ({ name: f.name, size: f.size,
+    ...(platforms ? { platform: platforms[i] } : {}) }))));
   try {
     const response = await request(`api/check/${step}?manifest_size=${manifest.length}`,
                                    { method: "POST", body: new Blob([manifest, ...files]) });
@@ -1405,17 +1416,20 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
         <strong>${escapeHtml(r)}</strong><span class="hint">${escapeHtml(releaseDescription(r))}</span></label>`).join("") ||
       `<p class="hint">Aucune release déclarée : en ajouter dans Configuration &gt; Releases.</p>`;
     $planDialogStatus.textContent = "";
-    // Excel fiches file: the other platform it comes from.
-    const askPlatform = slot === "traceability";
-    const others = (state.config.platforms ?? []).filter(p => p !== state.config.default_delegation);
-    const platform = others.includes(previous?.platform) ? previous.platform : others.length === 1 ? others[0] : null;
+    // Fiches file: the platform it comes from. XML: every platform, the default one proposed; Excel: another one.
+    const askPlatform = slot === "traceability" || slot === "xml";
+    const others = (state.config.platforms ?? []).filter(p => slot === "xml" || p !== state.config.default_delegation);
+    const platform = others.includes(previous?.platform) ? previous.platform
+      : slot === "xml" ? state.config.default_delegation : others.length === 1 ? others[0] : null;
     $("#plan-platform-part").hidden = !askPlatform;
+    // A fiches file has no tome: it applies to every tome, only its platform is asked.
+    $("#plan-tome-part").hidden = askPlatform;
     $("#plan-platforms").innerHTML = others.map(p => `<label class="release-row">
         <input type="radio" name="plan-platform" value="${escapeHtml(p)}" ${p === platform ? "checked" : ""}><strong>${escapeHtml(p)}</strong></label>`).join("")
       || `<p class="hint">Aucune autre plateforme : en ajouter dans Configuration &gt; Plateformes.</p>`;
     let result = null;
     $("#plan-ok").onclick = () => {
-      const chosenTome = document.querySelector("[name=plan-tome]:checked")?.value;
+      const chosenTome = askPlatform ? "" : document.querySelector("[name=plan-tome]:checked")?.value;
       if (chosenTome === undefined) { $planDialogStatus.textContent = optional ? "Choisir le tome, ou Aucun." : "Choisir le tome."; return; }
       const chosenPlatform = document.querySelector("[name=plan-platform]:checked")?.value ?? "";
       if (askPlatform && !chosenPlatform) { $planDialogStatus.textContent = "Choisir la plateforme."; return; }
@@ -1696,10 +1710,10 @@ const stored = r => r.slot === "plan" ? state.plansDb.plans[r.id] : r.slot === "
 // Draw the loading boxes of the home page: number of files and last message.
 function renderCards() {
   for (const card of document.querySelectorAll(".drop")) {
-    const slot = card.dataset.slot;
+    const slot = card.dataset.slot, slots = SLOTS_OF_CARD[slot] ?? [slot];
     const count = slot === "requirements" ? Object.keys(state.reqDb.tomes).length
-      : state.records.filter(r => r.slot === slot && stored(r)).length;
-    const error = state.errors[slot];
+      : state.records.filter(r => slots.includes(r.slot) && stored(r)).length;
+    const error = slots.map(s => state.errors[s]).filter(Boolean).join(" ; ");
     card.classList.toggle("loaded", count > 0 && !error);
     card.classList.toggle("error", !!error);
     // Only the message of the last import: the full lists are on the other pages.
@@ -1713,7 +1727,7 @@ const plural = (n, singular, several = singular + "s") => `${n} ${n > 1 ? severa
 
 // Remembers the message of the last import of a box (kept in this browser only).
 function setLastLoad(slot, text) {
-  prefs.lastLoad = { ...prefs.lastLoad, [slot]: text };
+  prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: text };
   writePrefs();
 }
 
@@ -2634,7 +2648,7 @@ async function refresh() {
 // Load files dropped on a box: analyse, ask for the attachment, then store each one.
 async function loadFiles(slot, files) {
   const $itemsDialog = $("#items-dialog");
-  const card = document.querySelector(`.drop[data-slot="${slot}"]`);
+  const card = document.querySelector(`.drop[data-slot="${CARD_OF[slot] ?? slot}"]`);
   card.querySelector(".name").textContent = "Lecture…";
   const errors = [];
   const planFiles = [];   // acceptance plans loaded
@@ -2851,13 +2865,20 @@ for (const card of document.querySelectorAll(".drop")) {
   const input = card.querySelector("input");
   const take = files => [...files].slice(0, MULTI_SLOTS.has(slot) ? undefined : 1);
   card.addEventListener("click", () => input.click());
-  input.addEventListener("change", () => { if (input.files.length) loadFiles(slot, take(input.files)); input.value = ""; });
+  // The Fiches d'Essai box: each file read by its format, XML (fiches) or Excel (traceability of the other platforms).
+  const load = async files => {
+    if (slot !== "xml") return loadFiles(slot, files);
+    const xml = files.filter(f => /\.xml$/i.test(f.name)), excel = files.filter(f => !/\.xml$/i.test(f.name));
+    if (xml.length) await loadFiles("xml", xml);
+    if (excel.length) await loadFiles("traceability", excel);
+  };
+  input.addEventListener("change", () => { if (input.files.length) load(take(input.files)); input.value = ""; });
   card.addEventListener("dragover", e => { e.preventDefault(); card.classList.add("over"); });
   card.addEventListener("dragleave", () => card.classList.remove("over"));
   card.addEventListener("drop", e => {
     e.preventDefault();
     card.classList.remove("over");
-    if (e.dataTransfer.files.length) loadFiles(slot, take(e.dataTransfer.files));
+    if (e.dataTransfer.files.length) load(take(e.dataTransfer.files));
   });
 }
 
