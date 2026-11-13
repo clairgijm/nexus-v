@@ -17,12 +17,14 @@ from requirements_db import VALIDATION_STATES, RequirementsDatabase
 from stdhl_db import StdhlDatabase, unique
 from verification import Verification
 
-# Severity of a problem, from the most serious: a refused file, a choice asked at import, a point to look at, a note.
-BLOCKING, SETTLE, CHECK, INFO = "bloquant", "regler", "verifier", "info"
-SEVERITY_LABELS = {BLOCKING: "Bloquant", SETTLE: "À régler", CHECK: "À vérifier", INFO: "Information"}
+# Severity of a problem, from the most serious: a refused file, a choice asked at import, rows the import rejects, a
+# point to look at, a note.
+BLOCKING, SETTLE, REJECTED, CHECK, INFO = "bloquant", "regler", "rejete", "verifier", "info"
+SEVERITIES = (BLOCKING, SETTLE, REJECTED, CHECK, INFO)
+SEVERITY_LABELS = {BLOCKING: "Bloquant", SETTLE: "À régler", REJECTED: "Rejeté", CHECK: "À vérifier", INFO: "Information"}
 # Verdict of a file, from its most serious problem.
-VERDICTS = {BLOCKING: "Refusé à l'import", SETTLE: "Chargeable, avec des choix à faire", CHECK: "Chargeable, à vérifier",
-            INFO: "Chargeable"}
+VERDICTS = {BLOCKING: "Refusé à l'import", SETTLE: "Chargeable, avec des choix à faire",
+            REJECTED: "Chargeable, avec des lignes rejetées", CHECK: "Chargeable, à vérifier", INFO: "Chargeable"}
 STEP_TITLES = {"requirements": "Exigences", "plans": "Plans d'acceptation", "stdhl": "STDHL", "fiches": "Fiches d'essai"}
 FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl", "fiches": "fiches"}
 MODE_LABELS = {"replace": "Si le fichier écrase la base (import en remplacement)",
@@ -143,7 +145,6 @@ class FileCheck:
         files and the tiles of the Verification before and after their import."""
         mode = mode if mode in MODE_LABELS else "replace"
         release = self.config.get("release")
-        number = re.compile(self.config.get("requirement_regex"))
         # The base after the files checked so far, tome by tome: {tome: {number: requirement}}, filled as each file
         # is applied in turn; and where each number of the base is.
         tomes = {}
@@ -184,10 +185,15 @@ class FileCheck:
             for group in data["outside"]:
                 label = (f"release{'s' if ',' in group['key'] else ''} {group['key']}" if group["key"]
                          else "sans release")
-                p.append(problem(SETTLE, f"{plural(group['count'], 'exigence')} {label}, hors de la release {release} : "
-                                         + listed(r["id"] for r in group["requirements"]),
-                                 f"ignorées par défaut à l'import ; si elles concernent la release {release}, corriger "
-                                 "la colonne Specification releases ou les importer en forçant leur groupe"))
+                # Those already in the base: removed from it by a replacement, kept as they are by a complement.
+                known = [r["id"] for r in group["requirements"] if r["id"] in base]
+                fate = ("retirée" + ("s" if len(known) > 1 else "") + " de la base" if mode == "replace"
+                        else f"gardée{'s' if len(known) > 1 else ''} en release {release} par la base")
+                p.append(problem(REJECTED, f"{plural(group['count'], 'exigence')} {label}, hors de la release {release}, "
+                                           f"rejetée{'s' if group['count'] > 1 else ''} à l'import : "
+                                           + listed(r["id"] for r in group["requirements"])
+                                           + (f" ; dont {len(known)} déjà en base, {fate}" if known else ""),
+                                 f"si elles concernent la release {release}, corriger la colonne Specification releases"))
             for r in data["repeated"]:
                 rows = ", ".join(str(v["row"]) for v in r["rows"])
                 p.append(problem(SETTLE, f"{r['id']} présente sur plusieurs lignes ({rows})",
@@ -197,11 +203,11 @@ class FileCheck:
                 if len(r["stdhl_values"]) > 1:
                     p.append(problem(SETTLE, f"{r['id']} : plusieurs valeurs STDHL ({', '.join(r['stdhl_values'])})",
                                      "n'en garder qu'une dans la cellule (sinon, la choisir à l'import)"))
-            bad = [r["id"] for r in reqs if not number.fullmatch(r["id"])]
+            bad = data.get("rejected_numbers") or []
             if bad:
-                p.append(problem(CHECK, f"{plural(len(bad), 'numéro')} hors du format des exigences : {listed(bad)}",
-                                 "corriger le numéro : les plans et les STDHL ne pourront pas le citer (format réglé "
-                                 "dans Configuration > Expressions régulières)"))
+                p.append(problem(REJECTED, f"{plural(len(bad), 'numéro')} hors du format des exigences, rejeté"
+                                           f"{'s' if len(bad) > 1 else ''} à l'import : {listed(bad)}",
+                                 "corriger le numéro (format réglé dans Configuration > Expressions régulières)"))
             for platform, ids in (data.get("new_platforms") or {}).items():
                 p.append(problem(CHECK, f"nouvelle plateforme à ajouter : {platform} ({plural(len(ids), 'exigence')} "
                                         "déléguée" + ("s" if len(ids) > 1 else "") + " : " + listed(ids) + ")",
@@ -258,12 +264,6 @@ class FileCheck:
                         field, f"au {label} modifié")
                     p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base {what} "
                                            f"(tome{'s' if len(where) > 1 else ''} {', '.join(where)}) : " + listed(changed)))
-            left = [r["id"] for r in outside if r["id"] in base]
-            if left:
-                p.append(problem(CHECK, f"{plural(len(left), 'exigence')} de la base hors de la release {release} dans "
-                                        f"le fichier : " + listed(left),
-                                 "elles seront retirées de la base avec leur couverture : corriger leur release si "
-                                 "elles doivent rester" if mode == "replace" else "la base les garde telles quelles"))
             removed = []
             if mode == "replace":
                 # In replacement, the requirements of the tomes concerned that the file does not keep leave the base.
@@ -884,16 +884,15 @@ class FileCheck:
     @staticmethod
     def _verdict(problems):
         """(verdict, counts by severity) of a list of problems: its most serious severity."""
-        order = [BLOCKING, SETTLE, CHECK, INFO]
         severities = [x["severity"] for x in problems]
-        return next((s for s in order if s in severities), INFO), {s: severities.count(s) for s in order}
+        return next((s for s in SEVERITIES if s in severities), INFO), {s: severities.count(s) for s in SEVERITIES}
 
     @staticmethod
     def _counts_text(results, key):
         """« 1 refusé, 2 avec des choix à faire, 3 chargeables » for the verdicts results[i][key]."""
         refused = sum(r[key] == BLOCKING for r in results)
         settle = sum(r[key] == SETTLE for r in results)
-        loadable = sum(r[key] in (CHECK, INFO) for r in results)
+        loadable = sum(r[key] in (REJECTED, CHECK, INFO) for r in results)
         return (f"{refused} refusé{'s' if refused > 1 else ''}, {settle} avec des choix à faire, "
                 f"{loadable} chargeable{'s' if loadable > 1 else ''}")
 
@@ -960,7 +959,7 @@ class FileCheck:
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{e(title)}</title><style>
 :root {{ --text:#1c2330; --muted:#5e6878; --border:#d8dce3; --bg:#ffffff; --head:#eef0f4;
   --ko:#b42318; --ko-bg:#fde8e6; --warn:#8a5a00; --warn-bg:#fdf1d6; --ok:#1d7a46; --ok-bg:#e2f4ea;
-  --info:#1f5fbf; --info-bg:#e7f1fb; }}
+  --info:#1f5fbf; --info-bg:#e7f1fb; --rej:#6b2fb3; --rej-bg:#efe6fb; }}
 body {{ font-family: "Segoe UI", system-ui, sans-serif; color: var(--text); background: var(--bg); margin: 24px auto;
   max-width: 1100px; padding: 0 16px; font-size: 14px; line-height: 1.45; }}
 h1 {{ font-size: 1.6rem; margin: 0 0 4px; color: #0569a3; padding-bottom: 6px; border-bottom: 3px solid #10aed6; }}
@@ -977,6 +976,7 @@ td.n {{ text-align: right; font-variant-numeric: tabular-nums; }}
   white-space: nowrap; }}
 .bloquant {{ background: var(--ko-bg); color: var(--ko); }} .regler {{ background: var(--warn-bg); color: var(--warn); }}
 .verifier {{ background: var(--info-bg); color: var(--info); }} .info {{ background: var(--ok-bg); color: var(--ok); }}
+.rejete {{ background: var(--rej-bg); color: var(--rej); }}
 tr.changed td {{ font-weight: 600; }} .facts {{ color: var(--muted); margin: 0 0 6px; }}
 .hint {{ color: var(--muted); font-size: .9em; }}
 @media print {{ body {{ margin: 0; max-width: none; }} h2 {{ break-after: avoid; }} tr {{ break-inside: avoid; }} }}
@@ -998,17 +998,17 @@ rien n'a été importé</p>"""]
                           "exigences, les autres restent).</p>"))
         out.append("<table><thead><tr><th>Fichier</th><th>Tomes de la base concernés</th>"
                    + (mode_head if modes else "<th>Résultat</th>")
-                   + "<th>Bloquants</th><th>À régler</th><th>À vérifier</th></tr></thead><tbody>")
+                   + "<th>Bloquants</th><th>À régler</th><th>Rejetés</th><th>À vérifier</th></tr></thead><tbody>")
         for k, r in enumerate(results):
             cells = ("".join(f"<td>{verdict(r.get('verdicts', {}).get(m, r['verdict']))}</td>" for m in modes)
                      if modes else f"<td>{verdict(r['verdict'])}</td>")
             out.append(f'<tr><td><a href="#f{k}">{e(r["name"])}</a></td><td>{e(r["tome"] or "—")}</td>{cells}'
                        f'<td class="n">{r["counts"][BLOCKING]}</td><td class="n">{r["counts"][SETTLE]}</td>'
-                       f'<td class="n">{r["counts"][CHECK]}</td></tr>')
+                       f'<td class="n">{r["counts"][REJECTED]}</td><td class="n">{r["counts"][CHECK]}</td></tr>')
         out.append("</tbody></table>")
         if modes:
-            out.append('<p class="hint">Bloquants, À régler et À vérifier : les problèmes communs aux deux imports ; '
-                       "ceux d'un seul import sont détaillés fichier par fichier.</p>")
+            out.append('<p class="hint">Bloquants, À régler, Rejetés et À vérifier : les problèmes communs aux deux '
+                       "imports ; ceux d'un seul import sont détaillés fichier par fichier.</p>")
         if tiles:
             after_head = "".join(f"<th>Après import, s'il {e(MODE_SHORT[m])}</th>" for m in modes) or "<th>Après import</th>"
             out.append(f"<h2>Couverture avant et après import</h2><table><thead><tr><th>Étape</th><th>Avant</th>"
@@ -1052,7 +1052,7 @@ rien n'a été importé</p>"""]
     @staticmethod
     def _problem_table(problems, e, badge):
         """Table of problems, the most serious first."""
-        order = {BLOCKING: 0, SETTLE: 1, CHECK: 2, INFO: 3}
+        order = {s: k for k, s in enumerate(SEVERITIES)}
         rows = sorted(problems, key=lambda x: order[x["severity"]])
         with_place = any(x["place"] for x in rows)
         head = "<th>Criticité</th><th>Problème</th>" + ("<th>Emplacement</th>" if with_place else "") + "<th>Correction</th>"

@@ -127,7 +127,8 @@ lines = ["# Fichiers de complément et de remplacement", "",
          "95 % d'exigences qu'il ne contient pas, ce qu'il doit signaler.", "",
          "Une exigence modifiée change un seul champ, à tour de rôle : le titre (« — version modifiée » ajouté), le "
          "STDHL (« -bis » ajouté) ou la release (A devient B). Une exigence passée en B sort de la release de la base : "
-         "le rapport la signale dans un groupe hors release A (À régler) ; en remplacement, elle est aussi comptée parmi "
+         "le rapport la signale dans un groupe hors release A, rejeté à l'import (Rejeté) ; en remplacement, elle est "
+         "aussi comptée parmi "
          "les exigences absentes du fichier. Les exigences nouvelles n'ont pas de ligne de plan : la couverture du plan "
          "baisse d'autant.", "",
          "Le rapport doit donner, pour chaque fichier, les numéros ci-dessous : « exigences nouvelles », « exigences de la "

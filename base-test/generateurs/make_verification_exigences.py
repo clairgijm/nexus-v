@@ -69,8 +69,8 @@ cases.append(("2026-03-01-fct2-entetes.xlsx", "en-tête « Titre » renommé « 
 save("2026-03-01-fct3-sans-release-a.xlsx", [[r[0], r[1], "B, C", *r[3:]] for r in rows_of(3)])
 cases.append(("2026-03-01-fct3-sans-release-a.xlsx", "toutes les lignes en releases B, C",
               "Refusé dans les deux cas : aucune exigence en release A (Bloquant), un groupe « releases B, C » hors "
-              "release (À régler), 120 exigences de la base hors release A dans le fichier (À vérifier) ; s'il écrase "
-              "la base : les 120 exigences du tome fct3 absentes du fichier (À vérifier)"))
+              "release A, rejetées à l'import, dont 120 déjà en base (Rejeté) ; s'il écrase la base : ces 120 exigences "
+              "en sont retirées et le tome fct3 les perd (À vérifier) ; s'il la modifie : la base les garde en release A"))
 
 # 4. Repeated number, several STDHL values, numbers of another tome (different, then identical content).
 rows = rows_of(4)
@@ -98,8 +98,8 @@ rows += [["SSS_FCT5_REQ_900", "nouvelle exigence", "A", "fct5", *REF], ["SSS_FCT
 save("2026-03-01-fct5-modifications.xlsx", rows)
 cases.append(("2026-03-01-fct5-modifications.xlsx",
               f"{', '.join(removed)} retirées ; SSS_FCT5_REQ_900 et 901 ajoutées (901 sans titre) ; FCT5-REQ-902 hors format",
-              "Chargeable, à vérifier, dans les deux cas : 1 numéro hors format, 1 exigence sans titre (À vérifier), 3 "
-              "exigences nouvelles (Information) ; s'il écrase la base : 3 exigences du tome fct5 absentes du fichier "
+              "Chargeable, avec des lignes rejetées, dans les deux cas : 1 numéro hors format, rejeté à l'import (Rejeté), "
+              "1 exigence sans titre (À vérifier), 2 exigences nouvelles (Information) ; s'il écrase la base : 3 exigences du tome fct5 absentes du fichier "
               "(À vérifier) ; la couverture du plan baisse (exigences nouvelles sans ligne de plan)"))
 
 # 6. Lines outside release A, in several groups, one without release.
@@ -109,9 +109,10 @@ a_rows[0][2], a_rows[1][2], a_rows[2][2] = "B", "C", None
 save("2026-03-01-fct6-hors-release.xlsx", rows)
 cases.append(("2026-03-01-fct6-hors-release.xlsx",
               f"{a_rows[0][0]} passée en B, {a_rows[1][0]} en C, {a_rows[2][0]} sans release",
-              "Chargeable avec des choix à faire dans les deux cas : 3 groupes hors release A, « release B », "
-              "« release C » et « sans release » (À régler), 3 exigences de la base hors release A dans le fichier "
-              "(À vérifier) ; s'il écrase la base, elles en sont retirées ; s'il la modifie, la base les garde"))
+              "Chargeable, avec des lignes rejetées, dans les deux cas : 3 groupes hors release A, « release B », "
+              "« release C » et « sans release », rejetés à l'import, chacun avec 1 exigence déjà en base (Rejeté) : s'il "
+              "écrase la base, elles en sont retirées (et le tome fct6 les perd, À vérifier) ; s'il la modifie, la base "
+              "les garde en release A"))
 
 # 7. Workbook of two sheets.
 save("2026-03-01-fct7-deux-feuilles.xlsx", rows_of(7), extra_sheet=("Historique", [["Version", "Date"], ["1", "2026-03-01"]]))

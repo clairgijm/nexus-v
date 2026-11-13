@@ -247,7 +247,8 @@ class RequirementsDatabase:
     def read_excel(cls, content, sheet=None, config=None, rows=None):
         """Read a requirements workbook (bytes). Returns {"sheets": names, "sheet": sheet read,
         "requirements": [{id, title, releases, stdhl, iadt, moc, delegation, row}], "releases": releases named in the file,
-        "repeated": [{id, rows: [{row, title, releases, stdhl}], chosen}] numbers found on several rows}.
+        "repeated": [{id, rows: [{row, title, releases, stdhl}], chosen}] numbers found on several rows,
+        "rejected_numbers": numbers out of the format of the requirements (requirement_regex), left out}.
 
         Row 1 is the header: it must contain every expected text (configuration headers_requirements, text ->
         role); the columns of the roles id, title, releases, stdhl, iadt, moc, delegation are located by it. Otherwise,
@@ -274,7 +275,8 @@ class RequirementsDatabase:
                 raise ValueError(f"en-tête non conforme à l'attendu (ligne 1 de la feuille « {name} » : colonnes "
                                  + ", ".join(f"« {h} »" for h in headers if headers[h] not in ("check", "ignore"))
                                  + ")")
-            found, releases = {}, {}
+            found, releases, rejected = {}, {}, []
+            number_regex = re.compile(get("requirement_regex"))
             # Every row after the header; `number` is the row number shown to the user (Excel numbering).
             for number, row in enumerate(workbook[name].iter_rows(min_row=2, values_only=True), start=2):
                 value = lambda field: cls._cell_text(row[cols[field]] if cols[field] < len(row) else None)
@@ -286,7 +288,10 @@ class RequirementsDatabase:
                 # A STDHL cell may hold several values; one value written twice in different cases counts once.
                 values = cls.stdhl_values(stdhl, config)
                 stdhl = values[0] if len(values) == 1 else stdhl   # « F1, f1 » is one value
-                if req_id:
+                # A number out of the format of the requirements is rejected: the plans and the STDHL could not cite it.
+                if req_id and not number_regex.fullmatch(req_id):
+                    rejected.append(req_id)
+                elif req_id:
                     found.setdefault(req_id, []).append(
                         {"id": req_id, "title": title.strip(), "releases": list(dict.fromkeys(rels)),
                          "stdhl": stdhl.strip(), "stdhl_values": values, "iadt": iadt.strip(), "moc": moc.strip(),
@@ -304,6 +309,7 @@ class RequirementsDatabase:
                     repeated.append({"id": req_id, "chosen": chosen and chosen["row"],
                                      "rows": [{f: v[f] for f in ("row", "title", "releases", "stdhl")} for v in versions]})
             return {"sheets": names, "sheet": name, "requirements": requirements, "releases": list(releases),
+                    "rejected_numbers": list(dict.fromkeys(rejected)),
                     "repeated": repeated}
         finally:
             workbook.close()
@@ -522,7 +528,7 @@ class RequirementsDatabase:
                     summary["removed_files"].append(old["name"])
         forced_count = sum(g["count"] for g in outside if g["key"] in forced)
         return {**summary, "file_id": record["id"], "kept": len(selected) - len(reqs), "forced": forced_count,
-                "new_platforms": list(new_platforms),
+                "new_platforms": list(new_platforms), "rejected_numbers": data["rejected_numbers"],
                 "ignored": sum(g["count"] for g in outside) - forced_count, "releases": data["releases"]}
 
     # ------------------------------------------------------------------ #
