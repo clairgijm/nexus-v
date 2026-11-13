@@ -27,10 +27,19 @@ in_a = lambda r: "A" in str(r[2] or "").replace(" ", "").split(",")
 
 
 def rows_of(k):
-    """Rows [ID, Titre, Release, STDHL] of release A of the test file of fctk, as the base holds them."""
+    """Rows [ID, Titre, Specification releases, STDHL, IADT, MOC, Délégation, Validation releases] of release A of the
+    test file of fctk, as the base holds them (specification releases reduced to A)."""
     ws = openpyxl.load_workbook(BASE / "exigences" / f"2026-01-01-fct{k}.xlsx").active
-    return [["A" if c == 2 else v for c, v in enumerate(r[:4])]
+    return [validated(["A" if c == 2 else v for c, v in enumerate(r[:8])])
             for r in ws.iter_rows(min_row=2, values_only=True) if r[0] and in_a(r)]
+
+
+def validated(row):
+    """The row with its validation releases within its specification releases (A); a qualified requirement keeps
+    them as they are."""
+    if "QUALIFIE" not in str(row[7] or ""):
+        row[7] = "A"
+    return row
 
 
 def save(path, rows):
@@ -38,12 +47,12 @@ def save(path, rows):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Exigences"
-    ws.append(["ID", "Titre", "Release", "STDHL"])
+    ws.append(["ID", "Titre", "Specification releases", "STDHL", "IADT", "MOC", "Délégation", "Validation releases"])
     for r in rows:
         ws.append(r)
     for c in ws[1]:
         c.font, c.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
-    for col, w in zip("ABCD", (24, 60, 12, 12)):
+    for col, w in zip("ABCDEFGH", (24, 60, 16, 12, 8, 9, 14, 16)):
         ws.column_dimensions[col].width = w
     ws.page_setup.paperSize, ws.page_setup.orientation = ws.PAPERSIZE_A4, "portrait"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
@@ -60,13 +69,16 @@ def modify(row, field):
     elif field == "STDHL":
         row[3] = f"{row[3]}-bis"
     else:
-        row[2] = "B"
+        row[2] = "B"   # validated in B too, unless qualified
+        if "QUALIFIE" not in str(row[7] or ""):
+            row[7] = "B"
     return row
 
 
 def new_rows(k, first, count):
     """New requirements of fctk, numbered from `first`."""
-    return [[f"SSS_FCT{k}_REQ_{n}", f"nouvelle exigence {n} de FCT{k}", "A", f"fct{k}"] for n in range(first, first + count)]
+    return [[f"SSS_FCT{k}_REQ_{n}", f"nouvelle exigence {n} de FCT{k}", "A", f"fct{k}", "T", "MOC4", "TOP", "A"]
+            for n in range(first, first + count)]
 
 
 report = []   # (file, mode, {case: [numbers]})

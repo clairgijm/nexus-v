@@ -120,12 +120,15 @@ def requirements():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Exigences"
-    ws.append(["ID", "Titre", "Release", "STDHL"])
+    ws.append(["ID", "Titre", "Specification releases", "STDHL", "IADT", "MOC", "Délégation", "Validation releases"])
+    # Validation releases: the specification releases, but 004 qualified (last tested in A) and 007 tested in B only.
+    validation = {"SSS_MODELE_REQ_004": "A, QUALIFIE", "SSS_MODELE_REQ_007": "B"}
     for r in REQS:
-        ws.append([r[0], r[1], r[2], r[3]])
+        # One MOC in the requirements file (the reference); the plan may give several (003: MOC2, MOC3).
+        ws.append([r[0], r[1], r[2], r[3], r[4], r[5].split(",")[0].strip(), r[6] or "TOP", validation.get(r[0], r[2])])
     for c in ws[1]:
         c.font, c.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
-    for col, w in zip("ABCD", (24, 52, 12, 14)):
+    for col, w in zip("ABCDEFGH", (24, 52, 16, 14, 8, 9, 14, 16)):
         ws.column_dimensions[col].width = w
     help_ = wb.create_sheet("Mode d'emploi")
     lines = [
@@ -135,19 +138,34 @@ def requirements():
         ("Nom du fichier", "<AAAA-MM-JJ>-<TOME>.xlsx, par exemple 2026-01-01-MODELE.xlsx : le tome est le texte après "
                            "la date, jusqu'au tiret, au souligné ou à l'extension suivant (requirements_tome_regex)."),
         ("Un seul tome", "un fichier d'exigences porte un seul tome (une seule fonction)."),
-        ("Ligne 1", "les en-têtes, dans n'importe quel ordre : ID, Titre, Release, STDHL (headers_requirements). "
+        ("Ligne 1", "les en-têtes, dans n'importe quel ordre : ID, Titre, Specification releases, STDHL, IADT, MOC, "
+                    "Délégation, Validation releases "
+                    "(headers_requirements). "
                     "Un en-tête absent fait refuser le fichier ; les autres colonnes sont ignorées."),
         ("ID", "numéro de l'exigence, au format SSS_<TOME>_REQ_<n°> (avec ou sans T<n>_ après SSS_), ou "
                "HQ1/2_WF_<n°> suivi ou non de _REQ_<n°> (requirement_regex). Un numéro présent sur plusieurs lignes "
                "est signalé à l'import : l'utilisateur choisit la ligne gardée."),
         ("Titre", "texte libre."),
-        ("Release", "une ou plusieurs releases séparées par une virgule (release_separator_regex), par exemple « A, B ». "
+        ("Validation releases", "les releases où l'exigence est testée, séparées par une virgule, par exemple « B » "
+                                "pour une exigence spécifiée en A et B mais testée en B seulement ; et/ou QUALIFIE "
+                                "(« QUALIFIE », « A, QUALIFIE » : la dernière release citée est celle du dernier test). "
+                                "Pour la release de la base, l'exigence est qualifiée si QUALIFIE est écrit (seul ce "
+                                "point compte), à qualifier si la release est dans la liste, hors scope sinon ; une "
+                                "cellule vide est admise : l'exigence est hors du scope de la validation."),
+        ("Specification releases", "une ou plusieurs releases séparées par une virgule (release_separator_regex), par exemple « A, B ». "
                     "À l'import, l'utilisateur choisit les releases gardées ; une exigence hors de ces releases peut "
                     "être forcée ou ignorée."),
         ("STDHL", "nom du STDHL qui spécifie l'exigence (par défaut, le tome). Vide quand l'exigence n'est pas "
                   "spécifiée dans un STDHL de la plateforme TOP. Plusieurs valeurs : séparées par , ; / ou un retour "
                   "à la ligne (stdhl_separator_regex). Vérifié seulement si « Utiliser la colonne STDHL » est coché "
                   "dans Configuration > STDHL."),
+        ("IADT", "la méthode de vérification de l'exigence, un seul code : I (inspection), A (analyse), D "
+                 "(démonstration), T (test) ou N/A. Le fichier d'exigences est la référence : le plan d'acceptation et "
+                 "le STDHL sont vérifiés par rapport à lui."),
+        ("MOC", "le moyen de conformité, un seul code : D et T → MOC4, I → MOC7, A → MOC2 ou MOC3, N/A → N/A "
+                "(règles IADT / MOC de la configuration). Une exigence IADT N/A et MOC N/A n'est pas testée."),
+        ("Délégation", "la plateforme qui vérifie l'exigence, une seule, toujours écrite : une délégation vide fait "
+                       "refuser le fichier, comme un code ou une plateforme absents de la configuration."),
         ("Exemple", "8 exigences : 001 à 007 et HQ1/2_WF_001. 002 est déléguée à la plateforme PLT1_N-1 et 005 est "
                     "N/A dans le plan : ni l'une ni l'autre n'a de STDHL."),
     ]
