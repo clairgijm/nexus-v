@@ -62,7 +62,7 @@
     "headers_stdhl": {
       "Description du test": "check",
       "Résultat attendu": "check",
-      "Exigences associéess": "requirements"
+      "Exigences associées": "requirements"
     },
     "stdhl2_test_regex": "^\\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\\d+)\\s*:",
     "stdhl2_requirements_label": "Exigences associées",

@@ -99,9 +99,7 @@ def modify(e, field):
 
 
 def eligible(e, field):
-    """Whether an entry can take this modification: IADT on D or T rows, MOC on A rows, delegation on tested rows."""
-    if e["iadt"] == "N/A":
-        return False
+    """Whether an entry can take this modification: IADT on D or T rows, MOC on A rows, delegation on any row."""
     return {"IADT": e["iadt"] in ("D", "T"), "MOC": e["iadt"] == "A" and e["moc"] in ("MOC2", "MOC3"),
             "délégation": True}[field]
 
@@ -166,7 +164,7 @@ case("2026-03-01_PA_FCT4_A-regles.docx",
      "régler), avec le MOC attendu en correction ; lignes de plan de la base modifiées (Information)",
      "Plan d'acceptation FCT4", [("FCT4", rows4, HEADER)])
 t5, e5 = titles_of(5), plan_of(5)
-tested5 = [i for i, e in enumerate(e5) if e["iadt"] != "N/A"]
+tested5 = list(range(len(e5)))
 e5[tested5[0]] = {**e5[tested5[0]], "delegation": "PLT99"}
 e5[tested5[1]] = {**e5[tested5[1]], "delegation": "TOP, PLT1_N-1"}
 case("2026-03-01_PA_FCT5_A-delegations.docx",

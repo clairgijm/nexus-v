@@ -112,12 +112,7 @@ t4 = stdhl_of(4)
 case("2026-03-01_TEST_STDHL_FCT4-inconnues_rev1.docx", "3 exigences absentes de la base (SSS_FCT4_REQ_990 à 992)",
      "Chargeable avec des choix à faire dans les deux cas : 3 exigences inconnues de la base, non enregistrées (À régler)",
      "STDHL FCT4", t4[:-1] + [(t4[-1][0], t4[-1][1] + [f"SSS_FCT4_REQ_{n}" for n in range(990, 993)])])
-na5 = [e["requirement"] for e in plan_of(5) if e["iadt"] == "N/A"][:2]
-t5 = stdhl_of(5)
-case("2026-03-01_TEST_STDHL_FCT5-na_rev1.docx", f"{', '.join(na5)} ajoutées : N/A dans le plan",
-     "Chargeable dans les deux cas : 2 exigences N/A dans les plans, ignorées (Information)",
-     "STDHL FCT5", t5[:-1] + [(t5[-1][0], t5[-1][1] + na5)])
-other6 = [e["requirement"] for e in plan_of(6) if e["iadt"] != "N/A" and e["delegation"] not in ("", "TOP")][:2]
+other6 = [e["requirement"] for e in plan_of(6) if e["delegation"] not in ("", "TOP")][:2]
 t6 = stdhl_of(6)
 case("2026-03-01_TEST_STDHL_FCT6-plateforme_rev1.docx", f"{', '.join(other6)} ajoutées : déléguées à une autre plateforme",
      "Chargeable, à vérifier, dans les deux cas : 2 exigences déléguées à une autre plateforme que TOP (À vérifier)",
