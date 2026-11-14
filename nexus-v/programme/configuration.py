@@ -45,8 +45,10 @@ Variables:
   test_case_tag                   the tag of a test case, which contains
   requirement_tag                 the tag of the requirements tested
                                   (for fiche_regex and stdhl_name_regex: group 1 if any, else the whole match)
-  stdhl_platform                  the platform the STDHL apply to: only the requirements delegated to it are expected in
-                                  a STDHL, only its fiches are checked against the tests of the STDHL
+  system_platform                 the platform of system level (general parameter): the STDHL apply to it, only the
+                                  requirements delegated to it are expected in a STDHL, only its fiches are checked
+                                  against the tests of the STDHL. Not set by default (no requirement expected in a
+                                  STDHL); only a platform of the delegations of the requirements imported
   use_requirement_stdhl           take the column STDHL of the requirements into account: a requirement without a
                                   value is not checked at the STDHL stage (NON DEMANDÉ)
   release                         single release of the base (changes only while no file is loaded)
@@ -54,7 +56,6 @@ Variables:
   platforms                       test platforms (delegation of the plan rows)
   iadt                            IADT codes -> meaning
   mocs                            MOC codes -> description
-  default_delegation              delegation of an empty cell: the platform marked is_default in the base
   headers_requirements            headers expected in the requirements file (row 1)
   headers_plan                    headers expected in the tables of the acceptance plans
   headers_stdhl                   headers expected in the tables of the STDHL
@@ -114,7 +115,7 @@ DEFAULT_CONFIG = {
     "requirement_tag": "requirements",
     # Column D of the requirements names the STDHL a requirement must be found in (True), or is ignored (False).
     "use_requirement_stdhl": True,
-    "stdhl_platform": "TOP",
+    "system_platform": "",
     # The release the base works on: every requirement imported and every file loaded belongs to it.
     "release": "",
     "tomes": [],
@@ -122,7 +123,6 @@ DEFAULT_CONFIG = {
     "platforms": ["TOP"],
     "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test"},
     "mocs": {f"MOC{i}": "" for i in range(10)},
-    "default_delegation": "TOP",
     # Expected headers of the tables, in order: header text -> role ("" = column only checked).
     # A header cell must contain the text (case and accents ignored).
     "headers_requirements": {"ID": "id", "Titre": "title", "Specification releases": "releases",
@@ -143,7 +143,7 @@ HEADER_ROLES = {
 # imported files. Other variables (settings of the installation) stay at the root of the file.
 # A part maps the names written in the file to the variables: inside a part, a name needs no prefix (« folder »).
 SECTIONS = {
-    "general": {n: n for n in ("release", "slogan", "server_port", "open_browser", "chart_max_parts",
+    "general": {n: n for n in ("release", "system_platform", "slogan", "server_port", "open_browser", "chart_max_parts",
                                "chart_max_parts_platforms", "storage_dir")},
     "requirements": {"folder": "requirements_folder",
                      **{n: n for n in ("requirement_regex", "requirements_tome_regex", "release_separator_regex",
@@ -153,7 +153,7 @@ SECTIONS = {
              **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex",
                                "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
-              **{n: n for n in ("stdhl_platform", "use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
+              **{n: n for n in ("use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
                                 "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                                 "stdhl2_release_regex", "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
@@ -320,11 +320,6 @@ class Configuration:
             for name in REFERENTIALS:
                 if name in self.defaults:
                     self.database.set(name, self._check(name, self.defaults[name]))
-        # There is always a default platform: the one of the defaults if it exists, else the first platform.
-        if self.database.default_platform() is None:
-            wanted = self.defaults.get("default_delegation")
-            known = wanted in self.database.get("platforms")
-            self.database.set_default_platform(wanted if known else None)
 
     def write(self):
         """Save to disk atomically (temporary file, then rename). Only set variables are written."""
@@ -375,8 +370,6 @@ class Configuration:
             return {release: ""} if release else {}
         if self.database is not None and name in REFERENTIALS:
             return self.database.get(name)
-        if self.database is not None and name == "default_delegation":
-            return self.database.default_platform() or ""
         with self._lock:
             if name in self._values:
                 return copy.deepcopy(self._values[name])
@@ -389,7 +382,11 @@ class Configuration:
     def to_dict(self):
         """Every variable with its current value, referentials and their colours included."""
         return {**{name: self.get(name) for name in self.names()}, "colors": self.get("colors"),
-                "tome_descriptions": self.get("tome_descriptions")}
+                "tome_descriptions": self.get("tome_descriptions"), "system_platforms": self.system_platforms()}
+
+    def system_platforms(self):
+        """The platforms the platform of system level can be: those the requirements imported are delegated to."""
+        return self.database.requirement_platforms() if self.database is not None else []
 
     def set(self, name, value):
         """Set one variable after validation and save."""
@@ -425,13 +422,17 @@ class Configuration:
             rules = clean.get("iadt_moc_rules", self.get("iadt_moc_rules"))
             clean["iadt_moc_rules"] = {moved["iadt"].get(i, i): [moved["mocs"].get(m, m) for m in mocs]
                                        for i, mocs in rules.items()}
-        # The platform of the STDHL follows the renaming of its platform; it must stay a platform of the configuration.
-        platforms_after = clean.get("platforms", self.get("platforms"))
-        stdhl_platform = (renames.get("platforms") or {}).get(clean.get("stdhl_platform", self.get("stdhl_platform")),
-                                                             clean.get("stdhl_platform", self.get("stdhl_platform")))
-        if stdhl_platform not in platforms_after:
-            raise ValueError(f"plateforme du STDHL « {stdhl_platform} » absente des plateformes (Configuration > STDHL)")
-        clean["stdhl_platform"] = stdhl_platform
+        # The platform of system level follows the renaming of its platform; when set, it must be one of the platforms
+        # the requirements imported are delegated to.
+        moved_platforms = renames.get("platforms") or {}
+        system_platform = clean.get("system_platform", self.get("system_platform")) or ""
+        system_platform = moved_platforms.get(system_platform, system_platform)
+        if system_platform:
+            delegated = [moved_platforms.get(p, p) for p in self.system_platforms()]
+            if system_platform not in delegated:
+                raise ValueError(f"plateforme de niveau système « {system_platform} » : ce n'est la délégation d'aucune "
+                                 "exigence importée (choisir parmi " + (", ".join(delegated) or "aucune") + ")")
+        clean["system_platform"] = system_platform
         # Two types of files in the same sub-folder would mix their copies.
         folders = [clean.get(name, self.get(name)) for name in FOLDER_VARIABLES]
         same = sorted({f for f in folders if [x.casefold() for x in folders].count(f.casefold()) > 1})
@@ -439,14 +440,12 @@ class Configuration:
             raise ValueError("chaque type de fichier doit avoir son propre sous-dossier : « " + "», « ".join(same)
                              + " » est utilisé plusieurs fois")
         if self.database is not None:
-            default = clean.pop("default_delegation", None)   # a field of the table list_plateformes
             if renames:
                 self.database.rename(renames)
             # Referentials go to the database, in one transaction, before the JSON file is written.
             referentials = {name: clean.pop(name) for name in REFERENTIALS if name in clean}
             if referentials:
                 self.database.set_many(referentials)
-            self.database.set_default_platform(default or None)
             if colors:
                 self.database.set_colors(colors)
             if descriptions:
@@ -554,8 +553,6 @@ class Configuration:
                 re.compile(value)
             except re.error as e:
                 raise ValueError(f"expression régulière invalide ({name}) : {e}") from None
-        elif name == "stdhl_platform" and not (value or "").strip():
-            raise ValueError("choisir la plateforme à laquelle s'applique le STDHL (Configuration > STDHL)")
         elif name == "server_port" and not 1 <= value <= 65535:
             raise ValueError("server_port doit être compris entre 1 et 65535")
         elif name == "release":
@@ -595,5 +592,5 @@ class Configuration:
         return any(fold(name) == fold(p) for p in self.get("platforms"))
 
     def delegation(self, value):
-        """Delegation actually meant by a cell: the default one when empty."""
-        return (value or "").strip() or self.get("default_delegation")
+        """Delegation written in a cell (empty when the cell is: there is no default platform)."""
+        return (value or "").strip()

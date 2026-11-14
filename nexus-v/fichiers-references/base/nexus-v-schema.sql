@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS list_tomes (
 CREATE TABLE IF NOT EXISTS list_plateformes (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    is_default INTEGER NOT NULL DEFAULT 0,    -- 1 : plateforme d'une cellule Délégation vide ; une seule à la fois
     color TEXT NOT NULL DEFAULT ''            -- couleur dans les camemberts (#rrggbb) ; vide : tirée à la lecture
 );
 

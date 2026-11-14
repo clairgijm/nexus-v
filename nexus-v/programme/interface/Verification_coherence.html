@@ -474,8 +474,7 @@
   <div data-panel="fiches" hidden>
     <section>
       <h2>Fiches d'Essai</h2>
-      <p class="hint">Exigences testées par les Fiches d'essai chargées (XML de la plateforme par défaut, Excel des autres
-        plateformes), rangées par tome de l'exigence : une ligne par exigence et par test case.</p>
+      <p class="hint">Exigences testées par les Fiches d'essai chargées (XML et Excel, chacune de la plateforme choisie à son import), rangées par tome de l'exigence : une ligne par exigence et par test case.</p>
       <div class="subtabs" id="fiches-tabs" role="tablist"></div>
       <p class="hint" id="fiches-hint"></p>
       <div class="tome-toolbar search-bar" id="fiches-filters" hidden>
@@ -633,6 +632,11 @@
         <label class="wide">Release de la base : toutes les exigences importées et tous les fichiers chargés lui appartiennent ;
           elle ne se change que si aucun fichier n'est chargé
           <input type="text" class="mono" data-var="release" id="cfg-release" spellcheck="false" placeholder="Nom de la release"></label>
+        <label class="wide">Plateforme de niveau système : le STDHL s'applique à elle ; seules les exigences qui lui sont
+          déléguées sont attendues dans un STDHL, et seules ses fiches d'essai sont vérifiées par rapport aux tests du STDHL.
+          À choisir parmi les plateformes des délégations des exigences importées ; non définie, aucune exigence n'est
+          attendue dans un STDHL
+          <select data-var="system_platform" id="cfg-system-platform"></select></label>
         <label class="wide">Slogan (affiché à droite du nom NEXUS-V)
           <input type="text" data-var="slogan"></label>
         <label>Port du serveur
@@ -702,13 +706,10 @@
       <div data-config-pane="stdhl" hidden>
       <h3>Rattachement aux exigences</h3>
       <div class="params">
-        <label>Plateforme à laquelle s'applique le STDHL : seules les exigences déléguées à cette plateforme sont
-          attendues dans un STDHL, et seules ses fiches d'essai sont vérifiées par rapport aux tests du STDHL
-          <select data-var="stdhl_platform" id="cfg-stdhl-platform"></select></label>
         <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
           <input type="checkbox" data-var="use_requirement_stdhl"> Prendre en compte la colonne STDHL des exigences : une
           exigence sans valeur n'est pas contrôlée à l'étape STDHL (NON DEMANDÉ). Sinon, toute exigence déléguée à la
-          plateforme du STDHL doit être dans un STDHL de son tome (ou sans tome)</label>
+          plateforme de niveau système doit être dans un STDHL de son tome (ou sans tome)</label>
       </div>
       <h3>Sous-dossier des fichiers</h3>
       <div class="params">
@@ -781,7 +782,6 @@
       <p class="hint">La délégation indiquée dans le Plan d'acceptation doit être l'une de ces plateformes.</p>
       <div class="cfg-list" id="cfg-platforms"></div>
       <button class="small" data-add="platforms">Ajouter une plateforme</button>
-      <p class="hint">La plateforme par défaut est celle d'une case Délégation vide dans un plan.</p>
       </div>
 
       <div data-config-pane="iadt" hidden>
@@ -856,7 +856,7 @@
 <dialog id="check-dialog" aria-labelledby="check-title">
   <h2 id="check-title"></h2>
   <div id="check-platforms" hidden>
-    <p class="hint">Plateforme d'où vient chaque fichier : les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme par défaut.</p>
+    <p class="hint">Plateforme d'où vient chaque fichier : les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme de niveau système (Configuration &gt; Paramètres généraux).</p>
     <table class="data"><thead><tr><th>Fichier</th><th>Plateforme</th></tr></thead><tbody id="check-platform-rows"></tbody></table>
     <div class="toolbar"><button class="primary" id="check-run">Vérifier</button></div>
   </div>
@@ -890,7 +890,7 @@
   </div>
   <div id="plan-platform-part" hidden>
     <h3>Plateforme d'où vient ce fichier</h3>
-    <p class="hint">Une fiche d'essai XML vient en général de la plateforme par défaut (proposée) ; un fichier Excel vient d'une autre plateforme. Les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme par défaut ; une exigence non déléguée à la plateforme du fichier est chargée sans son résultat.</p>
+    <p class="hint">Choisir la plateforme d'où vient le fichier. Les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme de niveau système (Configuration &gt; Paramètres généraux) ; une exigence non déléguée à la plateforme du fichier est chargée sans son résultat.</p>
     <div id="plan-platforms"></div>
   </div>
   <div class="toolbar dialog-actions">
@@ -1251,11 +1251,14 @@ $("#check-input").addEventListener("change", e => {
   $("#check-dialog").showModal();
   if (step !== "fiches") return runCheck(step, files);
   // Fiches: the platform of each file chosen first, the default one proposed.
-  const platforms = state.config.platforms ?? [], chosen = state.config.default_delegation;
-  $("#check-platform-rows").innerHTML = files.map((f, i) => `<tr><td>${escapeHtml(f.name)}</td><td><select data-check-platform="${i}">${
-    platforms.map(p => `<option ${p === chosen ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td></tr>`).join("");
-  $("#check-run").onclick = () => runCheck(step, files,
-    files.map((_, i) => document.querySelector(`[data-check-platform="${i}"]`).value));
+  const platforms = state.config.platforms ?? [];
+  $("#check-platform-rows").innerHTML = files.map((f, i) => `<tr><td>${escapeHtml(f.name)}</td><td><select data-check-platform="${i}">
+    <option value="">— choisir —</option>${platforms.map(p => `<option>${escapeHtml(p)}</option>`).join("")}</select></td></tr>`).join("");
+  $("#check-run").onclick = () => {
+    const chosen = files.map((_, i) => document.querySelector(`[data-check-platform="${i}"]`).value);
+    if (chosen.some(p => !p)) { $("#check-summary").textContent = "Choisir la plateforme de chaque fichier."; return; }
+    runCheck(step, files, chosen);
+  };
 });
 
 async function runCheck(step, files, platforms = null) {
@@ -1404,9 +1407,8 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
     $planDialogStatus.textContent = "";
     // Fiches file: the platform it comes from. XML: every platform, the default one proposed; Excel: another one.
     const askPlatform = slot === "traceability" || slot === "xml";
-    const others = (state.config.platforms ?? []).filter(p => slot === "xml" || p !== state.config.default_delegation);
-    const platform = others.includes(previous?.platform) ? previous.platform
-      : slot === "xml" ? state.config.default_delegation : others.length === 1 ? others[0] : null;
+    const others = state.config.platforms ?? [];
+    const platform = others.includes(previous?.platform) ? previous.platform : others.length === 1 ? others[0] : null;
     $("#plan-platform-part").hidden = !askPlatform;
     // A fiches file has no tome: it applies to every tome, only its platform is asked.
     $("#plan-tome-part").hidden = askPlatform;
@@ -2049,7 +2051,7 @@ function drawPlanTable() {
   const stdhlOf = id => reqs.find(x => x.id === id)?.stdhl ?? "";
   const stdhlCell = (id, r) => {
     // The column STDHL is optional: only a STDHL asked for a requirement delegated to another platform is wrong.
-    const value = stdhlOf(id), top = r && r.effective_delegation === state.config.stdhl_platform;
+    const value = stdhlOf(id), top = r && r.effective_delegation === state.config.system_platform;
     const wrong = r && !r.deleted && !top && !!value;
     const why = wrong ? `STDHL demandé mais déléguée à ${r.effective_delegation}` : "";
     return `<td class="${wrong ? "stdhl-wrong" : ""}" ${why ? `title="${escapeHtml(why)}"` : ""}>${escapeHtml(value) || (wrong ? "—" : "")}</td>`;
@@ -2093,7 +2095,7 @@ function drawPlanTable() {
       <td><select data-plan-field="iadt" aria-label="IADT"><option value="">IADT…</option>${Object.keys(state.config.iadt ?? {}).map(c =>
           option(c, c, c === iadt)).join("")}</select></td>
       <td><select data-plan-field="moc" aria-label="MOC">${iadt ? mocOptions(iadt, r.moc_codes.join(", ")) : `<option value="">MOC…</option>`}</select></td>
-      <td><select data-plan-field="delegation" aria-label="Délégation">${option("", `(par défaut : ${state.config.default_delegation ?? ""})`, !r?.delegation)}
+      <td><select data-plan-field="delegation" aria-label="Délégation">${option("", "— choisir —", !r?.delegation)}
           ${(state.config.platforms ?? []).map(pl => option(pl, pl, r && fold(pl) === fold(r.delegation))).join("")}</select></td>
       <td class="actions"><button class="small icon ok" data-plan-save title="Enregistrer" aria-label="Enregistrer">✓</button>
         <button class="small icon ko" data-plan-cancel title="Annuler" aria-label="Annuler">✕</button></td></tr>`;
@@ -2858,7 +2860,7 @@ const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str",
                       stdhl_separator_regex: "str", code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
                       stdhl_name_regex: "str", plan_tome_regex: "str", requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
                       requirement_tag: "str", server_port: "int", chart_max_parts: "int", chart_max_parts_platforms: "int",
-                      open_browser: "bool", use_requirement_stdhl: "bool", stdhl_platform: "str", stdhl2_test_regex: "str",
+                      open_browser: "bool", use_requirement_stdhl: "bool", system_platform: "str", stdhl2_test_regex: "str",
                       stdhl2_requirements_label: "str", stdhl2_release_label: "str",
                       stdhl2_release_regex: "str", stdhl2_test_case_regex: "str" };
 
@@ -2890,7 +2892,7 @@ const draftColors = config => Object.fromEntries(["platforms", "tomes", "iadt", 
 function toDraft(config) {
   // Each row of a referential keeps its saved name, last: changing the name renames the value.
   const rows = values => Object.entries(values ?? {}).map(([code, label]) => [code, label, code]);
-  return { defaultPlatform: config.platforms.indexOf(config.default_delegation),
+  return {
            platforms: config.platforms.map(n => [n, n]), colors: draftColors(config), tomes: (config.tomes ?? []).map(n => [n, n]),
            tomeDescriptions: (config.tomes ?? []).map(n => config.tome_descriptions?.[n] ?? ""), iadt: rows(config.iadt),
            mocs: rows(config.mocs),
@@ -2954,8 +2956,6 @@ function fromDraft(draft) {
   const upper = s => s.toUpperCase();
   const renames = { platforms: changed(draft.platforms.filter(r => r.length === 2)), tomes: changed(draft.tomes.filter(r => r.length === 2)),
                     iadt: changed(draft.iadt.filter(r => r.length === 3), upper), mocs: changed(draft.mocs.filter(r => r.length === 3), upper) };
-  const defaultName = draft.platforms[draft.defaultPlatform]?.[0].trim();
-  if (!defaultName) throw new Error("choisir la plateforme par défaut");
   const rules = {};
   for (const [iadt, mocs] of draft.rules) {
     if (!iadt) throw new Error("règle IADT / MOC : choisir l'IADT");
@@ -2970,7 +2970,7 @@ function fromDraft(draft) {
   // Description of each tome, by its name once saved.
   const tome_descriptions = Object.fromEntries(draft.tomes.map((row, i) => [row[0].trim(), draft.tomeDescriptions[i] ?? ""])
     .filter(([name]) => name));
-  return { platforms, default_delegation: defaultName, colors, tome_descriptions, tomes: names(draft.tomes, "tome"), renames, iadt: codes(draft.iadt, "IADT"), mocs: codes(draft.mocs, "MOC"),
+  return { platforms, colors, tome_descriptions, tomes: names(draft.tomes, "tome"), renames, iadt: codes(draft.iadt, "IADT"), mocs: codes(draft.mocs, "MOC"),
            iadt_moc_rules: rules,
            ...scalarsFromDraft(draft.vars), ...headers };
 }
@@ -2991,8 +2991,7 @@ function renderConfig() {
     || `<p class="hint">Aucune règle : les lignes des plans ne sont pas contrôlées.</p>`;
   $("#cfg-platforms").innerHTML = d.platforms.map(([name], i) =>
     `<div class="cfg-row two platform-row"><input type="text" data-edit="platforms:${i}:0" value="${escapeHtml(name)}" placeholder="Nom de la plateforme">
-       <input type="color" data-color="platforms:${i}" value="${escapeHtml(d.colors.platforms[i] || "#888888")}" title="Couleur dans les camemberts" aria-label="Couleur">
-       <label class="check"><input type="radio" name="default-platform" data-default-platform="${i}" ${i === d.defaultPlatform ? "checked" : ""}> par défaut</label>${remove("platforms", i)}</div>`).join("");
+       <input type="color" data-color="platforms:${i}" value="${escapeHtml(d.colors.platforms[i] || "#888888")}" title="Couleur dans les camemberts" aria-label="Couleur">${remove("platforms", i)}</div>`).join("");
   $("#cfg-tomes").innerHTML = d.tomes.map(([name], i) =>
     `<div class="cfg-row tome-row"><input type="text" data-edit="tomes:${i}:0" value="${escapeHtml(name)}" placeholder="Nom du tome">
        <input type="text" data-tome-description="${i}" value="${escapeHtml(d.tomeDescriptions[i] ?? "")}" placeholder="Description : contenu du tome">
@@ -3021,7 +3020,8 @@ function renderConfig() {
       </div>`).join("")}</div>
     <button class="small" data-header-add="${name}">Ajouter une colonne</button>`;
   // The platform of the STDHL is chosen among the platforms of the configuration (being edited).
-  $("#cfg-stdhl-platform").innerHTML = d.platforms.map(([name]) => name).filter(Boolean)
+  // The platform of system level: not set, or one of the platforms the requirements imported are delegated to.
+  $("#cfg-system-platform").innerHTML = `<option value="">— non définie —</option>` + (state.config.system_platforms ?? [])
     .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
   for (const field of document.querySelectorAll("[data-var]")) {
     const value = d.vars[field.dataset.var];
@@ -3051,8 +3051,6 @@ $("[data-panel=config]").addEventListener("input", e => {
   } else if (target.dataset.color) {
     const [kind, i] = target.dataset.color.split(":");
     state.draft.colors[kind][Number(i)] = target.value;
-  } else if (target.dataset.defaultPlatform) {
-    state.draft.defaultPlatform = Number(target.dataset.defaultPlatform);
   } else if (target.dataset.edit) {
     const [list, i, k] = target.dataset.edit.split(":");
     state.draft[list][Number(i)][Number(k)] = target.value;
@@ -3089,7 +3087,6 @@ $("[data-panel=config]").addEventListener("click", e => {
     if (list === "tomes") state.draft.tomeDescriptions.splice(Number(i), 1);   // and the description
     if (list === "platforms") {   // the mark too
       const d = state.draft;
-      d.defaultPlatform = Number(i) === d.defaultPlatform ? -1 : d.defaultPlatform - (Number(i) < d.defaultPlatform ? 1 : 0);
     }
   }
   else return;

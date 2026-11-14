@@ -53,7 +53,7 @@ Exemples :
 ROOT = Path(__file__).resolve().parent
 BASE_DIR = ROOT.parent / BASE_FOLDER   # fichiers-references/base/ at the root of NEXUS-V
 TOME = "exigences"   # single tome of the files given on the command line
-SETTINGS = ("release", "platforms", "iadt", "mocs", "default_delegation")   # referentials taken over from the storage folder
+SETTINGS = ("release", "platforms", "iadt", "mocs")   # referentials taken over from the storage folder
 
 
 class Workspace:
@@ -109,8 +109,9 @@ def load_files(work, args, settings):
                              decisions={"accept_all": True})
     for path in args.stdhl:
         work.stdhl.load_file(work.files, work.requirements, path.read_bytes(), path.name, "", found, config=work.config)
+    # The fiches XML of the command line come from the platform of system level (configuration system_platform).
     work.fiches.load_file(work.files, work.requirements, args.xml.read_bytes(), args.xml.name, "", found,
-                          config=work.config)
+                          config=work.config, platform=work.config.get("system_platform"))
 
 
 def print_report(result):

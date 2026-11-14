@@ -435,21 +435,11 @@ class NexusDatabase:
         with self.transaction() as db:
             db.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
 
-    def default_platform(self):
-        """Name of the platform of an empty Délégation cell, or None."""
-        return self.scalar("SELECT name FROM list_plateformes WHERE is_default = 1")
-
-    def set_default_platform(self, name=None):
-        """Make a platform the default one; without a name, only make sure there is one (the first platform)."""
-        with self.transaction() as db:
-            if name is None:
-                if self.default_platform() is None:
-                    # No default platform yet: the first one becomes it (a single row has is_default = 1).
-                    db.execute("UPDATE list_plateformes SET is_default = (id = (SELECT MIN(id) FROM list_plateformes))")
-            elif not db.execute("SELECT 1 FROM list_plateformes WHERE name = ?", (name,)).fetchone():
-                raise ValueError(f"plateforme par défaut inconnue : « {name} »")
-            else:
-                db.execute("UPDATE list_plateformes SET is_default = (name = ?)", (name,))
+    def requirement_platforms(self):
+        """The platforms the requirements (not deleted) are delegated to, in the order of the referential."""
+        return [r["name"] for r in self.query(
+            "SELECT DISTINCT p.id, p.name FROM requirements q JOIN list_plateformes p ON p.id = q.delegation_id "
+            "WHERE q.deleted = 0 ORDER BY p.id")]
 
     def file_releases(self):
         """Release of each file: {file number: [the release of the base]} — one release for the whole base

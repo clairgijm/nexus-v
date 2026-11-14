@@ -11,7 +11,7 @@ Rules:
     tome when it belongs to none;
   - a requirement qualified or out of scope (field validation, from « Validation releases ») is not expected in the
     STDHL nor in the fiches (QUALIFIÉE, HORS SCOPE);
-  - only the requirements delegated to the platform of the STDHL (configuration stdhl_platform) are specified in a
+  - only the requirements delegated to the platform of system level (configuration system_platform) are specified in a
     STDHL: for the others the STDHL
     stage does not apply (AUTRE PLATEFORME); with use_requirement_stdhl, a requirement without value in the column
     STDHL is not checked there (NON DEMANDÉ);
@@ -174,14 +174,14 @@ class Verification:
             found = [row for d in docs for row in stdhl_hits.get(d["file_id"], {}).get(req_id, [])]
             # Qualified or out of scope (field validation): not expected in the STDHL nor in the fiches.
             ended = {"qualified": QUALIFIED, "out_of_scope": OUT_OF_SCOPE}.get(r.get("validation"))
-            # Only the requirements delegated to the platform of the STDHL (their reference) are specified in a STDHL.
-            stdhl_platform = self.config.get("stdhl_platform")
-            other = not ended and fold(r.get("delegation") or "") != fold(stdhl_platform)
+            # Only the requirements delegated to the platform of system level (their reference) are specified in a STDHL.
+            system_platform = self.config.get("system_platform")
+            other = not ended and fold(r.get("delegation") or "") != fold(system_platform)
             # The column STDHL is optional: a requirement without STDHL is not checked against the STDHL.
             untagged = self.config.get("use_requirement_stdhl") and not r["stdhl"]
-            # Tests asked by the STDHL for the requirement, and tests of the fiches of the platform of the STDHL that
+            # Tests asked by the STDHL for the requirement, and tests of the fiches of the platform of system level that
             # cover it: every test asked must be there (more tests in the fiches are fine).
-            default = stdhl_platform
+            default = system_platform
             asked = unique(row.get("test", "") for row in found)
             tested = unique(c["test"] for x in sheets if x["platform"] == default for c in x["rows"]
                             if req_id in c["requirements"])

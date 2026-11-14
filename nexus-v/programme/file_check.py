@@ -582,7 +582,7 @@ class FileCheck:
         """Check of STDHL files for an import in `mode` (see check_stdhl): results, problems between files, and the
         STDHL of the base as each file in turn would leave them."""
         release = self.config.get("release")
-        default = self.config.get("stdhl_platform")   # the platform the STDHL apply to
+        default = self.config.get("system_platform")   # the platform of system level, the STDHL apply to it
         tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
         # From the plans: the requirements delegated to another platform than the one of the STDHL (not specified in a
         # STDHL).
@@ -777,14 +777,15 @@ class FileCheck:
         the whole base. The files are taken in turn, each one after the previous ones."""
         from fiches_db import FichesDatabase
         release = self.config.get("release")
-        default = self.config.get("default_delegation")
         tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
         docs = self.fiches.documents()
         covered_before = {i for d in docs for i in d["ids"]}
         results, names = [], [f[0] for f in files]
         for k, (name, content, *rest) in enumerate(files, start=1):
             p, facts = [], []
-            platform = (rest[0] if rest else "") or default
+            platform = (rest[0] if rest else "") or ""
+            if not platform:
+                raise ValueError(f"{name} : choisir la plateforme d'où vient le fichier")
             if not self.config.is_platform(platform):
                 raise ValueError(f"{name} : plateforme {platform} absente de la configuration")
             try:

@@ -1,6 +1,7 @@
 {
   "general": {
     "release": "A",
+    "system_platform": "",
     "slogan": "Le fil d’Ariane de la traçabilité, de la spécification à la fiche d'essai",
     "server_port": 8000,
     "open_browser": true,
@@ -55,14 +56,13 @@
   },
   "stdhl": {
     "folder": "stdhl",
-    "stdhl_platform": "TOP",
     "use_requirement_stdhl": false,
     "fiche_regex": "^\\s*(?:[\\d.]+\\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\\d+)(?![A-Za-z0-9_])",
     "stdhl_name_regex": "(?i)STDHL_(.+?)_rev",
     "headers_stdhl": {
       "Description du test": "check",
       "Résultat attendu": "check",
-      "Exigences associées": "requirements"
+      "Exigences associéess": "requirements"
     },
     "stdhl2_test_regex": "^\\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\\d+)\\s*:",
     "stdhl2_requirements_label": "Exigences associées",

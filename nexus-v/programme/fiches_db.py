@@ -152,16 +152,13 @@ class FichesDatabase:
         [numbers], result)], "unknown": numbers absent from the base (of the `tome`), ignored; "untitled": test cases
         without title, ignored; "ignored_tests": tests that no STDHL asks for, their rows ignored; "not_specified":
         requirements in no STDHL of their tome (it refuses the file);
-        "delegated": requirements not delegated to the `platform` of the file (the default one if empty), loaded
+        "delegated": requirements not delegated to the `platform` of the file (required), loaded
         without their result. The rules of the STDHL (tests and test cases asked, requirement in no STDHL) apply to a
-        fiche of the platform of the STDHL (stdhl_platform), on the requirements delegated to it;
+        fiche of the platform of system level (system_platform), on the requirements delegated to it;
         "ignored_cases": test cases that the STDHL « unique » of their test does not ask for, ignored}."""
-        default = (config.get("default_delegation") if config is not None else "") or \
-            (self.sql.scalar("SELECT name FROM list_plateformes WHERE is_default = 1") or "")
-        platform = platform or default
-        # The STDHL specify the tests of their platform (configuration stdhl_platform): its fiches are checked by them.
-        stdhl_platform = (config.get("stdhl_platform") if config is not None else "") or default
-        with_stdhl = platform.casefold() == stdhl_platform.casefold()
+        # The STDHL specify the tests of their platform (configuration system_platform): its fiches are checked by them.
+        system_platform = (config.get("system_platform") if config is not None else "") or ""
+        with_stdhl = bool(platform) and platform.casefold() == system_platform.casefold()
         tome_of = {r["req_id"]: r["tome"] for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM requirements q JOIN list_tomes t ON t.id = q.tome_id"
             + (" WHERE t.name = ?" if tome else ""), (tome,) if tome else ())}
@@ -175,12 +172,11 @@ class FichesDatabase:
         specified = {(r["req_id"], r["tome"]) for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
             "JOIN files f ON f.id = x.file_id LEFT JOIN list_tomes t ON t.id = f.tome_id WHERE x.deleted = 0")}
-        # Delegated elsewhere: none of the plan rows of the requirement is delegated to the platform of the file (a
-        # row without delegation goes to the default platform).
+        # Delegated elsewhere: none of the plan rows of the requirement is delegated to the platform of the file.
         own = {r["req_id"] for r in self.sql.query(
             "SELECT DISTINCT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
-            "LEFT JOIN list_plateformes l ON l.id = p.delegation_id WHERE p.deleted = 0 "
-            "AND LOWER(COALESCE(l.name, ?)) = LOWER(?)", (default, platform))}
+            "JOIN list_plateformes l ON l.id = p.delegation_id WHERE p.deleted = 0 AND LOWER(l.name) = LOWER(?)",
+            (platform,))}
         planned = {r["req_id"] for r in self.sql.query(
             "SELECT DISTINCT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
             "WHERE p.deleted = 0")}
@@ -262,14 +258,16 @@ class FichesDatabase:
                                "VALUES (?, ?, ?, ?)", [(file_id, known[i], test_id, result) for i in ids if i in known])
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None, platform=""):
-        """Load a fiches file (XML, default platform): it belongs to the `tome` given, or to none ("": every tome).
+        """Load a fiches file (XML) of the `platform` chosen: it belongs to the `tome` given, or to none ("": every tome).
         The numbers absent from its tome must be ignored by the user (`decisions`). The file is stored, then its
         content (the file is removed again on failure); a file of the same name is replaced, whatever its tome."""
         tome = files.check_tome("de fiches d'essai", requirements, tome)
         data = self._readable(content, config)
         # The rules of the import (see screen): refused for a requirement in no STDHL.
-        # The platform the file comes from (the default one if not given).
-        if platform and config is not None and not config.is_platform(platform):
+        # The platform the file comes from: required, a platform of the configuration.
+        if not platform:
+            raise ValueError("indiquer la plateforme d'où vient ce fichier de fiches d'essai")
+        if config is not None and not config.is_platform(platform):
             raise ValueError(f"plateforme {platform} absente de la configuration")
         found = self.screen(data, tome, config, platform)
         if (message := self.refusal(found)) is not None:
@@ -279,10 +277,9 @@ class FichesDatabase:
         try:
             with self.sql.transaction() as db:
                 self._write(db, record["id"], data, found["rows"])
-                # The platform the fiche comes from, the default one if not given.
-                db.execute("UPDATE files SET platform_id = COALESCE((SELECT id FROM list_plateformes WHERE "
-                           "LOWER(name) = LOWER(?)), (SELECT id FROM list_plateformes WHERE is_default = 1)) WHERE id = ?",
-                           (platform, record["id"]))
+                # The platform the fiche comes from.
+                db.execute("UPDATE files SET platform_id = (SELECT id FROM list_plateformes WHERE LOWER(name) = LOWER(?)) "
+                           "WHERE id = ?", (platform, record["id"]))
         except Exception:
             files.remove(record["id"])
             raise

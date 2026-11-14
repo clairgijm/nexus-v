@@ -150,8 +150,7 @@ class PlansDatabase:
             g["moc"].append(r["moc"])
         for g in groups.values():
             g["iadt"], g["moc"] = ", ".join(unique(g["iadt"])), ", ".join(unique(g["moc"]))
-        # With a configuration each row also gets its actual delegation (the default platform for an empty cell) and
-        # its errors.
+        # With a configuration each row also gets its delegation and its errors.
         check = (lambda row: self.check_row(row, config)) if config is not None else (lambda row: row)
         return [{"file_id": h["file_id"], "name": h["name"], "tome": h["tome"], "releases": releases.get(h["file_id"], []),
                  "rows": [check(r) for r in rows.get(h["file_id"], [])]} for h in heads]
@@ -266,9 +265,11 @@ class PlansDatabase:
         if not moc:
             errors.append("MOC vide")
         errors += [f"MOC inconnu : « {c} »" for c in moc if c not in config.get("mocs")]
-        # An empty Délégation cell means the default platform.
+        # A delegation is always written: there is no default platform.
         delegation = config.delegation(row["delegation"])
-        if not config.is_platform(delegation):
+        if not delegation:
+            errors.append("délégation vide")
+        elif not config.is_platform(delegation):
             errors.append(f"plateforme de délégation inconnue : « {delegation} »")
         return {**row, "iadt_codes": iadt, "moc_codes": moc, "effective_delegation": delegation, "errors": errors}
 
@@ -358,7 +359,10 @@ class PlansDatabase:
                     issues += broken
                     choose.append("moc")
             delegations = cls.delegation_values(r, config)
-            if len(delegations) > 1:
+            if not delegations:
+                issues.append("délégation vide : en choisir une")
+                choose.append("delegation")
+            elif len(delegations) > 1:
                 issues.append("plusieurs délégations : en choisir une")
                 choose.append("delegation")
             elif delegations and not config.is_platform(delegations[0]):
@@ -651,7 +655,7 @@ class PlansDatabase:
         if plan is None:
             return []
         # Value of the column STDHL of each requirement of the tome of the plan.
-        default = config.get("stdhl_platform")   # the platform the STDHL apply to
+        default = config.get("system_platform")   # the platform of system level, the STDHL apply to it
         stdhl = {r["req_id"]: r["name"] for r in self.sql.query(
             "SELECT q.req_id, s.name FROM requirements q LEFT JOIN list_stdhl s ON s.id = q.stdhl_id "
             "WHERE q.tome_id = (SELECT tome_id FROM files WHERE id = ?)", (file_id,))}
