@@ -9,8 +9,10 @@ Rules:
 
   - a plan covers a requirement of its tome; a STDHL or a fiches file covers a requirement of its tome, or of every
     tome when it belongs to none;
-  - IADT and MOC N/A on all its plan rows: the traceability of the requirement stops at the plan (TERMINÉE);
-  - only the requirements delegated to the default platform (TOP) are specified in a STDHL: for the others the STDHL
+  - a requirement qualified or out of scope (field validation, from « Validation releases ») is not expected in the
+    STDHL nor in the fiches (QUALIFIÉE, HORS SCOPE);
+  - only the requirements delegated to the platform of the STDHL (configuration stdhl_platform) are specified in a
+    STDHL: for the others the STDHL
     stage does not apply (AUTRE PLATEFORME); with use_requirement_stdhl, a requirement without value in the column
     STDHL is not checked there (NON DEMANDÉ);
   - a requirement is covered by a fiche of the platform its plan delegates it to; for TOP, each test the STDHL
@@ -31,26 +33,28 @@ STAGE_PLAN, STAGE_STDHL, STAGE_FICHES = "Plan d'acceptation", "STDHL", "Fiches d
 STAGES = [STAGE_PLAN, STAGE_STDHL, STAGE_FICHES]
 
 # Statuses of a requirement at a stage; the codes are also the style names of the page.
-OK, MISSING, NO_DOC, ERROR, PENDING, ENDED = "ok", "ko", "nodoc", "err", "wait", "ended"
+OK, MISSING, NO_DOC, ERROR, PENDING = "ok", "ko", "nodoc", "err", "wait"
+QUALIFIED, OUT_OF_SCOPE = "qualified", "scope"   # STDHL and fiches stages: not expected (field validation)
+NOT_EXPECTED = (QUALIFIED, OUT_OF_SCOPE)
 OTHER = "other"   # STDHL stage of a requirement delegated to another platform than the default one: not expected
 UNTAGGED = "none"  # STDHL stage of a requirement without STDHL (column STDHL empty, taken into account): not checked
 TEST_MISSING = "test"   # Fiches stage: covered by the fiches, but not by every test the STDHL asks for
 STATUS_LABELS = {OK: "OK", MISSING: "MANQUANT", NO_DOC: "DOC NON CHARGÉ", ERROR: "ERREUR", PENDING: "À CHARGER",
-                 ENDED: "TERMINÉE", OTHER: "AUTRE PLATEFORME", UNTAGGED: "NON DEMANDÉ", TEST_MISSING: "TEST MANQUANT"}
+                 QUALIFIED: "QUALIFIÉE", OUT_OF_SCOPE: "HORS SCOPE", OTHER: "AUTRE PLATEFORME", UNTAGGED: "NON DEMANDÉ",
+                 TEST_MISSING: "TEST MANQUANT"}
 
 # Coverage chart of the Fiches d'essai, against the delegation of the plan: one part per platform (requirements
 # delegated to it and covered by its fiches), and the requirements not covered by their delegated platform.
-# Requirements whose plan rows are all N/A (IADT and MOC): not tested, a part of their own in the pie charts.
 # Short labels (the hints of the charts explain them).
-NOT_COVERED, NO_PLAN, ENDED_PLAN = "Non couvert", "Absent", "N/A"
+NOT_COVERED, NO_PLAN = "Non couvert", "Absent"
 NEUTRAL = (NO_PLAN, NOT_COVERED)   # « nothing found » parts of the charts
-# Reserved colours (page styles), the same in every chart: bright red not covered and absent from the plans, grey N/A
-# (not tested); green for the covered part of a chart of one platform (page Fiches d'Essai). No platform takes them.
+# Reserved colours (page styles), the same in every chart: bright red not covered and absent from the plans; green for
+# the covered part of a chart of one platform (page Fiches d'Essai). No platform takes them.
 COVERED_COLOR = "var(--ok)"
 COVERED = "Couvert"
 # Results of the fiches XML: green passed, red failed, grey not run (or another value).
 PASSED, FAILED, NOT_RUN = "PASSED", "FAILED", "Non exécuté"
-RESERVED = {NOT_COVERED: "var(--not-covered)", ENDED_PLAN: "var(--muted)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
+RESERVED = {NOT_COVERED: "var(--not-covered)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
             PASSED: "var(--ok)", FAILED: "var(--not-covered)", NOT_RUN: "var(--muted)"}
 REPORT_COLOURS = {OK: "C6EFCE", MISSING: "FFC7CE", ERROR: "FFC7CE", NO_DOC: "FFEB9C", TEST_MISSING: "FFC7CE"}   # status cells of the report
 
@@ -168,15 +172,16 @@ class Verification:
             platforms = set(unique(h["effective_delegation"] for h in hits))
             # Rows of those STDHL that cite the requirement, each with the test (fiche SYS_) it asks for.
             found = [row for d in docs for row in stdhl_hits.get(d["file_id"], {}).get(req_id, [])]
-            # N/A on every plan row (IADT and MOC): the requirement is not tested, its traceability stops at the plan.
-            ended = bool(hits) and all(h["ended"] for h in hits)
-            # Only the requirements delegated to the default platform are specified in a STDHL.
-            other = bool(hits) and not ended and self.config.get("default_delegation") not in platforms
+            # Qualified or out of scope (field validation): not expected in the STDHL nor in the fiches.
+            ended = {"qualified": QUALIFIED, "out_of_scope": OUT_OF_SCOPE}.get(r.get("validation"))
+            # Only the requirements delegated to the platform of the STDHL (their reference) are specified in a STDHL.
+            stdhl_platform = self.config.get("stdhl_platform")
+            other = not ended and fold(r.get("delegation") or "") != fold(stdhl_platform)
             # The column STDHL is optional: a requirement without STDHL is not checked against the STDHL.
             untagged = self.config.get("use_requirement_stdhl") and not r["stdhl"]
-            # Tests asked by the STDHL for the requirement, and tests of the fiches of the default platform that
+            # Tests asked by the STDHL for the requirement, and tests of the fiches of the platform of the STDHL that
             # cover it: every test asked must be there (more tests in the fiches are fine).
-            default = self.config.get("default_delegation")
+            default = stdhl_platform
             asked = unique(row.get("test", "") for row in found)
             tested = unique(c["test"] for x in sheets if x["platform"] == default for c in x["rows"]
                             if req_id in c["requirements"])
@@ -190,18 +195,20 @@ class Verification:
             # MANQUANT.
             partial = not own and default in platforms and bool(tested) and bool(absent)
             # One status per stage, in the order of STAGES. Plan: to load, missing, a row with an error, or OK. STDHL:
-            # ended, another platform, not asked, to load, found, missing in the STDHL of its tome, or no STDHL loaded
-            # for its tome. Fiches: ended, to load, covered, a test missing, or missing.
+            # qualified or out of scope, another platform, not asked, to load, found, missing in the STDHL of its tome,
+            # or no STDHL loaded for its tome. Fiches: qualified or out of scope, to load, covered, a test missing, or
+            # missing.
             statuses = [
                 PENDING if not plans else MISSING if not hits else ERROR if any(h["errors"] for h in hits) else OK,
-                ENDED if ended else OTHER if other else UNTAGGED if untagged else PENDING if not stdhl
+                ended if ended else OTHER if other else UNTAGGED if untagged else PENDING if not stdhl
                 else OK if found else MISSING if docs
                 else NO_DOC,
-                ENDED if ended else PENDING if not fiches else OK if own else TEST_MISSING if partial else MISSING,
+                ended if ended else PENDING if not fiches else OK if own else TEST_MISSING if partial else MISSING,
             ]
-            # The stage where the requirement is lost: the first one that is a defect (OK, to load, ended, another
-            # platform and not asked are not defects).
-            lost = next((name for name, s in zip(STAGES, statuses) if s not in (OK, PENDING, ENDED, OTHER, UNTAGGED)), "")
+            # The stage where the requirement is lost: the first one that is a defect (OK, to load, qualified, out of
+            # scope, another platform and not asked are not defects).
+            lost = next((name for name, s in zip(STAGES, statuses)
+                         if s not in (OK, PENDING, *NOT_EXPECTED, OTHER, UNTAGGED)), "")
             # Result of the tests of the requirement, by platform covering it: FAILED if one failed, PASSED if all
             # passed, Non exécuté otherwise (the Excel files of the other platforms have no result).
             def result_of(values):
@@ -212,11 +219,8 @@ class Verification:
             fiche_result = result_of(list(results.values())) if results else None
             rows.append({**r, "statuses": statuses, "lost_at": lost, "fiche_result": fiche_result,
                          "results_by": results,
-                         # Delegated platforms whose fiches cover the requirement (None: ended at the plan).
+                         # Delegated platforms whose fiches cover the requirement (None: qualified or out of scope).
                          "covered_by": None if ended else covering, "delegated_to": sorted(platforms),
-                         "iadt": ", ".join(unique(c for h in hits for c in h["iadt_codes"])),
-                         "moc": unique(c for h in hits for c in h["moc_codes"]),
-                         "delegation": ", ".join(unique(h["effective_delegation"] for h in hits)),
                          # Tests asked by the STDHL, found in the fiches (default platform), asked but not found.
                          "tests_asked": asked, "tests_found": tested, "tests_absent": absent})
         return rows
@@ -245,17 +249,17 @@ class Verification:
                                       f"tous les documents."}
 
     def _tiles(self, rows, waiting, releases):
-        """Number of requirements, then OK / expected for each stage; ended requirements are not expected, nor in
-        the STDHL the requirements delegated to another platform."""
+        """Number of requirements, then OK / expected for each stage; the requirements qualified or out of scope are
+        not expected, nor in the STDHL the requirements delegated to another platform."""
         tiles = [{"label": f"{SOURCE_NAME}{self._scope(releases)}", "value": len(rows)}]
         for k, name in enumerate(STAGES):
             if name in waiting:
                 tiles.append({"label": name, "waiting": True})
                 continue
-            # OK out of the requirements expected at this stage: N/A requirements, those of another platform at the
-            # STDHL stage and those without STDHL asked are not expected.
+            # OK out of the requirements expected at this stage: those qualified or out of scope, of another platform
+            # at the STDHL stage and those without STDHL asked are not expected.
             done = sum(1 for r in rows if r["statuses"][k] == OK)
-            expected = sum(1 for r in rows if r["statuses"][k] not in (ENDED, OTHER, UNTAGGED))
+            expected = sum(1 for r in rows if r["statuses"][k] not in (*NOT_EXPECTED, OTHER, UNTAGGED))
             tiles.append({"label": name, "value": done, "expected": expected, "percent": percent(done, expected)})
         return tiles
 
@@ -263,7 +267,7 @@ class Verification:
         """A pie chart from [(label, [requirement rows])]: the parts present (each one with the numbers of its
         requirements, listed when the part is clicked), the smallest ones folded into « Autres » beyond chart_max_parts
         (configuration), or chart_max_parts_platforms for a chart with one part per platform. The reserved parts
-        (Non couvert, N/A, Absent) are always shown and do not count in the maximum."""
+        (Non couvert, Absent) are always shown and do not count in the maximum."""
         # A chart by platform may show up to chart_max_parts_platforms parts (one per platform), the others
         # chart_max_parts.
         maximum = self.config.get("chart_max_parts_platforms" if by_platform else "chart_max_parts")
@@ -271,7 +275,7 @@ class Verification:
         # parts are left out.
         shown = [(label, [r["id"] for r in rs]) for label, rs in parts if rs]
         # Beyond the maximum, the largest parts are kept (one place left for « Autres ») and the smallest ones are
-        # merged into « Autres »; the reserved parts (Non couvert, N/A, Absent, Couvert) are never merged.
+        # merged into « Autres »; the reserved parts (Non couvert, Absent, Couvert) are never merged.
         categories = [(label, ids) for label, ids in shown if label not in RESERVED]
         if len(categories) > maximum:
             kept = {label for label, _ in sorted(categories, key=lambda p: -len(p[1]))[:maximum - 1]}
@@ -297,10 +301,10 @@ class Verification:
 
     def _platform_charts(self, rows, fiches):
         """One pie chart per platform that has requirements delegated to it in the plans: covered by its fiches or
-        not (page Fiches d'Essai). Requirements ended at the plan do not count."""
+        not (page Fiches d'Essai). Requirements qualified or out of scope do not count."""
         if not fiches:
             return []
-        # Requirements ended at the plan (covered_by None) are not expected in any fiche.
+        # Requirements qualified or out of scope (covered_by None) are not expected in any fiche.
         expected = [r for r in rows if r["covered_by"] is not None]
         known = list(self.config.get("platforms"))
         # Platforms of the configuration first, in its order, then any other platform named by a plan.
@@ -337,42 +341,35 @@ class Verification:
         return charts
 
     def _charts(self, rows, plans, fiches):
-        """Requirements by platform and by IADT, then their coverage. A requirement is in one plan row only, with one
-        delegation: each one counts in one part. Order of the parts: from the largest to the smallest (see _chart)."""
-        # By IADT, the requirements N/A in the plans (not tested) have their own part; by platform, they count with
-        # their platform like the others.
-        tested = [r for r in rows if r["covered_by"] is not None]
-        not_tested = [r for r in rows if r["covered_by"] is None]
+        """Requirements by platform, by IADT and by MOC (their reference, in the requirements), then their coverage.
+        A requirement has one value of each: it counts in one part. Order of the parts: from the largest to the
+        smallest (see _chart)."""
 
-        def split(values, known, with_na=True):
-            """Parts by value: of the tested requirements then N/A, or of every requirement (with_na false); then
-            absent from the plans."""
-            counted = tested if with_na else rows
-            # Values of the configuration first, then the other values met in the plans; a requirement without any value
-            # is absent from the plans (part Absent).
-            labels = known + sorted({v for r in counted for v in values(r)} - set(known), key=by_name)
-            return [(label, [r for r in counted if label in values(r)]) for label in labels] \
-                + ([(ENDED_PLAN, not_tested)] if with_na else []) + [(NO_PLAN, [r for r in counted if not values(r)])]
+        def split(field, known):
+            """Parts by value of a field of the reference: the values of the configuration, then the others met."""
+            labels = known + sorted({r[field] for r in rows if r[field]} - set(known), key=by_name)
+            return [(label, [r for r in rows if r[field] == label]) for label in labels]
 
         charts = []
-        if plans:
-            hint = "N/A : exigence N/A dans les plans (non testée) ; Absent : exigence absente des plans."
-            # By platform: every requirement, N/A included, with the platform it is delegated to.
-            charts.append(self._chart("Exigences par plateforme", "Toutes les exigences, N/A compris, par plateforme "
-                                      "de délégation. Absent : exigence absente des plans.", split(
-                lambda r: r["delegation"].split(", ") if r["delegation"] else [], list(self.config.get("platforms")),
-                with_na=False), by_platform=True))
-            charts.append(self._chart("Exigences par IADT", hint, split(
-                lambda r: r["iadt"].split(", ") if r["iadt"] else [], list(self.config.get("iadt"))), colors="iadt",
-                names=self.config.get("iadt")))
-        # Coverage by the fiches: covered (green) or not (red), the N/A requirements left out. A requirement is
+        if rows:
+            charts.append(self._chart("Exigences par plateforme", "Toutes les exigences, par plateforme de délégation "
+                                      "(fichier d'exigences).", split("delegation", list(self.config.get("platforms"))),
+                                      by_platform=True))
+            charts.append(self._chart("Exigences par IADT", "Toutes les exigences, par IADT (fichier d'exigences).",
+                                      split("iadt", list(self.config.get("iadt"))), colors="iadt",
+                                      names=self.config.get("iadt")))
+            charts.append(self._chart("Exigences par MOC", "Toutes les exigences, par MOC (fichier d'exigences).",
+                                      split("moc", list(self.config.get("mocs"))), colors="mocs",
+                                      names=self.config.get("mocs")))
+        # Coverage by the fiches: covered (green) or not (red), the requirements qualified or out of scope left out. A
+        # requirement is
         # covered by a fiche of the platform it is delegated to; one absent from the plans is not covered.
         tested = [r for r in rows if r["covered_by"] is not None]
         # The coverage chart only makes sense once fiches are loaded and some requirements are tested.
         if fiches and tested:
             charts.append(self._chart(
                 "Couverture par les fiches",
-                "Exigences testées (hors N/A) : couvertes par une fiche de la plateforme à laquelle elles sont déléguées "
+                "Exigences à qualifier : couvertes par une fiche de la plateforme à laquelle elles sont déléguées "
                 "dans le plan, ou non couvertes (une fiche d'une autre plateforme ne compte pas ; une exigence absente "
                 "des plans n'est pas couverte).",
                 [(COVERED, [r for r in tested if r["covered_by"]]),
@@ -382,7 +379,7 @@ class Verification:
         if with_result:
             charts.append(self._chart(
                 "Résultats des fiches d'essai",
-                "Exigences couvertes par les fiches (hors N/A), toutes plateformes : PASSED si tous leurs tests sont "
+                "Exigences à qualifier couvertes par les fiches, toutes plateformes : PASSED si tous leurs tests sont "
                 "passés, FAILED si l'un a échoué, Non exécuté sinon.",
                 [(label, [r for r in with_result if r["fiche_result"] == label]) for label in (PASSED, FAILED, NOT_RUN)]))
         return charts
@@ -416,7 +413,7 @@ class Verification:
         sheet("Traçabilité", [
             ["Exigence", "Titre", "Tome", "Releases", "STDHL", "IADT", "MOC", "Délégation",
              *result["names"], "Perdue à l'étape", "Tests demandés (STDHL)", "Tests des fiches", "Tests manquants"],
-            *([r["id"], r["title"], r["tome"], ", ".join(r["releases"]), r["stdhl"], r["iadt"], ", ".join(r["moc"]),
+            *([r["id"], r["title"], r["tome"], ", ".join(r["releases"]), r["stdhl"], r["iadt"], r["moc"],
                r["delegation"], *(labels[s] for s in r["statuses"]), r["lost_at"], ", ".join(r["tests_asked"]),
                ", ".join(r["tests_found"]), ", ".join(r["tests_absent"])] for r in result["rows"])])
         # Status cells coloured like the badges of the page: green OK, red missing or error, yellow document not loaded.

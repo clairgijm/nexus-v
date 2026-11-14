@@ -136,14 +136,17 @@ cases.append(("2026-03-01-fct11.xlsx et 2026-03-01-fct11-suite.xlsx",
               "Chacun chargeable : toutes ses exigences sont nouvelles, leur tome sera à choisir à l'import "
               "(Information) ; vérifiés ensemble : 5 exigences dans plusieurs fichiers (À régler, entre les fichiers)"))
 
-# 11. Wrong reference: an empty delegation, an IADT unknown of the configuration, two MOC codes.
+# 11. Wrong reference: an empty delegation, an IADT unknown of the configuration, two MOC codes, a MOC that the rules
+# IADT / MOC do not expect (T with MOC7).
 rows = rows_of(9)
 a_rows = [r for r in rows if in_a(r)]
 a_rows[0][6], a_rows[1][4], a_rows[2][5] = None, "X", "MOC2, MOC3"
+a_rows[3][4], a_rows[3][5] = "T", "MOC7"
 save("2026-03-01-fct9-reference.xlsx", rows)
 cases.append(("2026-03-01-fct9-reference.xlsx",
-              f"{a_rows[0][0]} sans délégation, {a_rows[1][0]} en IADT « X », {a_rows[2][0]} avec deux MOC « MOC2, MOC3 »",
-              "Refusé dans les deux cas : 3 erreurs dans la référence des exigences (IADT, MOC, délégation) (Bloquant)"))
+              f"{a_rows[0][0]} sans délégation, {a_rows[1][0]} en IADT « X », {a_rows[2][0]} avec deux MOC « MOC2, MOC3 », "
+              f"{a_rows[3][0]} en T avec MOC7 (règles IADT / MOC : T attend MOC4)",
+              "Refusé dans les deux cas : 4 erreurs dans la référence des exigences (IADT, MOC, délégation) (Bloquant)"))
 
 # 12. Accepted: the validation changed (QUALIFIE alone, an old release with QUALIFIE, an empty cell, B only), and a
 # platform absent from the configuration.

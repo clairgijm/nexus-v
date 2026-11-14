@@ -243,8 +243,10 @@ class Handler(SimpleHTTPRequestHandler):
             taken = parse_qs(urlparse(self.path).query).get("taken", [""])[0].split(",")
             return self.send_json({"color": random_platform_color(taken)})
         elif path == "/api/requirements":   # with the share of each tome (cumulative bar of the page)
+            colors = configuration.get("colors")
             return self.send_json({**requirements.to_dict(),
-                                   "distribution": requirements.distribution(configuration.get("colors").get("tomes"))})
+                                   "distribution": requirements.distribution(colors.get("tomes")),
+                                   "delegation_shares": requirements.delegation_shares(colors.get("platforms"))})
         elif path == "/api/plans":
             # Rows checked against the current configuration (platforms, IADT, MOC, delegation).
             return self.send_json(plans.to_dict(configuration))
@@ -317,9 +319,6 @@ class Handler(SimpleHTTPRequestHandler):
                 data = json.loads(self.read_body() or b"{}")
                 row = plans.edit(int(data.get("file_id") or 0), data.get("action"), data.get("requirement"),
                                  data.get("values"), configuration)
-                # A plan row changed: a requirement may have become N/A (or stopped being), and the STDHL leave out the
-                # N/A ones.
-                stdhl.read_missing(database, configuration, again=True)   # requirements N/A in the plans left out
             except ValueError as e:   # also covers invalid JSON
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json({"row": row})
@@ -365,7 +364,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 content = self.read_body()
                 # The choices of the user, in JSON, come before the file.
-                # The body is the JSON of the choices (choices_size bytes: groups forced into the release, rows,
+                # The body is the JSON of the choices (choices_size bytes: rows,
                 # versions kept, STDHL values), followed by the bytes of the Excel file.
                 size = int(query.get("choices_size") or 0)
                 choices = json.loads(content[:size]) if size else None
@@ -423,8 +422,6 @@ class Handler(SimpleHTTPRequestHandler):
                     extra["platform"] = (query.get("platform") or "").strip()
                 result = base.load_file(database, requirements, content, query["name"], (query.get("tome") or "").strip(),
                                         [configuration.get("release")], configuration, **extra)
-                if base is plans:   # the STDHL leave out the requirements N/A in the plans: read again
-                    stdhl.read_missing(database, configuration, again=True)
             except ValueError as e:
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             return self.send_json(result)

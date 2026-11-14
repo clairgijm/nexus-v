@@ -240,9 +240,8 @@ class StdhlDatabase:
     def _write(db, file_id, data):
         """Replace the stored content of a STDHL (inside a transaction): one row of stdhl_exi per requirement it
         cites and test (fiche SYS_) it asks for it, the test taken in the referential fe_tests. A number absent from
-        the requirements of the base is not stored: it is an anomaly of the document. A requirement N/A in the plans
-        (IADT and MOC N/A on all its rows: not tested) is not stored either; returns their numbers, reported at the
-        load of the file. A row deleted by the user (page STDHL) stays deleted when the file is read again."""
+        the requirements of the base is not stored: it is an anomaly of the document. A row deleted by the user (page
+        STDHL) stays deleted when the file is read again."""
         from nexus_db import test_id as test_of
         deleted = {f"{r[0] or ''}|{r[1]}" for r in db.execute(
             "SELECT t.name, q.req_id FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
@@ -250,19 +249,10 @@ class StdhlDatabase:
         db.execute("DELETE FROM stdhl_exi WHERE file_id = ?", (file_id,))
         # Requirement number -> id of the base, to store the coverage by id.
         known = {r[0]: r[1] for r in db.execute("SELECT req_id, id FROM requirements")}
-        # Requirements N/A in the plans: every one of their plan rows not deleted has IADT N/A and MOC N/A (MIN of the
-        # condition over the rows is 1).
-        ended = {r[0] for r in db.execute(
-            "SELECT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
-            "LEFT JOIN list_iadt i ON i.id = p.iadt_id LEFT JOIN list_moc m ON m.id = p.moc_id WHERE p.deleted = 0 "
-            "GROUP BY p.requirement_id HAVING MIN(COALESCE(i.code, '') = 'N/A' AND COALESCE(m.code, '') = 'N/A') = 1")}
-        unknown, left_out = [], []
+        unknown = []
         for r in data["rows"]:
             for number in r["requirements"]:
-                if number in ended:
-                    if number not in left_out:
-                        left_out.append(number)
-                elif number in known:
+                if number in known:
                     # The test of the row in the referential fe_tests (added when new); a row without fiche has no test.
                     # The same requirement and test may be cited on several lines: stored once (UNIQUE does not cover a
                     # NULL test, hence the check).
@@ -287,24 +277,22 @@ class StdhlDatabase:
         # The STDHL name and the anomalies are kept on the file row: the page STDHL shows them.
         db.execute("UPDATE files SET stdhl_name = ?, issues = ?, format = ? WHERE id = ?",
                    (data["stdhl_name"], "\n".join(issues), data.get("format", ""), file_id))
-        return left_out
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None):
         """Load a STDHL: it belongs to the `tome` given, or to none ("": every tome). The file is stored, then its
         content (the file is removed again on failure); a STDHL of the same name is replaced, whatever its tome.
-        "na_ignored": the requirements N/A in the plans that it cites, left out. A STDHL « unique » whose associated
-        requirements and test cases do not match is refused (see _readable)."""
+        A STDHL « unique » whose associated requirements and test cases do not match is refused (see _readable)."""
         tome = files.check_tome("STDHL", requirements, tome)
         data = self._readable(content, name, config)
         # The copy is stored first: if writing the content fails, the copy is removed again, nothing half-loaded stays.
         record = files.add("stdhl", name, content, tome=tome, releases=releases)
         try:
             with self.sql.transaction() as db:
-                left_out = self._write(db, record["id"], data)
+                self._write(db, record["id"], data)
         except Exception:
             files.remove(record["id"])
             raise
-        return {"file_id": record["id"], "rows": len(data["rows"]), "skipped": data["skipped"], "na_ignored": left_out,
+        return {"file_id": record["id"], "rows": len(data["rows"]), "skipped": data["skipped"],
                 "format": data["format"], "replaced": files.remove_older(record)}
 
     def read_missing(self, files, config=None, again=False):

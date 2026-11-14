@@ -10,9 +10,6 @@ are not stored. At import, a number unknown in the tome, a value empty or unknow
 the IADT / MOC rules or several delegations are settled by the user: expected value chosen, or row ignored (an
 unknown number can only be ignored).
 
-A row whose IADT and MOC are both N/A ends the traceability of the requirement at this level: the requirement is not
-expected at the next stages (STDHL, fiches).
-
 The class gathers everything about plans: reading the Word document (read_docx: tables whose header matches the
 setting headers_plan), rules of a row (check_row: IADT, MOC, delegation), check of a tome (check_tome: every
 requirement of the tome must be in a plan of that tome), loading a file (analyse then load_file) and storing.
@@ -153,8 +150,8 @@ class PlansDatabase:
             g["moc"].append(r["moc"])
         for g in groups.values():
             g["iadt"], g["moc"] = ", ".join(unique(g["iadt"])), ", ".join(unique(g["moc"]))
-        # With a configuration each row also gets its actual delegation (the default platform for an empty cell), its
-        # errors and whether it is ended (N/A).
+        # With a configuration each row also gets its actual delegation (the default platform for an empty cell) and
+        # its errors.
         check = (lambda row: self.check_row(row, config)) if config is not None else (lambda row: row)
         return [{"file_id": h["file_id"], "name": h["name"], "tome": h["tome"], "releases": releases.get(h["file_id"], []),
                  "rows": [check(r) for r in rows.get(h["file_id"], [])]} for h in heads]
@@ -167,29 +164,7 @@ class PlansDatabase:
     def to_dict(self, config=None):
         """The plans by file number, for the page; rows are checked when a configuration is given."""
         plans = self.plans(config=config, with_deleted=True)
-        result = {"plans": {str(p["file_id"]): p for p in plans}}
-        if config is not None:
-            result["delegation_shares"] = self.delegation_shares(plans, config.get("colors").get("platforms", {}))
-        return result
-
-    @staticmethod
-    def delegation_shares(plans, colors):
-        """Share of each platform in the delegations of each tome (rows not deleted, N/A left out), for the bars of
-        the page: [{tome, total, parts: [{platform, count, percent, color}] from the largest}]."""
-        counts = {}
-        for p in plans:
-            for r in p["rows"]:
-                # Rows N/A are not delegated to anyone: left out of the bars.
-                if not r["deleted"] and not r.get("ended"):
-                    tome = counts.setdefault(p["tome"] or "", {})
-                    tome[r["effective_delegation"]] = tome.get(r["effective_delegation"], 0) + 1
-        shares = []
-        for tome, by in counts.items():
-            total = sum(by.values())
-            shares.append({"tome": tome, "total": total, "parts": [
-                {"platform": name, "count": n, "percent": round(100 * n / total, 1), "color": colors.get(name, "")}
-                for name, n in sorted(by.items(), key=lambda x: -x[1])]})
-        return shares
+        return {"plans": {str(p["file_id"]): p for p in plans}}
 
     # ------------------------------------------------------------------ #
     # Reading a plan document
@@ -280,26 +255,22 @@ class PlansDatabase:
 
     @classmethod
     def check_row(cls, row, config):
-        """A plan row with its IADT and MOC codes, actual delegation, errors (configuration rules) and "ended":
-        IADT and MOC both N/A, the traceability of the requirement stops at this level."""
+        """A plan row with its IADT and MOC codes, actual delegation and errors (configuration rules)."""
         errors = []
         iadt = cls.split_codes(row["iadt"])
         if not iadt:
             errors.append("IADT vide")
-        # Errors against the configuration; a row N/A / N/A is ended: its MOC is not checked.
+        # Errors against the configuration.
         errors += [f"IADT inconnu : « {c} »" for c in iadt if c not in config.get("iadt")]
         moc = cls.split_codes(row["moc"])
-        ended = iadt == ["N/A"] and moc == ["N/A"]
         if not moc:
             errors.append("MOC vide")
-        if not ended:
-            errors += [f"MOC inconnu : « {c} »" for c in moc if c not in config.get("mocs")]
+        errors += [f"MOC inconnu : « {c} »" for c in moc if c not in config.get("mocs")]
         # An empty Délégation cell means the default platform.
         delegation = config.delegation(row["delegation"])
         if not config.is_platform(delegation):
             errors.append(f"plateforme de délégation inconnue : « {delegation} »")
-        return {**row, "iadt_codes": iadt, "moc_codes": moc, "effective_delegation": delegation, "errors": errors,
-                "ended": ended}
+        return {**row, "iadt_codes": iadt, "moc_codes": moc, "effective_delegation": delegation, "errors": errors}
 
     @classmethod
     def rule_issues(cls, row, config):
@@ -368,7 +339,6 @@ class PlansDatabase:
                                          f"ses releases sont {own} — seule possibilité, ignorer la ligne"]})
                 continue
             iadt, moc = cls.split_codes(r["iadt"]), cls.split_codes(r["moc"])
-            ended = iadt == ["N/A"] and moc == ["N/A"]
             issues, choose = [], []
             # Then, cell by cell, what the user must choose: the IADT (and its MOC with it), the MOC, the delegation.
             if r["requirement"] in elsewhere:
@@ -378,7 +348,7 @@ class PlansDatabase:
                 issues.append("IADT vide" if not iadt else
                               "IADT inconnu : " + ", ".join(c for c in iadt if c not in config.get("iadt")))
                 choose += ["iadt", "moc"]   # the MOC expected depends on the IADT chosen
-            elif not ended and (not moc or any(c not in config.get("mocs") for c in moc)):
+            elif not moc or any(c not in config.get("mocs") for c in moc):
                 issues.append("MOC vide" if not moc else
                               "MOC inconnu : " + ", ".join(c for c in moc if c not in config.get("mocs")))
                 choose.append("moc")
@@ -419,10 +389,9 @@ class PlansDatabase:
             row = {"iadt": values.get("iadt", c["iadt"]), "moc": values.get("moc", c["moc"])}
             iadt, moc = cls.split_codes(row["iadt"]), cls.split_codes(row["moc"])
             # Every cell to choose has a value; the corrected IADT and MOC are known and follow the rules.
-            ended = iadt == ["N/A"] and moc == ["N/A"]
             valid = not c["unknown"] and all(values.values())
             valid = valid and bool(iadt) and all(x in config.get("iadt") for x in iadt)
-            valid = valid and bool(moc) and (ended or all(x in config.get("mocs") for x in moc))
+            valid = valid and bool(moc) and all(x in config.get("mocs") for x in moc)
             valid = valid and not cls.rule_issues(row, config)
             valid = valid and ("delegation" not in values or config.is_platform(values["delegation"]))
             if valid:
@@ -501,8 +470,7 @@ class PlansDatabase:
             codes = self.split_codes(", ".join(c.strip() for c in values.get("moc", "").split(",")))
             if iadt not in config.get("iadt"):
                 raise ValueError(f"IADT à choisir dans la configuration{f' (« {iadt} » inconnu)' if iadt else ''}")
-            ended = iadt == "N/A" and codes == ["N/A"]
-            if not codes or not (ended or all(c in config.get("mocs") for c in codes)):
+            if not codes or not all(c in config.get("mocs") for c in codes):
                 raise ValueError("MOC à choisir parmi ceux attendus pour l'IADT")
             broken = self.rule_issues({"iadt": iadt, "moc": ", ".join(codes)}, config)
             if broken:
@@ -683,12 +651,11 @@ class PlansDatabase:
         if plan is None:
             return []
         # Value of the column STDHL of each requirement of the tome of the plan.
-        default = config.get("default_delegation")
+        default = config.get("stdhl_platform")   # the platform the STDHL apply to
         stdhl = {r["req_id"]: r["name"] for r in self.sql.query(
             "SELECT q.req_id, s.name FROM requirements q LEFT JOIN list_stdhl s ON s.id = q.stdhl_id "
             "WHERE q.tome_id = (SELECT tome_id FROM files WHERE id = ?)", (file_id,))}
         rows = [self.check_row(r, config) for r in plan["rows"]]
-        rows = [r for r in rows if not r["ended"]]
         extra = [r["key"] for r in rows if r["effective_delegation"] != default and stdhl.get(r["key"])]
         warnings = []
         if extra:

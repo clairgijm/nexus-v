@@ -33,6 +33,8 @@ MODE_SHORT = {"replace": "écrase la base", "complement": "modifie la base"}
 FIELD_LABELS = {"title": "titre", "releases": "release", "validation": "validation", "stdhl": "STDHL",
                 "iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
 LIMIT = 30   # numbers listed in one problem, beyond: « … et N autres »
+# Fields of the reference of a requirement, counted in the synthesis of the requirements report.
+REFERENCE_FIELDS = (("iadt", "IADT"), ("moc", "MOC"), ("delegation", "Délégation"), ("validation", "Validation"))
 
 
 def problem(severity, text, correction="", place=""):
@@ -151,8 +153,6 @@ class FileCheck:
         for r in self.requirements.requirements():
             if not r["deleted"]:
                 tomes.setdefault(r["tome"], {})[r["id"]] = {k: v for k, v in r.items() if k != "tome"}
-        base = {i: (t, r) for t, rs in tomes.items() for i, r in rs.items()}
-        value = lambda r, f: ", ".join(r[f]) if isinstance(r[f], list) else (r[f] or "")
         results, touched_all = [], set()
         for name, content in files:
             found = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
@@ -182,18 +182,16 @@ class FileCheck:
             if not reqs:
                 p.append(problem(BLOCKING, f"aucune exigence en release {release}",
                                  f"renseigner la colonne Specification releases (la base est en release {release})"))
+            rejected = []   # one problem per group outside the release (completed once the import is computed)
             for group in data["outside"]:
                 label = (f"release{'s' if ',' in group['key'] else ''} {group['key']}" if group["key"]
                          else "sans release")
-                # Those already in the base: removed from it by a replacement, kept as they are by a complement.
-                known = [r["id"] for r in group["requirements"] if r["id"] in base]
-                fate = ("retirée" + ("s" if len(known) > 1 else "") + " de la base" if mode == "replace"
-                        else f"gardée{'s' if len(known) > 1 else ''} en release {release} par la base")
-                p.append(problem(REJECTED, f"{plural(group['count'], 'exigence')} {label}, hors de la release {release}, "
-                                           f"rejetée{'s' if group['count'] > 1 else ''} à l'import : "
-                                           + listed(r["id"] for r in group["requirements"])
-                                           + (f" ; dont {len(known)} déjà en base, {fate}" if known else ""),
-                                 f"si elles concernent la release {release}, corriger la colonne Specification releases"))
+                rejected.append(problem(REJECTED, f"{plural(group['count'], 'exigence')} {label}, hors de la release "
+                                                  f"{release}, rejetée{'s' if group['count'] > 1 else ''} à l'import : "
+                                                  + listed(r["id"] for r in group["requirements"]),
+                                        f"si elles concernent la release {release}, corriger la colonne Specification "
+                                        "releases"))
+                p.append(rejected[-1])
             for r in data["repeated"]:
                 rows = ", ".join(str(v["row"]) for v in r["rows"])
                 p.append(problem(SETTLE, f"{r['id']} présente sur plusieurs lignes ({rows})",
@@ -217,86 +215,99 @@ class FileCheck:
                 p.append(problem(CHECK, f"{plural(len(untitled), 'exigence')} sans titre : {listed(untitled)}",
                                  "renseigner la colonne Titre"))
 
-            # Each requirement of the file against the base, whatever its tome: new, unchanged or modified.
-            fresh, seen = {}, set()
-            for r in reqs:
-                if r["id"] not in seen:   # a repeated number: its first row, as the import before the choice
-                    seen.add(r["id"])
-                    fresh[r["id"]] = r
-            added = [i for i in fresh if i not in base]
-            changes = {}
-            for i, r in fresh.items():
-                if i in base:
-                    old = base[i][1]
-                    fields = [f for f in FIELD_LABELS if value(old, f) != value(r, f)]
-                    if fields:
-                        changes[i] = fields
-            unchanged = len(fresh) - len(added) - len(changes)
-            # Tomes concerned: those of the base holding requirements of the file (in or outside the release).
+            # What the import does, computed by the functions of the import on the base in memory (nothing is
+            # written). The file goes into one tome: the one of the base holding most of its requirements (a new tome
+            # when none is there). The choices are made as the user may make them: the first row of a repeated number,
+            # the first STDHL value, the version of the file for a number of another tome.
+            existing = [{**r, "tome": t} for t, rs in tomes.items() for r in rs.values()]
+            before = {r["id"]: r for r in existing}
+            fresh = list(dict.fromkeys(r["id"] for r in reqs))
             touched = {}
-            for i in list(fresh) + [r["id"] for r in outside]:
-                if i in base:
-                    touched.setdefault(base[i][0], []).append(i)
+            for i in fresh + [r["id"] for r in outside]:
+                if i in before:
+                    touched.setdefault(before[i]["tome"], []).append(i)
+            target = max(touched, key=lambda t: len(touched[t])) if touched else (
+                self.requirements.tome_from_name(name, self.config) or f"(nouveau : {name})")
+            conflicts = self.requirements.conflicts(reqs, target, mode, existing)
+            choices = {"keep": {d["id"]: "new" for d in conflicts["duplicates"]},
+                       "stdhl": {m["id"]: m["values"][0] for m in conflicts["multi_stdhl"]}}
+            # The rows of a repeated number: the first one, as read.
+            repeated = [{**r, "chosen": r["rows"][0]["row"]} for r in data["repeated"]]
+            resolved, moved = RequirementsDatabase._resolve(reqs, {**conflicts, "repeated": repeated}, choices, True)
+            plan = RequirementsDatabase.merge(list(tomes[target].values()) if target in tomes else None, resolved, mode)
+            added, removed, changes = plan["added"], plan["removed"], plan["updated"]
+            changes = {i: [f for f in fields if f in FIELD_LABELS] for i, fields in changes.items()}
+            changes = {i: fields for i, fields in changes.items() if fields}
+            moved = [i for i in moved if i in before]
+            added = [i for i in added if i not in moved]
+            for i in moved:   # taken from another tome: compared with its version there
+                fields = [f for f in RequirementsDatabase.changed_fields(before[i], next(r for r in plan["merged"]
+                                                                                        if r["id"] == i))
+                          if f in FIELD_LABELS]
+                if fields:
+                    changes[i] = fields
+            unchanged = len([i for i in fresh if i in before]) - len(changes)
+            found["reference_changes"] = {f: sum(f in fields for fields in changes.values()) for f, _ in REFERENCE_FIELDS}
             found["tomes"] = sorted(touched)
             found["tome"] = ", ".join(found["tomes"]) or "aucun (exigences nouvelles)"
             found["facts"].append(f"par rapport à la base : {len(added)} nouvelle(s), {len(changes)} modifiée(s), "
-                                  f"{unchanged} inchangée(s)")
+                                  f"{unchanged} inchangée(s)" + (f", {len(removed)} retirée(s)" if mode == "replace" else ""))
             if touched:
                 found["facts"].append("tomes de la base concernés : "
                                       + ", ".join(f"{t} ({len(ids)})" for t, ids in sorted(touched.items())))
-            if len(touched) > 1:
-                p.append(problem(CHECK, f"le fichier contient des exigences de {len(touched)} tomes de la base : "
-                                        + ", ".join(sorted(touched)),
-                                 "un fichier d'exigences ne porte qu'un tome : le scinder par tome"
-                                 + (" ; en remplacement, l'import ne remplace qu'un tome" if mode == "replace" else "")))
+            # Requirements outside the release already in the base: what the import does to them.
+            for k, group in enumerate(data["outside"]):
+                known = [r["id"] for r in group["requirements"] if r["id"] in before]
+                if known:
+                    gone = [i for i in known if i in removed]
+                    fate = (f"retirée{'s' if len(gone) > 1 else ''} de la base" if len(gone) == len(known) else
+                            f"gardée{'s' if len(known) > 1 else ''} en release {release} par la base" if not gone else
+                            f"{len(gone)} retirée{'s' if len(gone) > 1 else ''} de la base")
+                    rejected[k]["text"] += f" ; dont {len(known)} déjà en base, {fate}"
+            if conflicts["duplicates"]:
+                others = [d["id"] for d in conflicts["duplicates"]]
+                p.append(problem(SETTLE, f"le fichier contient des exigences de {len(touched)} tomes de la base "
+                                         f"({', '.join(sorted(touched))}) : importé dans {target}, "
+                                         f"{plural(len(others), 'exigence')} d'un autre tome à régler : " + listed(others),
+                                 "à l'import, garder la version de la base ou prendre celle du fichier (qui change "
+                                 "alors de tome) ; mieux : un fichier d'exigences ne porte qu'un tome, le scinder"))
             if added:
-                target = next(iter(touched)) if len(touched) == 1 else ""
                 p.append(problem(INFO, f"{plural(len(added), 'exigence nouvelle', 'exigences nouvelles')}, absente"
                                        f"{'s' if len(added) > 1 else ''} de la base : " + listed(added),
-                                 f"elles rejoindront le tome {target}" if target else
+                                 f"elles rejoindront le tome {target}" if touched else
                                  "à l'import, choisir le tome où elles vont"))
             for field, label in FIELD_LABELS.items():
                 changed = [i for i, fields in changes.items() if field in fields]
                 if changed:
-                    where = sorted({base[i][0] for i in changed})
+                    where = sorted({before[i]["tome"] for i in changed})
                     what = {"delegation": "à la délégation modifiée",
                             "validation": "à la validation modifiée (à qualifier, qualifiée, hors scope)"}.get(
                         field, f"au {label} modifié")
                     p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base {what} "
                                            f"(tome{'s' if len(where) > 1 else ''} {', '.join(where)}) : " + listed(changed)))
-            removed = []
-            if mode == "replace":
-                # In replacement, the requirements of the tomes concerned that the file does not keep leave the base.
-                for t in sorted(touched):
-                    gone = [i for i in tomes.get(t, {}) if i not in fresh]
-                    removed += gone
-                    if gone:
-                        p.append(problem(CHECK, f"{plural(len(gone), 'exigence')} du tome {t} absente"
-                                                f"{'s' if len(gone) > 1 else ''} du fichier : " + listed(gone),
-                                         "l'import remplace le tome : elles seront retirées de la base, avec leur "
-                                         "couverture ; les ajouter au fichier si elles doivent rester"))
-            found["facts"][-1 if not touched else -2] += f", {len(removed)} retirée(s)" if mode == "replace" else ""
+            if removed:
+                p.append(problem(CHECK, f"{plural(len(removed), 'exigence')} du tome {target} absente"
+                                        f"{'s' if len(removed) > 1 else ''} du fichier : " + listed(removed),
+                                 "l'import remplace le tome : elles seront retirées de la base, avec leur "
+                                 "couverture ; les ajouter au fichier si elles doivent rester"))
 
-            # The base after this file: removed ones out, modified ones updated in their tome, new ones added to the
-            # tome concerned (a tome of their own when the file touches none, or several).
-            for i in removed:
-                tomes[base[i][0]].pop(i, None)
-            new_tome = next(iter(touched)) if len(touched) == 1 else f"(nouveau : {name})"
-            for i, r in fresh.items():
-                tome = base[i][0] if i in base else new_tome
-                tomes.setdefault(tome, {})[i] = {"id": i, "title": r["title"], "releases": r["releases"],
-                                                 "stdhl": r["stdhl"], "file_id": None, "manual": None, "deleted": False}
-            touched_all |= set(touched) | ({new_tome} if added else set())
+            # The base in memory after this file, as the import leaves it: the tome imported becomes the merge, the
+            # numbers taken from another tome leave it.
+            for i in moved:
+                tomes[before[i]["tome"]].pop(i, None)
+            tomes[target] = {r["id"]: {**r, "manual": None, "deleted": False} for r in plan["merged"]}
+            touched_all |= set(touched) | {target}
         replaced = {t: list(tomes.get(t, {}).values()) for t in touched_all}
         between = self._between_requirements(results, files, mode)
         return {"results": results, "between": between, "plans": self.plans,
                 "requirements": RequirementsInMemory(self.requirements, replaced),
-                "hypothesis": ("chaque exigence du fichier remplace celle de même numéro de la base, quel que soit son "
-                             "tome ; les exigences des tomes concernés absentes du fichier sont retirées"
-                             if mode == "replace" else
-                             "chaque exigence du fichier remplace celle de même numéro de la base, quel que soit son "
-                             "tome, ou s'ajoute ; rien n'est retiré")
-                            + " ; le nom du fichier n'est pas utilisé"}
+                "hypothesis": ("le fichier est importé dans le tome qui contient le plus de ses exigences, qu'il remplace"
+                               if mode == "replace" else
+                               "le fichier est importé dans le tome qui contient le plus de ses exigences : elles s'y "
+                               "ajoutent ou remplacent celles de même numéro, rien n'est retiré")
+                              + " ; calcul fait par le code de l'import, sans rien écrire ; choix faits comme à l'import : "
+                                "première ligne d'un numéro répété, première valeur STDHL, version du fichier pour une "
+                                "exigence d'un autre tome ; le nom du fichier n'est pas utilisé"}
 
     def _between_requirements(self, results, files, mode="replace"):
         """Problems between requirements files: in replacement, one tome of the base concerned by several files (the
@@ -514,7 +525,7 @@ class FileCheck:
         if issue.startswith("déjà dans un autre plan"):
             return "ne garder l'exigence que dans un plan du tome (le choix sera demandé à l'import)"
         if issue.startswith(("IADT vide", "IADT inconnu")):
-            return "mettre un IADT de la configuration (I, A, D, T ou N/A) et le MOC attendu pour lui"
+            return "mettre un IADT de la configuration (I, A, D ou T) et le MOC attendu pour lui"
         if issue.startswith(("MOC vide", "MOC inconnu")) or "MOC" in issue:
             expected = " ou ".join(entry["expected_mocs"]) if entry["expected_mocs"] else ""
             return f"mettre le MOC attendu{' : ' + expected if expected else ''} (règles IADT / MOC de la configuration)"
@@ -571,17 +582,15 @@ class FileCheck:
         """Check of STDHL files for an import in `mode` (see check_stdhl): results, problems between files, and the
         STDHL of the base as each file in turn would leave them."""
         release = self.config.get("release")
-        default = self.config.get("default_delegation")
+        default = self.config.get("stdhl_platform")   # the platform the STDHL apply to
         tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
-        # From the plans: the requirements N/A (left out of a STDHL) and those delegated to another platform than the
-        # default one (not specified in a STDHL of the default platform).
+        # From the plans: the requirements delegated to another platform than the one of the STDHL (not specified in a
+        # STDHL).
         hits = {}
         for q in self.plans.plans(config=self.config):
             for row in q["rows"]:
                 hits.setdefault(row["key"], []).append(row)
-        ended = {i for i, rows in hits.items() if all(r["ended"] for r in rows)}
-        other = {i for i, rows in hits.items() if i not in ended
-                 and default not in {r["effective_delegation"] for r in rows}}
+        other = {i for i, rows in hits.items() if default not in {r["effective_delegation"] for r in rows}}
         # The STDHL of the base, copied: each file in turn replaces or removes rows in them.
         docs = [{**d, "rows": list(d["rows"])} for d in self.stdhl.documents()]
         results, contents = [], []
@@ -630,11 +639,6 @@ class FileCheck:
                 p.append(problem(SETTLE, f"{plural(len(unknown), 'exigence inconnue', 'exigences inconnues')} de la "
                                          f"base, non enregistrée{'s' if len(unknown) > 1 else ''} : " + listed(unknown),
                                  "corriger le numéro, ou importer d'abord l'exigence"))
-            na = list(dict.fromkeys(i for i, _ in pairs if i in ended))
-            if na:
-                p.append(problem(INFO, f"{plural(len(na), 'exigence')} N/A dans les plans, ignorée"
-                                       f"{'s' if len(na) > 1 else ''} : " + listed(na),
-                                 "une exigence N/A n'est pas testée : la retirer du STDHL"))
             elsewhere = list(dict.fromkeys(i for i, _ in pairs if i in other))
             if elsewhere:
                 p.append(problem(CHECK, f"{plural(len(elsewhere), 'exigence')} déléguée"
@@ -652,7 +656,7 @@ class FileCheck:
 
             # Each pair against the STDHL of the base that apply to the tome of the requirement: a requirement newly
             # specified, a requirement whose tests change, or unchanged.
-            kept = [(i, t) for i, t in pairs if i in tome_of and i not in ended]
+            kept = [(i, t) for i, t in pairs if i in tome_of]
             touched = {}
             for i, _ in kept:
                 touched.setdefault(tome_of[i], set()).add(i)
@@ -701,7 +705,7 @@ class FileCheck:
             # (in both imports), and those that lose theirs with the file.
             specified = {i for d in docs for row in d["rows"] for i in row["requirements"]}
             for t in sorted(touched):
-                top = [i for i, tome in tome_of.items() if tome == t and i in hits and i not in ended and i not in other]
+                top = [i for i, tome in tome_of.items() if tome == t and i in hits and i not in other]
                 before = [i for i in top if i not in specified_before]
                 lost = [i for i in top if i in specified_before and i not in specified]
                 still = [i for i in before if i not in specified]
@@ -720,7 +724,7 @@ class FileCheck:
                 "hypothesis": ("les STDHL des tomes concernés sont remplacés par le fichier" if mode == "replace" else
                                "les lignes du fichier remplacent celles des mêmes exigences dans les STDHL de la base, "
                                "ou s'ajoutent ; les autres lignes restent")
-                + " ; les exigences inconnues de la base et les exigences N/A sont ignorées ; format unique : la "
+                + " ; les exigences inconnues de la base sont ignorées ; format unique : la "
                   "couverture d'un test est l'ensemble des exigences de ses test cases ; le nom du fichier n'est pas utilisé"}
 
     def _between_stdhl(self, results, contents, mode):
@@ -790,12 +794,6 @@ class FileCheck:
                                 "corriger le fichier (XML bien formé, balises ou format campagne)")], "facts": []})
                 continue
             found = self.fiches.screen(data, None, self.config, platform)
-            if found["na"]:
-                p.append(problem(BLOCKING, f"{plural(len(found['na']), 'exigence N/A', 'exigences N/A')} dans les plans, "
-                                           "citée" + ("s" if len(found["na"]) > 1 else "") + " par la fiche : "
-                                           + listed(found["na"]),
-                                 "changer d'abord leur état (IADT, MOC) dans le plan d'acceptation et le STDHL, ou les "
-                                 "retirer de la fiche"))
             if found["not_specified"]:
                 p.append(problem(BLOCKING, f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son "
                                            "tome : " + listed(found["not_specified"]),
@@ -837,7 +835,7 @@ class FileCheck:
                     p.append(problem(INFO, f"{plural(len(not_run), 'test case')} non exécuté"
                                            f"{'s' if len(not_run) > 1 else ''} : " + listed(not_run)))
             kept = unique(i for _, _, ids, _ in found["rows"] for i in ids
-                          if i not in found["na"] and i not in found["not_specified"])
+                          if i not in found["not_specified"])
             touched = sorted({tome_of[i] for i in kept if i in tome_of})
             new = [i for i in kept if i not in covered_before]
             if new:
@@ -848,7 +846,7 @@ class FileCheck:
             facts = [f"plateforme {platform}", f"format {data['format']}", plural(len({t for t, _ in cases}), "test"),
                      plural(len(cases), "test case"), plural(len(kept), "exigence chargée", "exigences chargées")]
             # The fiches after this file: a file of the same name gives way to it; refused, the base stays as it was.
-            blocked = bool(found["na"] or found["not_specified"])
+            blocked = bool(found["not_specified"])
             if not blocked:
                 docs = [d for d in docs if d["name"] != name]
                 rows = [{"test_id": 0, "test": t, "test_case": c, "result": r, "requirements": list(ids)}
@@ -921,7 +919,29 @@ class FileCheck:
             if row["before"] == "—" and all(v == "—" for v in row["after"].values()):
                 continue
             tiles.append(row)
+        if step == "requirements":
+            # The reference of the requirements before and after import: their spread by IADT, MOC and validation.
+            def spread(source, field):
+                reqs = [r for t in source.to_dict()["tomes"].values() for r in t["requirements"] if not r.get("deleted")]
+                if field == "validation":
+                    counts = {VALIDATION_STATES[s]: sum(r.get("validation") == s for r in reqs) for s in VALIDATION_STATES}
+                else:
+                    counts = {}
+                    for r in reqs:
+                        counts[r.get(field) or "vide"] = counts.get(r.get(field) or "vide", 0) + 1
+                    counts = dict(sorted(counts.items(), key=lambda c: -c[1]))
+                return " · ".join(f"{k} {v}" for k, v in counts.items() if v) or "—"
+            sources = {m: q for m, (q, _, _) in (modes or {None: (requirements, plans, self.stdhl)}).items()}
+            for field, label in (("iadt", "Exigences par IADT"), ("moc", "Exigences par MOC"),
+                                 ("validation", "Exigences par validation")):
+                row = {"label": label, "before": spread(self.requirements, field),
+                       "after": {m: spread(q, field) for m, q in sources.items()}}
+                row["changed"] = any(v != row["before"] for v in row["after"].values())
+                tiles.append(row)
         summary = {"files": len(results), "between": len(between) + sum(len(v) for v in (between_by_mode or {}).values())}
+        changed = {f: sum((r.get("reference_changes") or {}).get(f, 0) for r in results) for f, _ in REFERENCE_FIELDS}
+        reference_text = ("Référence modifiée : " + ", ".join(f"{label} {changed[f]}" for f, label in REFERENCE_FIELDS)
+                          + ". " if any(changed.values()) else "")
         if modes:
             summary["text"] = (f"{plural(len(results), 'fichier vérifié', 'fichiers vérifiés')}. "
                                + " ; ".join(f"S'il {MODE_SHORT[m]} : "
@@ -929,7 +949,7 @@ class FileCheck:
                                                                 + [{"v": r["verdict"]} for r in results if "verdicts" not in r], "v")
                                             for m in modes)
                                + (f" ; {plural(summary['between'], 'problème')} entre les fichiers" if summary["between"] else "")
-                               + ". Rien n'a été importé.")
+                               + ". " + reference_text + "Rien n'a été importé.")
         else:
             summary["text"] = (f"{plural(len(results), 'fichier vérifié', 'fichiers vérifiés')} : "
                                + self._counts_text(results, "verdict")

@@ -60,7 +60,6 @@ def read_schema(path):
 RESERVED_HUES = ((0, 25), (330, 360), (62, 175))
 
 
-NA_COLOR = "#8a8f98"   # grey of the code N/A (IADT, MOC), as the N/A parts of the charts
 
 
 def random_platform_color(taken=()):
@@ -325,7 +324,7 @@ class NexusDatabase:
 
     def colors(self, kind):
         """{name or code: colour} of the values of a referential (platforms, tomes, iadt, mocs); a value
-        without colour gets one drawn at random (kept in the base), the code N/A the grey of the N/A parts."""
+        without colour gets one drawn at random (kept in the base),"""
         table, key, _ = self._table(kind)
         with self.lock:
             rows = self.query(f"SELECT id, {key} AS name, color FROM {table} ORDER BY id")
@@ -336,7 +335,7 @@ class NexusDatabase:
             if missing:
                 with self.transaction() as db:
                     for r in missing:
-                        r["color"] = NA_COLOR if r["name"].upper() == "N/A" else random_platform_color(taken)
+                        r["color"] = random_platform_color(taken)
                         taken.add(r["color"])
                         db.execute(f"UPDATE {table} SET color = ? WHERE id = ?", (r["color"], r["id"]))
             return {r["name"]: r["color"] for r in rows}

@@ -21,7 +21,7 @@ missing from the file takes its default value (DEFAULT_CONFIG), and is then adde
 Variables:
   slogan                          slogan shown under the name NEXUS-V
   server_port, open_browser       serveur.py
-  chart_max_parts                 most parts of a pie chart of the page Vérification, Non couvert, N/A and Absent
+  chart_max_parts                 most parts of a pie chart of the page Vérification, Non couvert
                                   not counted (always shown); beyond: « Autres »
   chart_max_parts_platforms       the same for the charts with one part per platform
   requirement_regex               form of a requirement number
@@ -38,12 +38,15 @@ Variables:
   plan_tome_regex                 tome in the name of a plan file: preselected at load
   code_separator_regex            separator of the IADT and MOC codes in a cell of a plan
   delegation_separator_regex      separator of several platforms in the Délégation cell (to settle at import)
-  iadt_moc_rules                  MOC expected for each IADT of a plan: at least one; another MOC or none is settled
+  iadt_moc_rules                  MOC expected for each IADT, in the requirements file (another MOC refuses it) and in
+                                  a plan: at least one; another MOC or none is settled
                                   at import
   test_tag                        XML tag of a test in the fiches; it contains
   test_case_tag                   the tag of a test case, which contains
   requirement_tag                 the tag of the requirements tested
                                   (for fiche_regex and stdhl_name_regex: group 1 if any, else the whole match)
+  stdhl_platform                  the platform the STDHL apply to: only the requirements delegated to it are expected in
+                                  a STDHL, only its fiches are checked against the tests of the STDHL
   use_requirement_stdhl           take the column STDHL of the requirements into account: a requirement without a
                                   value is not checked at the STDHL stage (NON DEMANDÉ)
   release                         single release of the base (changes only while no file is loaded)
@@ -104,20 +107,21 @@ DEFAULT_CONFIG = {
     "code_separator_regex": r"[,;+\s]+",
     "delegation_separator_regex": r"[,;/+\n]+",
     # Plan import: for each IADT code, the MOC codes expected (at least one of them, and no other one).
-    "iadt_moc_rules": {"D": ["MOC4"], "T": ["MOC4"], "I": ["MOC7"], "A": ["MOC2", "MOC3"], "N/A": ["N/A"]},
+    "iadt_moc_rules": {"D": ["MOC4"], "T": ["MOC4"], "I": ["MOC7"], "A": ["MOC2", "MOC3"]},
     # Fiches d'Essai (XML): a test contains test cases, which contain the requirements tested.
     "test_tag": "test",
     "test_case_tag": "test_case",
     "requirement_tag": "requirements",
     # Column D of the requirements names the STDHL a requirement must be found in (True), or is ignored (False).
     "use_requirement_stdhl": True,
+    "stdhl_platform": "TOP",
     # The release the base works on: every requirement imported and every file loaded belongs to it.
     "release": "",
     "tomes": [],
     # Test methods are written "V&V [PLATFORM] : ..."; TOP is the platform of V&V itself.
     "platforms": ["TOP"],
-    "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test", "N/A": "Non applicable"},
-    "mocs": {**{f"MOC{i}": "" for i in range(10)}, "N/A": "Non applicable"},   # N/A: the MOC of an IADT N/A
+    "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test"},
+    "mocs": {f"MOC{i}": "" for i in range(10)},
     "default_delegation": "TOP",
     # Expected headers of the tables, in order: header text -> role ("" = column only checked).
     # A header cell must contain the text (case and accents ignored).
@@ -143,13 +147,13 @@ SECTIONS = {
                                "chart_max_parts_platforms", "storage_dir")},
     "requirements": {"folder": "requirements_folder",
                      **{n: n for n in ("requirement_regex", "requirements_tome_regex", "release_separator_regex",
-                                       "stdhl_separator_regex",
+                                       "stdhl_separator_regex", "iadt_moc_rules",
                                        "headers_requirements")}},
     "plan": {"folder": "plan_folder",
-             **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex", "iadt_moc_rules",
+             **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex",
                                "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
-              **{n: n for n in ("use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
+              **{n: n for n in ("stdhl_platform", "use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
                                 "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                                 "stdhl2_release_regex", "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
@@ -421,6 +425,13 @@ class Configuration:
             rules = clean.get("iadt_moc_rules", self.get("iadt_moc_rules"))
             clean["iadt_moc_rules"] = {moved["iadt"].get(i, i): [moved["mocs"].get(m, m) for m in mocs]
                                        for i, mocs in rules.items()}
+        # The platform of the STDHL follows the renaming of its platform; it must stay a platform of the configuration.
+        platforms_after = clean.get("platforms", self.get("platforms"))
+        stdhl_platform = (renames.get("platforms") or {}).get(clean.get("stdhl_platform", self.get("stdhl_platform")),
+                                                             clean.get("stdhl_platform", self.get("stdhl_platform")))
+        if stdhl_platform not in platforms_after:
+            raise ValueError(f"plateforme du STDHL « {stdhl_platform} » absente des plateformes (Configuration > STDHL)")
+        clean["stdhl_platform"] = stdhl_platform
         # Two types of files in the same sub-folder would mix their copies.
         folders = [clean.get(name, self.get(name)) for name in FOLDER_VARIABLES]
         same = sorted({f for f in folders if [x.casefold() for x in folders].count(f.casefold()) > 1})
@@ -543,6 +554,8 @@ class Configuration:
                 re.compile(value)
             except re.error as e:
                 raise ValueError(f"expression régulière invalide ({name}) : {e}") from None
+        elif name == "stdhl_platform" and not (value or "").strip():
+            raise ValueError("choisir la plateforme à laquelle s'applique le STDHL (Configuration > STDHL)")
         elif name == "server_port" and not 1 <= value <= 65535:
             raise ValueError("server_port doit être compris entre 1 et 65535")
         elif name == "release":

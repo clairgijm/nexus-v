@@ -150,16 +150,18 @@ class FichesDatabase:
     def screen(self, data, tome=None, config=None, platform=""):
         """The rules of the import on the rows read in a fiches file XML: {"rows": the rows to store [(test, test case,
         [numbers], result)], "unknown": numbers absent from the base (of the `tome`), ignored; "untitled": test cases
-        without title, ignored; "ignored_tests": tests that no STDHL asks for, their rows ignored; "na": requirements
-        N/A in the plans and "not_specified": requirements in no STDHL of their tome (both refuse the file);
+        without title, ignored; "ignored_tests": tests that no STDHL asks for, their rows ignored; "not_specified":
+        requirements in no STDHL of their tome (it refuses the file);
         "delegated": requirements not delegated to the `platform` of the file (the default one if empty), loaded
         without their result. The rules of the STDHL (tests and test cases asked, requirement in no STDHL) apply to a
-        fiche of the default platform, on the requirements delegated to it;
+        fiche of the platform of the STDHL (stdhl_platform), on the requirements delegated to it;
         "ignored_cases": test cases that the STDHL « unique » of their test does not ask for, ignored}."""
         default = (config.get("default_delegation") if config is not None else "") or \
             (self.sql.scalar("SELECT name FROM list_plateformes WHERE is_default = 1") or "")
         platform = platform or default
-        with_stdhl = platform.casefold() == default.casefold()   # the STDHL specify the tests of the default platform
+        # The STDHL specify the tests of their platform (configuration stdhl_platform): its fiches are checked by them.
+        stdhl_platform = (config.get("stdhl_platform") if config is not None else "") or default
+        with_stdhl = platform.casefold() == stdhl_platform.casefold()
         tome_of = {r["req_id"]: r["tome"] for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM requirements q JOIN list_tomes t ON t.id = q.tome_id"
             + (" WHERE t.name = ?" if tome else ""), (tome,) if tome else ())}
@@ -173,10 +175,6 @@ class FichesDatabase:
         specified = {(r["req_id"], r["tome"]) for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
             "JOIN files f ON f.id = x.file_id LEFT JOIN list_tomes t ON t.id = f.tome_id WHERE x.deleted = 0")}
-        ended = {r["req_id"] for r in self.sql.query(
-            "SELECT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
-            "LEFT JOIN list_iadt i ON i.id = p.iadt_id LEFT JOIN list_moc m ON m.id = p.moc_id WHERE p.deleted = 0 "
-            "GROUP BY p.requirement_id HAVING MIN(COALESCE(i.code, '') = 'N/A' AND COALESCE(m.code, '') = 'N/A') = 1")}
         # Delegated elsewhere: none of the plan rows of the requirement is delegated to the platform of the file (a
         # row without delegation goes to the default platform).
         own = {r["req_id"] for r in self.sql.query(
@@ -203,10 +201,9 @@ class FichesDatabase:
             if keep:
                 rows.append((r["test"], r["test_case"], keep, r.get("result")))
         cited = list(dict.fromkeys(i for _, _, ids, _ in rows for i in ids))
-        na = [i for i in cited if i in ended]
-        delegated = [i for i in cited if i in planned and i not in own and i not in ended]
+        delegated = [i for i in cited if i in planned and i not in own]
         # In no STDHL of its tome: only a requirement delegated to the default platform (the others have no STDHL).
-        not_specified = [i for i in cited if with_stdhl and i not in ended and i not in delegated
+        not_specified = [i for i in cited if with_stdhl and i not in delegated
                          and (i, tome_of[i]) not in specified and (i, None) not in specified]
         # A requirement delegated elsewhere is loaded without its result: a row of its own, NOT_RUN.
         split = []
@@ -215,16 +212,13 @@ class FichesDatabase:
             if any(i in delegated for i in ids):
                 split.append((test, case, [i for i in ids if i in delegated], "NOT_RUN"))
         return {"rows": [x for x in split if x[2]], "unknown": unknown, "untitled": untitled,
-                "ignored_tests": ignored_tests, "ignored_cases": ignored_cases, "na": na,
+                "ignored_tests": ignored_tests, "ignored_cases": ignored_cases,
                 "not_specified": not_specified, "delegated": delegated}
 
     @staticmethod
     def refusal(found):
-        """The message refusing a fiches file whose requirements are N/A in the plans or in no STDHL, or None."""
+        """The message refusing a fiches file whose requirements are in no STDHL, or None."""
         parts = []
-        if found["na"]:
-            parts.append(f"{plural(len(found['na']), 'exigence N/A', 'exigences N/A')} dans les plans : "
-                         + ", ".join(found["na"]) + " (changer d'abord leur état dans le plan et le STDHL)")
         if found["not_specified"]:
             parts.append(f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son tome : "
                          + ", ".join(found["not_specified"]) + " (les spécifier d'abord dans le STDHL)")
@@ -273,7 +267,7 @@ class FichesDatabase:
         content (the file is removed again on failure); a file of the same name is replaced, whatever its tome."""
         tome = files.check_tome("de fiches d'essai", requirements, tome)
         data = self._readable(content, config)
-        # The rules of the import (see screen): refused for a requirement N/A or in no STDHL.
+        # The rules of the import (see screen): refused for a requirement in no STDHL.
         # The platform the file comes from (the default one if not given).
         if platform and config is not None and not config.is_platform(platform):
             raise ValueError(f"plateforme {platform} absente de la configuration")
@@ -310,11 +304,11 @@ class FichesDatabase:
                     data = self._readable(files.content(record["id"]) or b"", config)
                 except ValueError:
                     continue
-                # Read again: the same rules, a requirement now N/A or in no STDHL left out instead of refusing.
+                # Read again: the same rules, a requirement now in no STDHL left out instead of refusing.
                 found = self.screen(data, record["tome"], config, self.sql.scalar(
                     "SELECT l.name FROM files f JOIN list_plateformes l ON l.id = f.platform_id WHERE f.id = ?",
                     (record["id"],)) or "")
-                blocked = set(found["na"]) | set(found["not_specified"])
+                blocked = set(found["not_specified"])
                 rows = [(t, c, [i for i in ids if i not in blocked], r) for t, c, ids, r in found["rows"]]
                 with self.sql.transaction() as db:
                     self._write(db, record["id"], data, [x for x in rows if x[2]])
