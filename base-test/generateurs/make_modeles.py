@@ -29,7 +29,7 @@ REQS = [
      "SYS_PERF_MODELE_001", 2),
     ("SSS_MODELE_REQ_004", "L'IHM affiche l'état des équipements", "A", "MODELE", "I", "MOC7", "",
      "SYS_COM_MODELE_002", 1),
-    ("SSS_MODELE_REQ_005", "Exigence d'information, sans essai", "A", "", "N/A", "N/A", "", "", 0),
+    ("SSS_MODELE_REQ_005", "Exigence d'information, sans essai", "A", "", "I", "MOC7", "", "", 0),
     ("SSS_MODELE_REQ_006", "Les messages sont acquittés par l'opérateur", "A", "MODELE", "T", "MOC4", "",
      "SYS_COM_MODELE_002", 1),
     ("SSS_MODELE_REQ_007", "La liaison est rétablie après coupure", "A, B", "MODELE", "T", "MOC4", "",
@@ -122,10 +122,12 @@ def requirements():
     ws.title = "Exigences"
     ws.append(["ID", "Titre", "Specification releases", "STDHL", "IADT", "MOC", "Délégation", "Validation releases"])
     # Validation releases: the specification releases, but 004 qualified (last tested in A) and 007 tested in B only.
-    validation = {"SSS_MODELE_REQ_004": "A, QUALIFIE", "SSS_MODELE_REQ_007": "B"}
+    # 005, not tested in this release: no validation release (out of scope).
+    validation = {"SSS_MODELE_REQ_004": "A, QUALIFIE", "SSS_MODELE_REQ_005": "", "SSS_MODELE_REQ_007": "B"}
     for r in REQS:
         # One MOC in the requirements file (the reference); the plan may give several (003: MOC2, MOC3).
-        ws.append([r[0], r[1], r[2], r[3], r[4], r[5].split(",")[0].strip(), r[6] or "TOP", validation.get(r[0], r[2])])
+        ws.append([r[0], r[1], r[2], r[3], r[4], r[5].split(",")[0].strip(), r[6] or "TOP",
+                   validation.get(r[0], r[2]) or None])
     for c in ws[1]:
         c.font, c.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
     for col, w in zip("ABCDEFGH", (24, 52, 16, 14, 8, 9, 14, 16)):
@@ -160,14 +162,15 @@ def requirements():
                   "à la ligne (stdhl_separator_regex). Vérifié seulement si « Utiliser la colonne STDHL » est coché "
                   "dans Configuration > STDHL."),
         ("IADT", "la méthode de vérification de l'exigence, un seul code : I (inspection), A (analyse), D "
-                 "(démonstration), T (test) ou N/A. Le fichier d'exigences est la référence : le plan d'acceptation et "
+                 "(démonstration) ou T (test). Le fichier d'exigences est la référence : le plan d'acceptation et "
                  "le STDHL sont vérifiés par rapport à lui."),
-        ("MOC", "le moyen de conformité, un seul code : D et T → MOC4, I → MOC7, A → MOC2 ou MOC3, N/A → N/A "
-                "(règles IADT / MOC de la configuration). Une exigence IADT N/A et MOC N/A n'est pas testée."),
+        ("MOC", "le moyen de conformité, un seul code : D et T → MOC4, I → MOC7, A → MOC2 ou MOC3 (règles IADT / "
+                "MOC de la configuration). Une exigence qui n'est pas testée dans une release est hors scope par sa "
+                "colonne Validation releases."),
         ("Délégation", "la plateforme qui vérifie l'exigence, une seule, toujours écrite : une délégation vide fait "
                        "refuser le fichier, comme un code ou une plateforme absents de la configuration."),
         ("Exemple", "8 exigences : 001 à 007 et HQ1/2_WF_001. 002 est déléguée à la plateforme PLT1_N-1 et 005 est "
-                    "N/A dans le plan : ni l'une ni l'autre n'a de STDHL."),
+                    "hors scope (Validation releases vide) : ni l'une ni l'autre n'a de STDHL."),
     ]
     for label, text in lines:
         help_.append([label, text])
@@ -197,20 +200,20 @@ def plan():
                          "document sont ignorés ; un tableau auquel il manque un de ces en-têtes est signalé."),
         ("Exigence", "le numéro de l'exigence, suivi ou non de son titre : SSS_<TOME>_REQ_<n°> <titre>. Une exigence "
                      "inconnue du tome, ou hors de la release du plan, est à ignorer au chargement."),
-        ("IADT", "I (inspection), A (analyse), D (démonstration), T (test) ou N/A ; plusieurs codes séparés par , ; + "
+        ("IADT", "I (inspection), A (analyse), D (démonstration) ou T (test) ; plusieurs codes séparés par , ; + "
                  "ou un espace (code_separator_regex)."),
         ("MOC", "le moyen de conformité attendu pour l'IADT (règles IADT / MOC de la configuration) : D et T → MOC4, "
-                "I → MOC7, A → MOC2 ou MOC3, N/A → N/A. Une valeur hors règle est à corriger au chargement."),
+                "I → MOC7, A → MOC2 ou MOC3. Une valeur hors règle est à corriger au chargement."),
         ("Délégation", "la plateforme qui teste l'exigence ; vide = la plateforme par défaut (TOP). Une plateforme "
                        "inconnue de la configuration, ou plusieurs délégations, sont à régler au chargement."),
-        ("N/A", "une exigence dont toutes les lignes sont IADT N/A et MOC N/A n'est pas testée : elle n'est attendue "
-                "ni dans les STDHL ni dans les fiches."),
         ("Rattachement", "un plan porte sur un seul tome ; un tableau par thème (feature), sous un titre, est l'usage."),
     ])
     header = ["Exigence", "Méthodes de test V&V", "IADT", "MOC", "Délégation"]
     body += [p("Exemple : tome MODELE, release A", "Titre1")]
     for theme, numbers in (("Fonctions de base", REQS[:4]), ("Exploitation", REQS[4:])):
-        rows = [header] + [[f"{r[0]} {r[1]}", f"V&V [{r[6] or 'TOP'}] : méthode de test et moyens", r[4], r[5], r[6]]
+        # The plan follows the reference of the requirements: one MOC, the delegation always written.
+        rows = [header] + [[f"{r[0]} {r[1]}", f"V&V [{r[6] or 'TOP'}] : méthode de test et moyens", r[4],
+                            r[5].split(",")[0].strip(), r[6] or "TOP"]
                            for r in numbers]
         body += [p(theme, "Titre2"), table(rows)]
     write_docx(BASE / "plans" / "2026-01-01_PA_MODELE_A-modele.docx", body)
@@ -232,8 +235,8 @@ def stdhl_format1():
                          "Exigences associées (headers_stdhl) ; les autres tableaux sont ignorés. Une ligne de phase "
                          "(cellule fusionnée « Phase <n> ») est permise."),
         ("Exigences associées", "les numéros des exigences vérifiées par la ligne, séparés par un espace, une virgule "
-                                "ou un retour à la ligne. Un numéro absent de la base, ou une exigence N/A dans les "
-                                "plans, n'est pas enregistré et est signalé."),
+                                "ou un retour à la ligne. Un numéro absent de la base n'est pas enregistré et est "
+                                "signalé."),
         ("Format", "un document sans aucun tableau valide est lu comme un STDHL de format 2 (voir le modèle "
                    "2026-01-01_STDHL_MODELE-F2_rev1.docx)."),
     ])

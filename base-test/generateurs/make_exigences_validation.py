@@ -11,6 +11,8 @@ when it is there. Its values, drawn for each requirement (the same at each run):
 - the others: their specification releases.
 For a base in release A, the validation of a requirement is then « qualifiée » with QUALIFIE, « à qualifier » when A
 is in the list, « hors scope » otherwise.
+Not to be run again: the requirements files are now the reference (their N/A were converted by
+make_exigences_sans_na.py; this script, made from the old plans, would bring them back).
 Usage (from nexus-v/programme): python ../../base-test/generateurs/make_exigences_validation.py ../../base-test
 """
 import random

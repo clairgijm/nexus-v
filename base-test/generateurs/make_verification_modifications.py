@@ -28,18 +28,10 @@ in_a = lambda r: "A" in str(r[2] or "").replace(" ", "").split(",")
 
 def rows_of(k):
     """Rows [ID, Titre, Specification releases, STDHL, IADT, MOC, Délégation, Validation releases] of release A of the
-    test file of fctk, as the base holds them (specification releases reduced to A)."""
+    test file of fctk, as the base holds them (specification releases reduced to A, validation releases kept)."""
     ws = openpyxl.load_workbook(BASE / "exigences" / f"2026-01-01-fct{k}.xlsx").active
-    return [validated(["A" if c == 2 else v for c, v in enumerate(r[:8])])
+    return [["A" if c == 2 else v for c, v in enumerate(r[:8])]
             for r in ws.iter_rows(min_row=2, values_only=True) if r[0] and in_a(r)]
-
-
-def validated(row):
-    """The row with its validation releases within its specification releases (A); a qualified requirement keeps
-    them as they are."""
-    if "QUALIFIE" not in str(row[7] or ""):
-        row[7] = "A"
-    return row
 
 
 def save(path, rows):
@@ -69,9 +61,7 @@ def modify(row, field):
     elif field == "STDHL":
         row[3] = f"{row[3]}-bis"
     else:
-        row[2] = "B"   # validated in B too, unless qualified
-        if "QUALIFIE" not in str(row[7] or ""):
-            row[7] = "B"
+        row[2] = "B"
     return row
 
 

@@ -9,6 +9,8 @@ plans/2026-01-01_PA_FCTk_A-plan.docx, so that the plans stay consistent with the
   check then reports the difference);
 - a requirement absent from the plans (rows of releases B or C only) gets T, MOC4, TOP.
 The columns are added after STDHL, or replaced when they are there already.
+Not to be run again: the requirements files are now the reference (their N/A were converted by
+make_exigences_sans_na.py; this script, made from the old plans, would bring them back).
 Usage (from nexus-v/programme): python ../../base-test/generateurs/make_exigences_reference.py ../../base-test
 """
 import re

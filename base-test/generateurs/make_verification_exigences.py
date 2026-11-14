@@ -86,7 +86,8 @@ cases.append(("2026-03-01-fct4-conflits.xlsx",
               f"{first_a[0]} sur deux lignes ; {second_a[0]} avec deux valeurs STDHL ; {fct5[0][0]} (tome fct5) avec "
               f"un autre titre ; {fct5[1][0]} (tome fct5) à l'identique",
               "Chargeable avec des choix à faire dans les deux cas : numéro sur plusieurs lignes et plusieurs valeurs "
-              "STDHL (À régler), exigences de 2 tomes de la base, fct4 et fct5 (À vérifier), titre et STDHL modifiés "
+              "STDHL (À régler), exigences de 2 tomes de la base, fct4 et fct5 : les 2 de fct5 à garder ou à prendre du fichier "
+              "(À régler), titre et STDHL modifiés "
               "(Information) ; s'il écrase la base : les autres exigences du tome fct5 absentes du fichier (À vérifier)"))
 
 # 5. Requirements removed and added, a number out of format, a requirement without title.
