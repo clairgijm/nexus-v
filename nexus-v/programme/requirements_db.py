@@ -211,22 +211,60 @@ class RequirementsDatabase:
         return [{**r, "percent": round(100 * r["count"] / total, 1) if total else 0,
                  "color": (colors or {}).get(r["tome"], "")} for r in rows]
 
-    def delegation_shares(self, colors=None):
-        """Part de chaque plateforme dans les délégations des exigences (non supprimées) de chaque tome, pour les
-        barres de la page Statistiques : [{tome, total, parts: [{platform, count, percent, color}] de la plus
-        grande}] ; `colors` : {plateforme: couleur} (configuration)."""
+    @staticmethod
+    def _shares(rows, group, part, colors=None, order=None):
+        """Barres de la page Statistiques : une par valeur de `group` (dans l'ordre des lignes), découpée par la valeur
+        que `part(ligne)` donne (vide : ligne laissée de côté). [{name, total, parts: [{label, count, percent,
+        color}]}] ; les parts suivent `order` (liste de libellés) quand il est donné, sinon de la plus grande à la plus
+        petite ; `colors` : {libellé: couleur}."""
         counts = {}
-        for r in self.sql.query("SELECT t.name AS tome, p.name AS platform, COUNT(*) AS n FROM requirements q "
-                                "JOIN list_tomes t ON t.id = q.tome_id JOIN list_plateformes p ON p.id = q.delegation_id "
-                                "WHERE q.deleted = 0 GROUP BY t.id, p.id"):
-            counts.setdefault(r["tome"], {})[r["platform"]] = r["n"]
+        for r in rows:
+            label = part(r)
+            if r[group] and label:
+                by = counts.setdefault(r[group], {})
+                by[label] = by.get(label, 0) + 1
         shares = []
-        for tome, by in counts.items():
+        for name, by in counts.items():
             total = sum(by.values())
-            shares.append({"tome": tome, "total": total, "parts": [
-                {"platform": name, "count": n, "percent": round(100 * n / total, 1), "color": (colors or {}).get(name, "")}
-                for name, n in sorted(by.items(), key=lambda x: -x[1])]})
+            labels = [x for x in order if x in by] if order else sorted(by, key=lambda x: -by[x])
+            shares.append({"name": name, "total": total, "parts": [
+                {"label": label, "count": by[label], "percent": round(100 * by[label] / total, 1),
+                 "color": (colors or {}).get(label, "")} for label in labels]})
         return shares
+
+    def _by_platform(self):
+        """Exigences non supprimées, dans l'ordre du référentiel des plateformes de leur délégation."""
+        order = {r["name"]: k for k, r in enumerate(self.sql.query("SELECT name FROM list_plateformes ORDER BY id"))}
+        return sorted((r for r in self._requirements() if not r["deleted"]),
+                      key=lambda r: order.get(r["delegation"], len(order)))
+
+    def delegation_shares(self, colors=None):
+        """Part de chaque plateforme dans les délégations des exigences (non supprimées) de chaque tome : une barre
+        par tome ; `colors` : {plateforme: couleur} (configuration)."""
+        rows = [r for r in self._requirements() if not r["deleted"]]
+        return self._shares(rows, "tome", lambda r: r["delegation"], colors)
+
+    def platform_shares(self, colors=None):
+        """Part de chaque tome dans les exigences (non supprimées) déléguées à chaque plateforme : une barre par
+        plateforme, dans l'ordre du référentiel, les tomes aussi dans l'ordre du référentiel (le même sur chaque
+        ligne) ; `colors` : {tome: couleur} (configuration)."""
+        return self._shares(self._by_platform(), "delegation", lambda r: r["tome"], colors,
+                            order=[r["name"] for r in self.sql.query("SELECT name FROM list_tomes ORDER BY id")])
+
+    def iadt_shares(self, iadt_codes, colors=None, group="delegation"):
+        """IADT des exigences (non supprimées) de chaque plateforme de délégation (`group` « delegation ») ou de chaque
+        tome (« tome ») : une barre chacun, dans l'ordre du référentiel, une part par code IADT pour les exigences à
+        qualifier, puis les parts « Qualifiée » et « Hors scope » (champ validation), quel que soit leur IADT ;
+        `iadt_codes` : codes dans l'ordre de la configuration, `colors` : {code: couleur}."""
+        qualified = VALIDATION_STATES["qualified"].capitalize()
+        out = VALIDATION_STATES["out_of_scope"].capitalize()
+        # Les exigences viennent dans l'ordre des tomes ; par plateforme, dans l'ordre des plateformes.
+        rows = self._by_platform() if group == "delegation" else [r for r in self._requirements() if not r["deleted"]]
+        ended = {"qualified": qualified, "out_of_scope": out}
+        codes = list(iadt_codes) + sorted({r["iadt"] for r in rows if r["iadt"]} - set(iadt_codes))
+        return self._shares(rows, group, lambda r: ended.get(r["validation"]) or r["iadt"],
+                            {**(colors or {}), qualified: "var(--ok)", out: "var(--muted)"},
+                            order=codes + [qualified, out])
 
     def stdhl_names(self):
         """Valeurs de la table list_stdhl (colonne STDHL des fichiers importés), triées."""
@@ -275,7 +313,7 @@ class RequirementsDatabase:
         "rejected_numbers" : numéros hors du format des exigences (requirement_regex), laissés de côté}.
 
         La ligne 1 est l'en-tête : elle doit contenir chaque texte attendu (configuration headers_requirements, texte
-        -> rôle) ; les colonnes des rôles id, title, releases, validation, stdhl, iadt, moc, delegation y sont
+        -> champ) ; les colonnes des champs id, title, releases, validation, stdhl, iadt, moc, delegation y sont
         repérées (stdhl lue seulement avec use_requirement_stdhl : sinon le STDHL de chaque exigence est vide).
         Sinon, le fichier est refusé (ValueError). La référence des lignes importées est vérifiée après le choix des
         releases (voir check_reference, dans analyse et import_file).
@@ -299,7 +337,7 @@ class RequirementsDatabase:
             cols, missing = match_header(cells, headers)
             # La colonne STDHL n'est obligatoire que lorsque les STDHL sont vérifiés par rapport à elle
             # (use_requirement_stdhl).
-            optional = set() if get("use_requirement_stdhl") else {h for h, role in headers.items() if role == "stdhl"}
+            optional = set() if get("use_requirement_stdhl") else {h for h, field in headers.items() if field == "stdhl"}
             missing = [h for h in missing if h not in optional]
             if optional:   # l'option désactivée : la colonne STDHL n'est pas lue, même quand elle est là
                 cols.pop("stdhl", None)

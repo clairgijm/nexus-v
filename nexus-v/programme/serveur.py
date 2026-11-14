@@ -12,6 +12,7 @@ le nom « <n°>_<nom du fichier> ». Ce dossier peut être changé dans la page.
 L'aide de la ligne de commande (HELP) donne l'usage.
 """
 import argparse
+import html
 import json
 import re
 import shutil
@@ -250,7 +251,12 @@ class Handler(SimpleHTTPRequestHandler):
             colors = configuration.get("colors")
             return self.send_json({**requirements.to_dict(),
                                    "distribution": requirements.distribution(colors.get("tomes")),
-                                   "delegation_shares": requirements.delegation_shares(colors.get("platforms"))})
+                                   "delegation_shares": requirements.delegation_shares(colors.get("platforms")),
+                                   "platform_shares": requirements.platform_shares(colors.get("tomes")),
+                                   "iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
+                                                                           colors.get("iadt")),
+                                   "tome_iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
+                                                                                colors.get("iadt"), "tome")})
         elif path == "/api/plans":
             # Lignes vérifiées par rapport à la configuration actuelle (plateformes, IADT, MOC, délégation).
             return self.send_json(plans.to_dict(configuration))
@@ -287,6 +293,18 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(plans.check_tome(query.get("tome", ""), requirements, configuration, selected))
         elif path == "/api/info":
             return self.send_json(storage_info())
+        # Rapport du dernier rejet d'un type de fichier, ouvert depuis sa boîte de chargement.
+        elif m := re.fullmatch(r"/api/rejects/(requirements|plans|stdhl|fiches|traceability)", path):
+            report = database.reject(m[1])
+            if report is None:
+                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport de rejet pour ce type de fichier")
+            return self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
+        # Rapport de l'import d'un fichier, ouvert par la page Gestion des fichiers dans une nouvelle fenêtre.
+        elif (file_id := self.file_id("/rapport")) is not None:
+            report = database.report(file_id)
+            if report is None:
+                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport pour ce fichier")
+            return self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
         # Octets bruts d'un fichier enregistré (la page y relit un fichier d'exigences).
         elif (file_id := self.file_id("/content")) is not None:
             content = database.content(file_id)
@@ -367,6 +385,7 @@ class Handler(SimpleHTTPRequestHandler):
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
             # Seules les exigences de la release de la base sont importées.
             selected = [configuration.get("release")]
+            content = b""
             try:
                 content = self.read_body()
                 # Les choix de l'utilisateur, en JSON, viennent avant le fichier.
@@ -385,16 +404,23 @@ class Handler(SimpleHTTPRequestHandler):
                 # Import : le fichier est enregistré et ses exigences écrites, les conflits étant réglés par les choix.
                 if not query.get("name") or not (query.get("tome") or "").strip():
                     raise ValueError("paramètres name / tome manquants")
+                # Le rapport de l'import : celui de la vérification avant import, sur la base d'avant l'import.
+                report = self.import_report("requirements", query["name"], content)
                 summary = requirements.import_file(database, content, query["name"], query["tome"].strip(),
                                                    query.get("mode", "replace"), query.get("sheet") or None,
                                                    configuration, selected, choices)
+                if report:
+                    database.save_report(summary["file_id"], report)
+                summary["report"] = bool(report)   # la page propose de l'ouvrir
+                database.remove_reject("requirements")
                 # Les plans, STDHL et fiches ne gardent que des exigences de la base : relus.
                 plans.read_missing(database, configuration, again=True)
                 stdhl.read_missing(database, configuration, again=True)
                 fiches.read_missing(database, configuration, again=True)
                 traceability.read_missing(database, configuration, again=True)
             except ValueError as e:
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                # Rejeté (analyse ou import) : son rapport de rejet est gardé.
+                return self.reject("requirements", query, content, str(e))
             return self.send_json(summary)
         if m := re.fullmatch(r"/api/(plans|stdhl|fiches|traceability)/(analyse|load)", url.path):
             # Fichier de plan, STDHL, fiches ou traçabilité envoyé tel quel (corps) : la classe du sujet le lit et
@@ -404,6 +430,7 @@ class Handler(SimpleHTTPRequestHandler):
             # l'utilisateur.
             base = {"plans": plans, "stdhl": stdhl, "fiches": fiches, "traceability": traceability}[m[1]]
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
+            content = b""
             try:
                 content = self.read_body()
                 if not query.get("name"):
@@ -429,10 +456,17 @@ class Handler(SimpleHTTPRequestHandler):
                     extra = {**extra, "decisions": decisions}
                 if base in (traceability, fiches):   # la plateforme d'où vient le fichier de fiches
                     extra["platform"] = (query.get("platform") or "").strip()
+                # Le rapport du chargement : celui de la vérification avant import, sur la base d'avant le chargement.
+                report = self.import_report(m[1], query["name"], content, extra.get("platform", ""))
                 result = base.load_file(database, requirements, content, query["name"], (query.get("tome") or "").strip(),
                                         [configuration.get("release")], configuration, **extra)
+                if report:
+                    database.save_report(result["file_id"], report)
+                result["report"] = bool(report)   # la page propose de l'ouvrir
+                database.remove_reject(m[1])
             except ValueError as e:
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                # Rejeté (analyse ou chargement) : son rapport de rejet est gardé.
+                return self.reject(m[1], query, content, str(e))
             return self.send_json(result)
         if m := re.fullmatch(r"/api/check/(requirements|plans|stdhl|fiches)", url.path):
             # Fichiers d'une étape vérifiés avant leur import, rien n'est enregistré : le corps est la liste JSON des
@@ -479,14 +513,54 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
         self.send_json({"ok": True})
 
+    @staticmethod
+    def import_report(kind, name, content, platform=""):
+        """Rapport HTML de l'import d'un fichier, le même que la vérification avant import, calculé sur la base telle
+        qu'elle est avant l'import ; None pour un fichier sans vérification (traçabilité Excel) ou quand le calcul
+        échoue (l'import, lui, se fait quand même)."""
+        try:
+            if kind == "requirements":
+                result = file_check.check_requirements([(name, content)])
+            elif kind == "plans":
+                result = file_check.check_plans([(name, content)])
+            elif kind == "stdhl":
+                result = file_check.check_stdhl([(name, content)])
+            elif kind == "fiches":
+                result = file_check.check_fiches([(name, content, platform)])
+            else:
+                return None
+        except Exception:
+            return None
+        return result["html"]
+
+    def reject(self, kind, query, content, message):
+        """Fichier rejeté à l'import : écrit son rapport de rejet (la vérification avant import, avec le motif du
+        refus en tête ; le motif seul quand elle n'a pas pu être faite), puis renvoie l'erreur à la page."""
+        name = query.get("name") or ""
+        reason = f'<p class="reject"><strong>Chargement rejeté</strong> : {html.escape(message)}</p>'
+        report = self.import_report(kind, name, content, query.get("platform") or "") if content else None
+        if report:
+            report = report.replace("</h1>", "</h1>\n" + reason, 1)
+        else:
+            report = (f'<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d\'import — '
+                      f'chargement rejeté</title></head><body style="font-family: sans-serif; margin: 24px">'
+                      f'<h1>Rapport d\'import — chargement rejeté</h1><p>{html.escape(name)}</p>{reason}</body></html>')
+        database.save_reject(kind, report)
+        return self.send_text_error(HTTPStatus.BAD_REQUEST, message)
+
     def remove_file(self, file_id):
-        """Retire un fichier et ce qui en vient. Renvoie ce qui a été retiré."""
-        # Les exigences importées de ce fichier, ou le contenu de ce plan, quittent la base avec lui (la cascade SQL les
-        # retirerait aussi ; ils sont retirés d'abord pour dire ce qui a été retiré).
-        # requirements.remove_file et plans.remove renvoient ce qu'ils retirent, pour le message de la page.
-        removed = {"deleted": file_id, "requirements_removed": requirements.remove_file(file_id),
-                   "plan_removed": plans.remove(file_id)}
-        database.remove(file_id)
+        """Retire un fichier et ce qui en vient, avec les fichiers de son groupe (un fichier d'exigences part avec
+        les autres fichiers d'exigences de son tome : le premier import et ses compléments). Renvoie ce qui a été
+        retiré."""
+        # Les exigences importées de ces fichiers, ou le contenu d'un plan, quittent la base avec eux (la cascade SQL
+        # les retirerait aussi ; ils sont retirés d'abord pour dire ce qui a été retiré).
+        group = database.group(file_id)
+        removed = {"deleted": file_id, "group": group, "requirements_removed": {}, "plan_removed": None}
+        for i in group:
+            for tome, n in requirements.remove_file(i).items():
+                removed["requirements_removed"][tome] = removed["requirements_removed"].get(tome, 0) + n
+            removed["plan_removed"] = plans.remove(i) or removed["plan_removed"]
+            database.remove(i)
         return removed
 
     def do_PUT(self):

@@ -117,7 +117,7 @@
                                         <Property name="RunDate">2026-09-24</Property>
                                         <Property name="AssociatedDefects"/>
                                         <Property name="CommentOnResult"/>
-                                        <Property name="RunResult">FAILED</Property>
+                                        <Property name=>FAILED</Property>
                                         <Property name="StepType">NORMAL</Property>
                                     </Properties>
                                 </TestStep>

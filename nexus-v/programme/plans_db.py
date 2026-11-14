@@ -195,11 +195,11 @@ class PlansDatabase:
 
     @staticmethod
     def _find_header(grid, headers):
-        """({rôle: index de colonne}, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
+        """({champ: index de colonne}, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
         ligne, ou None. Un tableau de plan est reconnu à l'en-tête de sa colonne exigence et d'au moins une autre
         colonne lue (configuration headers_plan) ; chaque en-tête attendu doit alors être là."""
         exigence = header_text(headers, "exigence")
-        others = [header_text(headers, role) for role in PLAN_COLUMNS if role != "exigence"]
+        others = [header_text(headers, field) for field in PLAN_COLUMNS if field != "exigence"]
         cells = grid[0] if grid else []
         # Un tableau est un tableau de plan quand sa première ligne a la colonne des exigences et au moins une autre
         # colonne lue ; chaque en-tête attendu doit alors être là, sinon le tableau est signalé et laissé de côté.

@@ -66,9 +66,10 @@ Variables :
   headers_requirements            en-têtes attendus dans le fichier d'exigences (ligne 1)
   headers_plan                    en-têtes attendus dans les tableaux des plans d'acceptation
   headers_stdhl                   en-têtes attendus dans les tableaux des STDHL
-                                  Chacun est une liste ordonnée « texte d'en-tête -> rôle » : le rôle dit quelle
-                                  colonne NEXUS-V lit (id, title, releases, validation, stdhl, iadt, moc, delegation ;
-                                  exigence, iadt, moc, delegation ; requirements) : ces colonnes sont obligatoires.
+                                  Chacun est une liste ordonnée « texte d'en-tête -> champ » : le champ
+                                  que NEXUS-V lit dans la colonne (HEADER_FIELDS : id, title, releases, validation,
+                                  stdhl, iadt, moc, delegation ; exigence, iadt, moc, delegation ; requirements) ; ces
+                                  colonnes sont obligatoires.
                                   Les autres colonnes sont « check » (vérifiées pour valider le tableau) ou « ignore »
                                   (seulement documentées) ; elles peuvent être ajoutées ou retirées. Un en-tête est
                                   reconnu quand il contient le texte attendu, casse et accents ignorés.
@@ -131,7 +132,8 @@ DEFAULT_CONFIG = {
     "platforms": ["TOP"],
     "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test"},
     "mocs": {f"MOC{i}": "" for i in range(10)},
-    # En-têtes attendus des tableaux, dans l'ordre : texte d'en-tête -> rôle (« check » = colonne seulement vérifiée).
+    # En-têtes attendus des tableaux, dans l'ordre : texte d'en-tête -> champ lu (« check » = colonne seulement
+    # vérifiée).
     # Une cellule d'en-tête doit contenir le texte (casse et accents ignorés).
     "headers_requirements": {"ID": "id", "Titre": "title", "Specification releases": "releases",
                              "Validation releases": "validation", "STDHL": "stdhl", "IADT": "iadt", "MOC": "moc",
@@ -140,11 +142,24 @@ DEFAULT_CONFIG = {
     "headers_stdhl": {"Description du test": "check", "Résultat attendu": "check", "Exigences associées": "requirements"},
 }
 
-# Rôles des colonnes de chaque réglage d'en-têtes : chacun doit être donné exactement une fois.
-HEADER_ROLES = {
-    "headers_requirements": ("id", "title", "releases", "validation", "stdhl", "iadt", "moc", "delegation"),
-    "headers_plan": ("exigence", "iadt", "moc", "delegation"),
-    "headers_stdhl": ("requirements",),
+# Champs que NEXUS-V lit dans les colonnes de chaque réglage d'en-têtes, avec le libellé montré par la page
+# Configuration : chacun doit être donné par exactement une colonne. La page reçoit cette liste (to_dict,
+# « header_fields ») : elle n'en garde pas de copie.
+HEADER_FIELDS = {
+    "headers_requirements": {
+        "id": "Identifiant de l'exigence",
+        "title": "Titre",
+        "releases": "Specification releases (garde les exigences de la release de la base, rejette les autres ; "
+                    "non enregistrée)",
+        "validation": "Validation releases (à qualifier, qualifiée ou hors scope)",
+        "stdhl": "STDHL : colonne lue seulement si « Utiliser la colonne STDHL » est coché (Configuration > STDHL)",
+        "iadt": "IADT",
+        "moc": "MOC",
+        "delegation": "Délégation",
+    },
+    "headers_plan": {"exigence": "numéros d'exigence (le titre n'est pas stocké)", "iadt": "IADT", "moc": "MOC",
+                     "delegation": "Délégation"},
+    "headers_stdhl": {"requirements": "Exigences associées"},
 }
 
 # Parties du fichier et leurs variables, toujours écrites : le fichier montre chaque réglage, et toutes les règles pour
@@ -228,24 +243,25 @@ def header_column(cells, expected, taken=()):
 
 
 def match_header(cells, headers):
-    """Colonnes d'une ligne d'en-tête pour un réglage d'en-têtes (texte -> rôle) : ({rôle: index de colonne} pour les
-    colonnes trouvées qui ont un rôle, [textes attendus non trouvés]). L'ordre des colonnes n'importe pas : les
+    """Colonnes d'une ligne d'en-tête pour un réglage d'en-têtes (texte -> champ) : ({champ: index de
+    colonne} pour les colonnes trouvées qui portent un champ lu, [textes attendus non trouvés]). L'ordre des
+    colonnes n'importe pas : les
     cellules égales à un texte attendu sont prises d'abord, puis les autres, chaque cellule pour une seule colonne."""
     cols, missing, taken = {}, [], set()
-    wanted = [(text, role) for text, role in headers.items() if role != "ignore"]   # « ignore » : seulement documentée
+    wanted = [(text, field) for text, field in headers.items() if field != "ignore"]   # « ignore » : seulement documentée
     found = {}
-    for text, role in sorted(wanted, key=lambda w: header_column(cells, w[0]) is None or
+    for text, field in sorted(wanted, key=lambda w: header_column(cells, w[0]) is None or
                              fold(str(cells[header_column(cells, w[0])] or "")).strip() != fold(w[0])):
         k = header_column(cells, text, taken)
         if k is not None:
             taken.add(k)
         found[text] = k
-    for text, role in wanted:
+    for text, field in wanted:
         k = found[text]
         if k is None:
             missing.append(text)
-        elif role not in ("check", ""):
-            cols[role] = k
+        elif field not in ("check", ""):
+            cols[field] = k
     return cols, missing
 
 
@@ -255,9 +271,9 @@ def table_left_out(number, missing):
     return f"tableau {number} : {texts} : " + ", ".join(f"« {m} »" for m in missing)
 
 
-def header_text(headers, role):
-    """Texte d'en-tête attendu d'un rôle dans un réglage d'en-têtes."""
-    return next(text for text, r in headers.items() if r == role)
+def header_text(headers, field):
+    """Texte d'en-tête attendu de la colonne qui porte un champ, dans un réglage d'en-têtes."""
+    return next(text for text, f in headers.items() if f == field)
 
 
 def method_platform(text):
@@ -396,7 +412,8 @@ class Configuration:
     def to_dict(self):
         """Chaque variable avec sa valeur actuelle, référentiels et leurs couleurs compris."""
         return {**{name: self.get(name) for name in self.names()}, "colors": self.get("colors"),
-                "tome_descriptions": self.get("tome_descriptions"), "system_platforms": self.system_platforms()}
+                "tome_descriptions": self.get("tome_descriptions"), "system_platforms": self.system_platforms(),
+                "header_fields": HEADER_FIELDS}
 
     def system_platforms(self):
         """Les plateformes que peut être la plateforme de niveau système : celles auxquelles les exigences importées
@@ -419,6 +436,9 @@ class Configuration:
         renames = values.pop("renames", None) or {}   # {type: {ancien nom: nouveau nom}}, voir NexusDatabase.rename
         colors = values.pop("colors", None) or {}   # {type: {nom: "#rrggbb"}}
         descriptions = values.pop("tome_descriptions", None) or {}   # {tome: texte}
+        # Données calculées que to_dict ajoute pour la page : jamais enregistrées.
+        values.pop("system_platforms", None)
+        values.pop("header_fields", None)
         if not isinstance(descriptions, dict):
             raise ValueError("descriptions des tomes : format invalide")
         if any(kind not in REFERENTIALS or not isinstance(v, dict) for kind, v in colors.items()):
@@ -546,17 +566,18 @@ class Configuration:
                     raise ValueError(f"code en double dans {name} : {code}")
                 codes[code] = label
             value = codes
-        elif name in HEADER_ROLES:
-            roles = HEADER_ROLES[name]
-            # {texte d'en-tête: rôle} ; une colonne sans rôle lu est vérifiée (« check ») ou seulement documentée («
-            # ignore »).
-            unknown = sorted({r for r in value.values() if r not in roles and r not in ("check", "ignore")})
+        elif name in HEADER_FIELDS:
+            fields = HEADER_FIELDS[name]
+            # {texte d'en-tête: champ lu} ; une colonne sans champ lu est vérifiée (« check ») ou
+            # seulement documentée (« ignore »).
+            unknown = sorted({f for f in value.values() if f not in fields and f not in ("check", "ignore")})
             if unknown:
-                raise ValueError(f"{name} : {'rôles inconnus' if len(unknown) > 1 else 'rôle inconnu'} : {', '.join(unknown)}")
-            for role in roles:
-                count = list(value.values()).count(role)
+                raise ValueError(f"{name} : {'champs inconnus' if len(unknown) > 1 else 'champ inconnu'} : "
+                                 f"{', '.join(unknown)}")
+            for field in fields:
+                count = list(value.values()).count(field)
                 if count != 1:
-                    raise ValueError(f"{name} : la colonne « {role} » doit apparaître une fois ({plural(count, 'trouvée')})")
+                    raise ValueError(f"{name} : la colonne « {field} » doit apparaître une fois ({plural(count, 'trouvée')})")
             keys = [fold(t) for t in value]
             duplicates = sorted({t for t in value if keys.count(fold(t)) > 1})
             if duplicates:

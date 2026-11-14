@@ -111,6 +111,14 @@
   .drop .step { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
   .drop .kind { font-weight: 600; }
   .drop .name { font-size: .85rem; color: var(--muted); word-break: break-all; }
+  /* Place fixe pour deux lignes de message, coupées au-delà : les boîtes ne changent pas de taille. */
+  .drop .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+                min-height: 2.6em; line-height: 1.3; word-break: break-word; }
+  /* Bouton Rapport, toujours présent : gris et inactif sans rapport, bleu quand un rapport est disponible. */
+  .drop .drop-report { display: block; margin-top: 6px; }
+  .drop .drop-report:disabled { background: var(--surface-2); color: var(--muted); border-color: var(--border);
+                                cursor: default; }
+  .drop.rejected .name { color: var(--ko); }
   .drop.loaded .name { color: var(--ok); }
   .drop.error .name { color: var(--ko); }
   .drop input { display: none; }
@@ -150,9 +158,12 @@
   .cfg-row { display: grid; gap: 8px; align-items: start; }
   .cfg-row.one { grid-template-columns: 1fr auto; }
   .cfg-row.two { grid-template-columns: 140px 1fr auto; }
-  .cfg-row.platform-row { grid-template-columns: 220px 44px 1fr auto; align-items: center; }
+  /* Nom, couleur, bouton de suppression (carré, à côté de la couleur). */
+  .cfg-row.platform-row { grid-template-columns: 220px 44px auto; justify-content: start; align-items: center; }
   /* Barre cumulée : un segment par tome, sa largeur la part des exigences (page Exigences). */
-  .share { margin: 4px 0 14px; }
+  /* Barres de la page Statistiques alignées : colonne du nom et colonne du total de largeur fixe. */
+  .share, .deleg { --stat-name: 110px; --stat-total: 44px; }
+  .share { display: grid; grid-template-columns: var(--stat-name) 1fr var(--stat-total); gap: 0 10px; margin: 4px 0 14px; }
   .share .bar { display: flex; height: 46px; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
   /* Chaque segment montre son tome et sa part, l'un sous l'autre (coupés quand le segment est trop étroit). */
   .share .bar span { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;
@@ -162,10 +173,15 @@
   .share .bar span + span { border-left: 2px solid var(--surface); }
   .share .bar span.active { outline: 2px solid var(--text); outline-offset: -2px; }
   /* Page Plans : part de chaque plateforme dans les délégations de chaque tome, une barre par tome. */
-  .deleg { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; margin: 4px 0 14px; }
-  .deleg .name { font-size: .85rem; font-weight: 600; cursor: pointer; }
+  .deleg { display: grid; grid-template-columns: var(--stat-name) 1fr var(--stat-total); gap: 4px 10px; align-items: center;
+           margin: 4px 0 14px; }
+  .deleg .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .share > p, .deleg > p { grid-column: 1 / -1; }   /* message « aucune donnée » sur toute la largeur */
+  .deleg .total, .share .total { font-size: .8rem; color: var(--muted); text-align: right; align-self: center; }
+  .deleg [data-plan-tab], .deleg .bar span[data-part], .deleg .bar span[data-tome-tab] { cursor: pointer; }
+  .deleg .name { font-size: .85rem; font-weight: 600; }
   .deleg .name.active { color: var(--brand-dark); text-decoration: underline; }
-  .deleg .bar { display: flex; height: 24px; border-radius: 6px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+  .deleg .bar { display: flex; height: 24px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
   .deleg .bar span { display: flex; align-items: center; justify-content: center; min-width: 2px; overflow: hidden;
                      color: #fff; font-size: .72rem; font-weight: 600; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
   .deleg .keys { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: .8rem; }
@@ -561,17 +577,37 @@
   <div data-panel="stats" hidden>
     <section>
       <h2>Statistiques</h2>
+      <div class="subtabs" id="stats-tabs" role="tablist">
+        <button class="subtab active" role="tab" aria-selected="true" data-stats-tab="tome">Tomes</button>
+        <button class="subtab" role="tab" aria-selected="false" data-stats-tab="platform">Plateformes</button>
+        <button class="subtab" role="tab" aria-selected="false" data-stats-tab="fiches">Fiches</button>
+      </div>
+      <div data-stats-panel="tome">
       <h3>Répartition des exigences par tome</h3>
       <div class="share" id="tome-share"></div>
+      <h3>IADT par tome</h3>
+      <p class="hint">Exigences (hors supprimées) de chaque tome : par IADT pour celles à qualifier dans la release, puis celles déjà qualifiées et celles hors scope (colonne « Validation releases »).</p>
+      <div class="deleg" id="tome-iadt"></div>
       <h3>Délégation par tome et par plateforme</h3>
-      <p class="hint">Exigences (hors supprimées), par plateforme de délégation, selon le fichier d'exigences.</p>
+      <p class="hint">Exigences (hors supprimées) de chaque tome, par plateforme de délégation, selon le fichier d'exigences. Un clic ouvre le tome dans la page Plans d'acceptation.</p>
       <div class="deleg" id="plan-deleg"></div>
+      </div>
+      <div data-stats-panel="platform" hidden>
+      <h3>Tomes par plateforme</h3>
+      <p class="hint">Exigences (hors supprimées) déléguées à chaque plateforme, par tome. Un clic sur un tome l'ouvre dans la page Exigences par tome.</p>
+      <div class="deleg" id="platform-tomes"></div>
+      <h3>IADT par plateforme</h3>
+      <p class="hint">Exigences (hors supprimées) déléguées à chaque plateforme : par IADT pour celles à qualifier dans la release, puis celles déjà qualifiées et celles hors scope (colonne « Validation releases »).</p>
+      <div class="deleg" id="platform-iadt"></div>
+      </div>
+      <div data-stats-panel="fiches" hidden>
       <h3>Couverture par les fiches d'essai, par plateforme</h3>
-      <p class="hint">Exigences déléguées à chaque plateforme dans les plans d'acceptation, couvertes ou non par ses fiches.</p>
-      <div class="charts" id="fiches-charts"></div>
+      <p class="hint">Exigences à qualifier déléguées à chaque plateforme dans les plans d'acceptation, couvertes ou non par ses fiches. Un clic sur une part liste ses exigences.</p>
+      <div class="deleg" id="fiches-charts"></div>
       <h3>État des tests, par plateforme</h3>
-      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, Non exécuté sinon (les fiches Excel des autres plateformes n'ont pas de résultat).</p>
-      <div class="charts" id="result-charts"></div>
+      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, Non exécuté sinon (les fiches Excel des autres plateformes n'ont pas de résultat). Un clic sur une part liste ses exigences.</p>
+      <div class="deleg" id="result-charts"></div>
+      </div>
     </section>
   </div>
 
@@ -941,6 +977,8 @@ const MULTI_SLOTS = new Set(["plan", "stdhl", "xml", "traceability"]);   // plus
 const ATTACHED = new Set(["plan", "stdhl", "xml", "traceability"]);
 // Emplacements sans boîte à eux : les fichiers Excel des autres plateformes sont déposés sur la boîte Fiches d'Essai.
 const CARD_OF = { traceability: "xml" };
+// Type de fichier d'une boîte, pour son rapport de rejet (api/rejects/<type>).
+const REJECT_KIND = { requirements: "requirements", plan: "plans", stdhl: "stdhl", xml: "fiches", traceability: "traceability" };
 const SLOTS_OF_CARD = { xml: ["xml", "traceability"] };
 const ATTACHED_API = { plan: "plans", stdhl: "stdhl", xml: "fiches", traceability: "traceability" };   // adresses de leurs classes
 // Releases sélectionnées dans l'en-tête : chaque vue ne montre que ce qui s'y applique (rien de sélectionné = tout).
@@ -1010,7 +1048,9 @@ async function request(url, options) {
   // Un refus (400) porte un message destiné à l'utilisateur ; les autres erreurs gardent leur statut HTTP.
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(response.status === 400 ? text : `serveur : ${response.status} ${text}`);
+    const error = new Error(response.status === 400 ? text : `serveur : ${response.status} ${text}`);
+    error.status = response.status;   // 400 : fichier rejeté
+    throw error;
   }
   return response;
 }
@@ -1165,9 +1205,8 @@ function showResults() {
         <div class="val">${t.value}<small> / ${t.expected}</small> <small class="pct">${t.percent} %</small></div></div>`).join("");
 
   $("#charts").innerHTML = charts.map((c, i) => pieChart(c, `charts:${i}`)).join("");
-  // Page Statistiques : couverture de chaque plateforme par ses fiches, par rapport à la délégation des plans.
-  $("#fiches-charts").innerHTML = (state.result.platform_charts ?? []).map((c, i) => pieChart(c, `platform_charts:${i}`)).join("");
-  $("#result-charts").innerHTML = (state.result.result_charts ?? []).map((c, i) => pieChart(c, `result_charts:${i}`)).join("");
+  // Page Statistiques : couverture et état des tests de chaque plateforme, en barres.
+  renderStats();
 
   const query = $("#search").value.trim().toUpperCase();
   // Filtre sur l'étape où les exigences sont perdues, avec le nombre d'exigences de chaque étape.
@@ -1215,7 +1254,7 @@ function showPart(at) {
   $("#part-dialog").showModal();
 }
 document.addEventListener("click", e => {
-  const target = e.target.closest(".chart [data-part]");
+  const target = e.target.closest(".chart [data-part], .deleg [data-part]");
   if (target) showPart(target.dataset.part);
 });
 $("#part-close").addEventListener("click", () => $("#part-dialog").close());
@@ -1690,20 +1729,43 @@ function renderCards() {
     const error = slots.map(s => state.errors[s]).filter(Boolean).join(" ; ");
     card.classList.toggle("loaded", count > 0 && !error);
     card.classList.toggle("error", !!error);
-    // Seul le message du dernier import : les listes complètes sont dans les autres pages.
-    card.querySelector(".name").textContent = error || (count ? prefs.lastLoad?.[slot] || plural(count, "chargé") : "")
+    // Seul le dernier chargement, « fichier → tome » ou « fichier : chargement rejeté », avec le bouton de son
+    // rapport : le détail est dans le rapport et dans les autres pages.
+    const last = prefs.lastLoad?.[slot];
+    const { text = "", report = null, rejected = false } = typeof last === "object" && last ? last : { text: last ?? "" };
+    card.classList.toggle("rejected", !error && rejected);
+    if (rejected) card.classList.remove("loaded");   // un rejet s'affiche en rouge, pas en vert
+    const shown = error || (count || rejected ? text || plural(count, "chargé") : "")
       || (MULTI_SLOTS.has(slot) ? "Déposer un ou plusieurs documents…" : "Déposer ou cliquer…");
+    const name = card.querySelector(".name");
+    name.textContent = shown;
+    name.title = shown;   // le message entier au survol, s'il est coupé
+    const button = card.querySelector(".drop-report");
+    if (!button) continue;   // pas encore ajouté (premier dessin)
+    const open = !error && report;
+    button.disabled = !open;
+    if (open) button.dataset.open = report;
+    else delete button.dataset.open;
+    button.title = open ? "Ouvrir le rapport du dernier chargement" : "Pas de rapport pour l'instant";
   }
 }
 
 // « 1 ligne », « 3 lignes » (singulier jusqu'à 1, comme en français).
 const plural = (n, singular, several = singular + "s") => `${n} ${n > 1 ? several : singular}`;
 
-// Mémorise le message du dernier import d'une boîte (gardé dans ce navigateur seulement).
-function setLastLoad(slot, text) {
-  prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: text };
+// Mémorise le dernier chargement d'une boîte (gardé dans ce navigateur seulement) : son texte, l'adresse de son
+// rapport, et s'il a été rejeté.
+function setLastLoad(slot, text, report = null, rejected = false) {
+  prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: { text, report, rejected } };
   writePrefs();
 }
+// Le bouton Rapport d'une boîte ouvre le rapport dans une nouvelle fenêtre (sans ouvrir le choix de fichiers).
+document.addEventListener("click", e => {
+  const button = e.target.closest("[data-open]");
+  if (!button) return;
+  e.stopPropagation();
+  window.open(button.dataset.open, "_blank", "noopener");
+}, true);
 
 // Page « Exigences par tome » : un onglet par tome, le dernier ouvert étant mémorisé.
 const TOME_TAB_KEY = "nexus-v-tome-tab";
@@ -1796,26 +1858,77 @@ function renderStats() {
   // Part des exigences dans chaque tome, donnée par le serveur : un segment chacun, à la couleur du tome.
   const share = state.reqDb.distribution ?? [];
   const pct = s => `${s.percent.toFixed(1).replace(".", ",")} %`;
-  $("#tome-share").innerHTML = share.length ? `<div class="bar" role="img" aria-label="Répartition des exigences par tome">${
+  // Place du nom laissée vide (alignée sur les autres barres), puis la barre, puis le total.
+  $("#tome-share").innerHTML = share.length ? `<span></span><div class="bar" role="img" aria-label="Répartition des exigences par tome">${
     share.map(s => `<span data-tome-tab="${escapeHtml(s.tome)}"
       style="flex: ${s.count} 0 0; background: ${escapeHtml(s.color || "var(--muted)")}"
-      title="${escapeHtml(s.tome)} : ${plural(s.count, "exigence")} (${pct(s)})">${escapeHtml(s.tome)}<small>${pct(s)}</small></span>`).join("")}</div>` : `<p class="hint">Aucune exigence importée.</p>`;
-  // Part des plateformes dans les délégations de chaque tome (donnée par le serveur) : une barre par tome.
-  const shares = (state.reqDb?.delegation_shares ?? [])
-    .sort((a, b) => byName(a.tome, b.tome));
-  const pctOf = p => `${p.percent.toFixed(1).replace(".", ",")} %`;
+      title="${escapeHtml(s.tome)} : ${plural(s.count, "exigence")} (${pct(s)})">${escapeHtml(s.tome)}<small>${pct(s)}</small></span>`).join("")}</div>
+    <span class="total">${share.reduce((n, s) => n + s.count, 0)}</span>` : `<p class="hint">Aucune exigence importée.</p>`;
+  // Barres données par le serveur, une ligne chacune : délégation de chaque tome, tomes et IADT de chaque plateforme.
+  const empty = `<p class="hint">Aucune exigence importée.</p>`;
+  const reqDb = state.reqDb ?? {};
+  $("#plan-deleg").innerHTML = shareBars([...(reqDb.delegation_shares ?? [])].sort((a, b) => byName(a.name, b.name)),
+    { row: s => `data-plan-tab="${escapeHtml(s.name)}"` }) || empty;
+  $("#platform-tomes").innerHTML = shareBars(reqDb.platform_shares ?? [],
+    { segment: p => `data-tome-tab="${escapeHtml(p.label)}"` }) || empty;
+  const iadtLabel = p => state.config?.iadt?.[p.label] ? `${p.label} (${state.config.iadt[p.label]})` : p.label;
+  $("#platform-iadt").innerHTML = shareBars(reqDb.iadt_shares ?? [], { label: iadtLabel }) || empty;
+  $("#tome-iadt").innerHTML = shareBars(reqDb.tome_iadt_shares ?? [], { label: iadtLabel }) || empty;
+  // Couverture et état des tests : les camemberts par plateforme de la vérification, en barres ; un clic sur une part
+  // liste ses exigences, comme sur un camembert.
+  const fromCharts = list => (state.result?.[list] ?? []).map((c, i) => ({
+    name: c.title.replace(/^Plateforme /, ""), total: c.parts.reduce((n, p) => n + p.count, 0),
+    parts: c.parts.map((p, j) => ({ ...p, part: `${list}:${i}:${j}` })) }));
+  const noFiches = `<p class="hint">Aucune fiche d'essai chargée.</p>`;
+  $("#fiches-charts").innerHTML = shareBars(fromCharts("platform_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
+  $("#result-charts").innerHTML = shareBars(fromCharts("result_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
+}
+
+// Barres cumulées d'une vue de la page Statistiques, une ligne par élément [{name, total, parts: [{label, count,
+// percent, color}]}] : nom, barre, total, puis la légende. `row` et `segment` donnent les attributs d'une barre et
+// d'une part (clic), `label` le libellé d'une part dans la légende et l'info-bulle. Vide sans élément.
+function shareBars(rows, { row = () => "", segment = () => "", label = p => p.label } = {}) {
+  if (!rows.length) return "";
+  const pctOf = p => `${Number(p.percent).toFixed(1).replace(".", ",")} %`;
   const colorOf = p => escapeHtml(p.color || "var(--muted)");
-  const used = new Map(shares.flatMap(s => s.parts.map(p => [p.platform, p.color])));
-  $("#plan-deleg").innerHTML = shares.length ? shares.map(s => `
-      <span class="name" data-plan-tab="${escapeHtml(s.tome)}">${escapeHtml(s.tome)}</span>
-      <div class="bar" data-plan-tab="${escapeHtml(s.tome)}" role="img" aria-label="Délégation du tome ${escapeHtml(s.tome)}">${s.parts.map(p =>
-        `<span style="flex: ${p.count} 0 0; background: ${colorOf(p)}" title="${escapeHtml(p.platform)} : ${plural(p.count, "exigence")} (${pctOf(p)})">${
-          p.percent >= 8 ? `${escapeHtml(p.platform)} ${pctOf(p)}` : ""}</span>`).join("")}</div>`).join("")
-    + `<div class="keys">${[...used].map(([name, color]) => `<span><i style="background: ${escapeHtml(color || "var(--muted)")}"></i>${escapeHtml(name)}</span>`).join("")}</div>` : `<p class="hint">Aucune exigence importée.</p>`;
+  const used = new Map(rows.flatMap(s => s.parts.map(p => [p.label, p])));
+  return rows.map(s => `
+      <span class="name" ${row(s)}>${escapeHtml(s.name)}</span>
+      <div class="bar" ${row(s)} role="img" aria-label="${escapeHtml(s.name)}">${s.parts.map(p =>
+        `<span ${segment(p)} style="flex: ${p.count} 0 0; background: ${colorOf(p)}" title="${escapeHtml(label(p))} : ${plural(p.count, "exigence")} (${pctOf(p)})">${
+          p.percent >= 8 ? `${escapeHtml(p.label)} ${pctOf(p)}` : ""}</span>`).join("")}</div>
+      <span class="total">${s.total}</span>`).join("")
+    + `<div class="keys">${[...used.values()].map(p => `<span><i style="background: ${colorOf(p)}"></i>${escapeHtml(label(p))}</span>`).join("")}</div>`;
 }
 
 // Une barre des statistiques ouvre son tome dans la page Exigences ou Plans d'acceptation.
 $("#tome-share").addEventListener("click", e => {
+  const seg = e.target.closest("[data-tome-tab]");
+  if (!seg) return;
+  tomeTab = seg.dataset.tomeTab;
+  document.querySelector('.nav-item[data-tab="requirements"]').click();
+  renderTomes();
+});
+// Onglets de la page Statistiques : Tomes, Plateformes ou Fiches ; le dernier ouvert est mémorisé dans ce navigateur.
+const STATS_TAB_KEY = "nexus-v-stats-tab";
+function showStatsTab(tab) {
+  for (const b of document.querySelectorAll("[data-stats-tab]")) {
+    b.classList.toggle("active", b.dataset.statsTab === tab);
+    b.setAttribute("aria-selected", b.dataset.statsTab === tab);
+  }
+  for (const p of document.querySelectorAll("[data-stats-panel]")) p.hidden = p.dataset.statsPanel !== tab;
+  try { localStorage.setItem(STATS_TAB_KEY, tab); } catch { /* stockage indisponible */ }
+}
+$("#stats-tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-stats-tab]");
+  if (b) showStatsTab(b.dataset.statsTab);
+});
+{
+  const saved = (() => { try { return localStorage.getItem(STATS_TAB_KEY); } catch { return null; } })();
+  showStatsTab(["platform", "fiches"].includes(saved) ? saved : "tome");
+}
+
+$("#platform-tomes").addEventListener("click", e => {
   const seg = e.target.closest("[data-tome-tab]");
   if (!seg) return;
   tomeTab = seg.dataset.tomeTab;
@@ -2418,7 +2531,7 @@ function renderFiles() {
   filesShown = records.map(r => r.id);
   $("#files-table").innerHTML =
     `<thead><tr><th><input type="checkbox" id="files-all" title="Tout sélectionner" aria-label="Tout sélectionner"></th><th>N°</th><th>Fichier</th><th>Tome</th>` +
-    `${filesTab === "stdhl" || filesTab === "xml" ? "<th>Format</th>" : ""}<th></th></tr></thead>` +
+    `${filesTab === "stdhl" || filesTab === "xml" ? "<th>Format</th>" : ""}<th>Rapport</th><th></th></tr></thead>` +
     `<tbody>${records.map(r => `<tr>
         <td><input type="checkbox" data-file-select="${r.id}" ${filesSelected.has(r.id) ? "checked" : ""}
                    aria-label="Sélectionner ${escapeHtml(r.name)}"></td>
@@ -2426,8 +2539,9 @@ function renderFiles() {
         <td>${escapeHtml(r.name)}<div class="hint">${escapeHtml(r.stored_name)}</div></td>
         <td>${escapeHtml(r.tome ?? (filesTab === "requirements" || filesTab === "plan" ? "" : "tous"))}</td>
         ${filesTab === "stdhl" || filesTab === "xml" ? `<td>${escapeHtml(r.format ?? "")}</td>` : ""}
+        <td>${r.report ? `<button class="small" data-report="${r.id}">Ouvrir</button>` : "—"}</td>
         <td><button class="small" data-delete="${r.id}">Supprimer</button></td></tr>`).join("") ||
-      `<tr><td colspan="6" class="empty">Aucun fichier de ce type chargé.</td></tr>`}</tbody>`;
+      `<tr><td colspan="7" class="empty">Aucun fichier de ce type chargé.</td></tr>`}</tbody>`;
   drawFilesSelection();
 }
 
@@ -2435,16 +2549,20 @@ function renderFiles() {
 function drawFilesSelection() {
   const n = filesSelected.size;
   if (!n) filesConfirm = false;
+  // Avec les fichiers de leur groupe (fichiers d'exigences d'un même tome), supprimés ensemble.
+  const grouped = new Set([...filesSelected].flatMap(fileGroup));
+  const extra = grouped.size - n;
   $("#files-toolbar").hidden = !n;
   const all = $("#files-all");
   all.checked = n > 0 && n === filesShown.length;
   all.indeterminate = n > 0 && n < filesShown.length;
   const linked = Object.values(state.reqDb?.tomes ?? {})
-    .flatMap(t => t.requirements).filter(r => filesSelected.has(r.file_id)).length;
+    .flatMap(t => t.requirements).filter(r => grouped.has(r.file_id)).length;
   const files = plural(n, "fichier sélectionné", "fichiers sélectionnés");
+  const more = extra ? `, avec ${plural(extra, "autre fichier")} du même tome (premier import ou complément)` : "";
   $("#files-selection").textContent = filesConfirm
-    ? `Supprimer ${plural(n, "fichier")}${linked ? ` et ${plural(linked, "exigence")} de la base` : ""} ?`
-    : files + (linked ? ` (${plural(linked, "exigence liée", "exigences liées")})` : "");
+    ? `Supprimer ${plural(grouped.size, "fichier")}${linked ? ` et ${plural(linked, "exigence")} de la base` : ""} ?`
+    : files + more + (linked ? ` (${plural(linked, "exigence liée", "exigences liées")})` : "");
   $("#files-delete").hidden = filesConfirm;
   $("#files-delete-ok").hidden = $("#files-delete-cancel").hidden = !filesConfirm;
 }
@@ -2658,6 +2776,7 @@ async function loadFiles(slot, files) {
   let planChoice = null;   // tome et releases du plan précédent, proposés à nouveau pour le suivant
   const planTomes = [];    // tomes des plans chargés, vérifiés à la fin
   const planSkipped = [];  // tableaux de ces plans laissés de côté (en-tête incomplet), montrés avec la vérification
+  const warnings = [];     // avertissements des plans chargés, montrés sous les boîtes
   for (const file of files) {
     try {
       const buffer = await file.arrayBuffer();
@@ -2700,15 +2819,7 @@ async function loadFiles(slot, files) {
         state.config = await store.getConfig();   // un nouveau tome a pu rejoindre la configuration
         state.draft = toDraft(state.config);
         renderConfig();
-        const message = `${file.name} → ${summary.tome} : ${summary.created ? "nouveau tome, " : summary.mode === "replace" ? "remplacement, " : "complément, "}`
-          + `${plural(summary.added, "ajoutée")}, ${plural(summary.updated, "mise à jour", "mises à jour")}, `
-          + `${plural(summary.removed, "retirée")}, ${summary.total} au total`
-          + (summary.rejected ? ` ; ${plural(summary.rejected, "exigence hors release rejetée", "exigences hors release rejetées")}` : "")
-          + (summary.rejected_numbers?.length ? ` ; ${plural(summary.rejected_numbers.length, "numéro hors format rejeté", "numéros hors format rejetés")}` : "")
-          + (summary.new_platforms?.length ? ` ; ${summary.new_platforms.length > 1 ? "plateformes ajoutées" : "plateforme ajoutée"} : ${summary.new_platforms.join(", ")}` : "")
-          + (summary.kept ? ` ; ${plural(summary.kept, "déjà dans la base conservée", "déjà dans la base conservées")}` : "")
-          + (summary.removed_files?.length ? ` ; ${summary.removed_files.length > 1 ? "fichiers remplacés supprimés" : "fichier remplacé supprimé"} : ${summary.removed_files.join(", ")}` : "");
-        setLastLoad(slot, message);
+        setLastLoad(slot, `${file.name} → ${summary.tome}`, summary.report ? `api/files/${summary.file_id}/rapport` : null);
         continue;
       }
       // Plan, STDHL ou fiches : refusé ici s'il est illisible ou vide, avant de rien demander.
@@ -2717,7 +2828,7 @@ async function loadFiles(slot, files) {
       // lignes à régler, et le chargement.
       const analysis = await store.analyseFile(slot, file, buffer);
       planChoice = await choosePlan(file.name, planChoice, slot, analysis.stdhl_name ?? "", analysis.tome_name ?? "");
-      if (!planChoice) { errors.push(`${file.name} — chargement annulé`); continue; }
+      if (!planChoice) continue;   // annulé : la boîte garde son dernier chargement
       // Plan : les délégations inconnues de la configuration sont d'abord proposées à l'ajout ; celles non ajoutées
       // sont ensuite réglées avec les autres lignes (une autre plateforme, ou la ligne ignorée).
       if (slot === "plan" && analysis.unknown_platforms?.length) {
@@ -2730,36 +2841,40 @@ async function loadFiles(slot, files) {
       const settle = slot === "plan" || slot === "traceability" || slot === "xml"
         ? (await store.analyseFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(",") })).to_confirm ?? [] : [];
       const decisions = settle.length ? await confirmPlanRows(file.name, settle, slot) : null;
-      if (settle.length && !decisions) { errors.push(`${file.name} — chargement annulé`); continue; }
+      if (settle.length && !decisions) continue;   // annulé
       // Chargé avec le tome et les décisions ; un message par fichier dit ce qui a été enregistré, ignoré ou mérite une
       // vérification.
       const result = await store.loadFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(","),
                                                                 platform: planChoice.platform ?? "",
                                                                 ...(decisions ? { decisions: JSON.stringify(decisions) } : {}) });
-      const where = result.tome ? ` → ${result.tome}` : "";
-      const skipped = result.skipped?.length ? `, ${plural(result.skipped.length, "tableau ignoré", "tableaux ignorés")}` : "";
-      const ignored = result.ignored ? `, ${slot !== "plan" ? plural(result.ignored, "numéro ignoré", "numéros ignorés")
-                                                                     : plural(result.ignored, "ligne ignorée", "lignes ignorées")}` : "";
-      const format = result.format ? ` (format ${result.format})` : "";
-      setLastLoad(slot, `${file.name}${format}${where} : ${result.rows != null ? plural(result.rows, "ligne")
-                                                                     : plural(result.ids, "numéro d'exigence", "numéros d'exigence")}${skipped}${ignored}`);
+      setLastLoad(slot, `${file.name} → ${result.tome || "tous les tomes"}`,
+                  result.report ? `api/files/${result.file_id}/rapport` : null);
       // Plan : délégations qui ne correspondent pas à la colonne STDHL des exigences (seule la plateforme de niveau
-      // système est dans un STDHL).
-      if (result.stdhl_warnings?.length) errors.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
+      // système est dans un STDHL) : montrées sous les boîtes.
+      if (result.stdhl_warnings?.length) warnings.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
       if (slot === "plan") {
         planFiles.push(file.name);
         planTomes.push(result.tome);
         result.skipped.forEach(x => planSkipped.push(`${file.name} — ${x}`));
       }
     } catch (e) {
-      errors.push(`${file.name} — ${e.message || e}`);
+      // Rejeté par le serveur : la boîte le dit, avec le rapport de rejet de ce type de fichier ; une autre erreur
+      // (serveur injoignable) reste un message.
+      if (e.status === 400) setLastLoad(slot, `${file.name} : chargement rejeté`, `api/rejects/${REJECT_KIND[slot]}`, true);
+      else errors.push(`${file.name} — ${e.message || e}`);
     }
   }
   // Messages des fichiers de cette boîte (refus, annulations, avertissements), montrés dessous après le
   // rafraîchissement.
   state.errors[slot] = errors.join(" ; ");
   await refresh();
+  if (warnings.length) showMessage(warnings.join(" ; "));
   if (planTomes.length) await showPlanCheck(planTomes, planSkipped);
+}
+
+// Ouvre le rapport de l'import d'un fichier dans une nouvelle fenêtre.
+function openReport(id) {
+  window.open(`api/files/${id}/rapport`, "_blank", "noopener");
 }
 
 // --------------------------------------------------------------------------
@@ -2840,17 +2955,32 @@ $("#items-list").addEventListener("input", e => {
 });
 
 // Supprime un fichier après confirmation, en nommant les exigences qui partent avec lui.
+// Fichiers supprimés ensemble (comme le fait le serveur) : un fichier d'exigences part avec les autres fichiers
+// d'exigences de son tome, le premier import et ses compléments.
+function fileGroup(id) {
+  const record = state.records.find(r => r.id === id);
+  if (!record || record.slot !== "requirements" || !record.tome) return [id];
+  return state.records.filter(r => r.slot === "requirements" && (r.tome ?? "").toLowerCase() === record.tome.toLowerCase())
+    .map(r => r.id);
+}
+
 async function deleteFile(id) {
   const record = state.records.find(r => r.id === id);
-  // Exigences importées de ce fichier, par tome : elles sont supprimées avec lui.
+  const group = new Set(fileGroup(id));
+  const others = state.records.filter(r => group.has(r.id) && r.id !== id);
+  // Exigences importées de ces fichiers, par tome : elles sont supprimées avec eux.
   const linked = Object.entries(state.reqDb?.tomes ?? {})
-    .map(([tome, t]) => [tome, t.requirements.filter(r => r.file_id === id).length]).filter(([, n]) => n);
+    .map(([tome, t]) => [tome, t.requirements.filter(r => group.has(r.file_id)).length]).filter(([, n]) => n);
   const total = linked.reduce((sum, [, n]) => sum + n, 0);
+  const with_ = others.length
+    ? `\n\nLes autres fichiers du tome « ${record.tome} » (premier import et compléments) sont supprimés avec lui :\n` +
+      others.map(r => `  • ${r.stored_name}`).join("\n")
+    : "";
   const question = total
     ? `« ${record.stored_name} » est relié à la base des exigences :\n` +
-      linked.map(([tome, n]) => `  • tome « ${tome} » : ${plural(n, "exigence")}`).join("\n") +
-      `\n\nSupprimer le fichier ET ${total > 1 ? `ces ${total} exigences` : "cette exigence"} de la base ?`
-    : `Supprimer « ${record.stored_name} » ?`;
+      linked.map(([tome, n]) => `  • tome « ${tome} » : ${plural(n, "exigence")}`).join("\n") + with_ +
+      `\n\nSupprimer ${others.length ? "ces fichiers" : "le fichier"} ET ${total > 1 ? `ces ${total} exigences` : "cette exigence"} de la base ?`
+    : `Supprimer « ${record.stored_name} » ?${with_}`;
   if (!confirm(question)) return;
   await store.remove(id);
   await refresh();
@@ -2859,6 +2989,9 @@ async function deleteFile(id) {
 for (const card of document.querySelectorAll(".drop")) {
   const slot = card.dataset.slot;
   const input = card.querySelector("input");
+  // Bouton Rapport sous le message, toujours présent (actif quand un rapport est disponible, voir renderCards).
+  card.querySelector(".name").insertAdjacentHTML("afterend",
+    `<button class="small primary drop-report" type="button" disabled>Rapport</button>`);
   const take = files => [...files].slice(0, MULTI_SLOTS.has(slot) ? undefined : 1);
   card.addEventListener("click", () => input.click());
   // La boîte Fiches d'Essai : chaque fichier lu selon son format, XML (fiches) ou Excel (traçabilité des autres
@@ -2881,6 +3014,7 @@ for (const card of document.querySelectorAll(".drop")) {
 
 $("#files-table").addEventListener("click", e => {
   if (e.target.dataset.delete) deleteFile(Number(e.target.dataset.delete)).catch(err => showMessage(err.message));
+  if (e.target.dataset.report) openReport(e.target.dataset.report);
 });
 
 // --------------------------------------------------------------------------
@@ -2898,22 +3032,19 @@ const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str",
                       stdhl2_requirements_label: "str", stdhl2_release_label: "str",
                       stdhl2_release_regex: "str", stdhl2_test_case_regex: "str" };
 
-// Réglages des en-têtes de tableaux de la configuration : réglage -> { title, hint, roles: { rôle: libellé } }.
-// Les colonnes qui ont un rôle sont lues par NEXUS-V : obligatoires (texte modifiable, non retirable). Les autres
-// comptent pour valider le tableau (« check ») ou non (« ignore »), et peuvent être ajoutées ou retirées.
+// Réglages des en-têtes de tableaux de la configuration : réglage -> { title, hint }. Les champs que NEXUS-V
+// lit dans les colonnes, et leur libellé, viennent du serveur (fieldsOf) : ces colonnes sont obligatoires (texte
+// modifiable, non retirable). Les autres comptent pour valider le tableau (« check ») ou non (« ignore »), et peuvent
+// être ajoutées ou retirées.
+// Champs lus dans les colonnes d'un réglage d'en-têtes, avec leur libellé (données par le serveur).
+const fieldsOf = name => state.config?.header_fields?.[name] ?? {};
 const HEADER_SETTINGS = {
   headers_requirements: { title: "Fichier d'Exigences (Excel, ligne 1)",
-    hint: "Les colonnes sont repérées par leur en-tête, dans n'importe quel ordre.",
-    roles: { id: "Identifiant de l'exigence", title: "Titre", releases: "Specification releases (garde les exigences de la release de la base, rejette les autres ; non enregistrée)",
-             validation: "Validation releases (à qualifier, qualifiée ou hors scope)",
-             stdhl: "STDHL : colonne lue seulement si « Utiliser la colonne STDHL » est coché (Configuration > STDHL)", iadt: "IADT",
-             moc: "MOC", delegation: "Délégation" } },
+    hint: "Les colonnes sont repérées par leur en-tête, dans n'importe quel ordre.", },
   headers_plan: { title: "Tableaux des Plans d'acceptation (Word)",
-    hint: "Un tableau est reconnu par son en-tête Exigence et au moins une autre colonne stockée. S'il lui manque une colonne attendue, il est ignoré sans bloquer la lecture du plan ; le plan n'est refusé que si aucun tableau n'est valide. La colonne Méthode est facultative et n'est pas stockée.",
-    roles: { exigence: "numéros d'exigence (le titre n'est pas stocké)", iadt: "IADT", moc: "MOC", delegation: "Délégation" } },
+    hint: "Un tableau est reconnu par son en-tête Exigence et au moins une autre colonne stockée. S'il lui manque une colonne attendue, il est ignoré sans bloquer la lecture du plan ; le plan n'est refusé que si aucun tableau n'est valide. La colonne Méthode est facultative et n'est pas stockée.", },
   headers_stdhl: { title: "Tableaux des STDHL (Word)",
-    hint: "Un tableau est reconnu par l'en-tête de la colonne des exigences ; il doit alors avoir aussi toutes les autres colonnes.",
-    roles: { requirements: "Exigences associées" } },
+    hint: "Un tableau est reconnu par l'en-tête de la colonne des exigences ; il doit alors avoir aussi toutes les autres colonnes.", },
 };
 
 // Copie modifiable de la configuration.
@@ -2977,11 +3108,11 @@ function fromDraft(draft) {
   const headers = {};
   for (const [name, setting] of Object.entries(HEADER_SETTINGS)) {
     headers[name] = {};
-    for (const [text, role] of draft.headers[name]) {
+    for (const [text, field] of draft.headers[name]) {
       const t = text.trim();
-      if (!t) throw new Error(`en-tête vide : ${setting.title}${role in setting.roles ? ` — ${setting.roles[role]}` : ""}`);
+      if (!t) throw new Error(`en-tête vide : ${setting.title}${field in fieldsOf(name) ? ` — ${fieldsOf(name)[field]}` : ""}`);
       if (Object.keys(headers[name]).some(x => fold(x) === fold(t))) throw new Error(`en-tête en double : ${setting.title} — ${t}`);
-      headers[name][t] = role;
+      headers[name][t] = field;
     }
   }
   // Lignes dont le nom a changé : une seule mise à jour sur le serveur, au lieu d'un retrait et d'un ajout.
@@ -3042,13 +3173,13 @@ function renderConfig() {
   // Chaque type de fichier montre ses propres en-têtes de tableaux, dans son onglet.
   for (const [name, setting] of Object.entries(HEADER_SETTINGS)) document.querySelector(`[data-headers="${name}"]`).innerHTML = `
     <p class="hint">${escapeHtml(setting.title)} : ${escapeHtml(setting.hint)}</p>
-    <div class="cfg-list">${d.headers[name].map(([text, role], i) => `
+    <div class="cfg-list">${d.headers[name].map(([text, field], i) => `
       <div class="cfg-row two">
         <input type="text" data-header="${name}:${i}" value="${escapeHtml(text)}" placeholder="Texte de l'en-tête">
-        ${role in setting.roles
-          ? `<span class="hint">${role === "stdhl" ? escapeHtml(setting.roles[role])
-                                    : `colonne lue : ${escapeHtml(setting.roles[role])} (obligatoire)`}</span>`
-          : `<label class="check"><input type="checkbox" data-header-check="${name}:${i}" ${role !== "ignore" ? "checked" : ""}>
+        ${field in fieldsOf(name)
+          ? `<span class="hint">${field === "stdhl" ? escapeHtml(fieldsOf(name)[field])
+                                    : `colonne lue : ${escapeHtml(fieldsOf(name)[field])} (obligatoire)`}</span>`
+          : `<label class="check"><input type="checkbox" data-header-check="${name}:${i}" ${field !== "ignore" ? "checked" : ""}>
                prise en compte pour valider le tableau</label>
              <button class="small" data-header-remove="${name}:${i}" title="Retirer cette colonne">✕</button>`}
       </div>`).join("")}</div>

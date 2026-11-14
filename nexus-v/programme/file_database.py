@@ -5,6 +5,11 @@ croissant à chaque chargement (jamais réutilisé, même après un retrait). Un
 
     id, slot, name, stored_name, tome, releases
 
+Le rapport de l'import d'un fichier (le même que la vérification avant import) est gardé dans le sous-dossier
+« rapport » du dossier des fichiers, sous le nom « <n°>_rapport.html » ; il est supprimé avec le fichier. Un fichier
+rejeté à l'import laisse un rapport de rejet par type de fichier, « rejet_<type>.html », remplacé au rejet suivant de
+ce type et supprimé au chargement réussi suivant.
+
 Le tome est celui d'un fichier d'exigences ou d'un plan, et pour un fichier STDHL ou de fiches celui choisi au
 chargement (None : tous les tomes). Le module lit aussi les documents Word (WordDocument), avec la seule bibliothèque
 standard.
@@ -177,7 +182,44 @@ class FileDatabase:
         rows = self.sql.query(f"SELECT {COLUMNS}, format, source AS slot, (SELECT t.name FROM list_tomes t WHERE t.id = tome_id) AS tome "
                               f"FROM files {where} ORDER BY id", params)
         releases = self.sql.file_releases()
-        return [{**r, "releases": releases.get(r["id"], [])} for r in rows]
+        # « report » : le rapport de l'import du fichier existe.
+        return [{**r, "releases": releases.get(r["id"], []), "report": self.report_path(r["id"]).is_file()}
+                for r in rows]
+
+    def report_path(self, file_id):
+        """Chemin du rapport de l'import d'un fichier : <dossier des fichiers>/rapport/<n°>_rapport.html."""
+        return self.directory / "rapport" / f"{file_id}_rapport.html"
+
+    def save_report(self, file_id, html):
+        """Écrit le rapport de l'import d'un fichier (le dossier rapport est créé au besoin)."""
+        path = self.report_path(file_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(html, encoding="utf-8")
+
+    def report(self, file_id):
+        """Texte HTML du rapport de l'import d'un fichier, ou None s'il n'existe pas."""
+        path = self.report_path(file_id)
+        return path.read_text(encoding="utf-8") if path.is_file() else None
+
+    def reject_path(self, kind):
+        """Chemin du rapport du dernier rejet d'un type de fichier (requirements, plans, stdhl, fiches,
+        traceability) : <dossier des fichiers>/rapport/rejet_<type>.html."""
+        return self.directory / "rapport" / f"rejet_{kind}.html"
+
+    def save_reject(self, kind, html):
+        """Écrit le rapport du rejet d'un fichier ; il remplace celui du rejet précédent du même type."""
+        path = self.reject_path(kind)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(html, encoding="utf-8")
+
+    def reject(self, kind):
+        """Texte HTML du rapport du dernier rejet d'un type de fichier, ou None."""
+        path = self.reject_path(kind)
+        return path.read_text(encoding="utf-8") if path.is_file() else None
+
+    def remove_reject(self, kind):
+        """Retire le rapport de rejet d'un type de fichier : un fichier de ce type vient d'être chargé."""
+        self.reject_path(kind).unlink(missing_ok=True)
 
     def list(self, slot=None):
         """Enregistrements, éventuellement ceux d'un seul slot."""
@@ -311,6 +353,16 @@ class FileDatabase:
             raise ValueError(f"un fichier {kind} est rattaché à un tome contenant des exigences, ou à aucun")
         return tome or None
 
+    def group(self, file_id):
+        """Numéros des fichiers supprimés ensemble avec `file_id` : pour un fichier d'exigences, tous les fichiers
+        d'exigences de son tome (le premier import et ses compléments, un import en remplacement retirant les
+        précédents) ; pour un autre fichier, lui seul."""
+        record = self.get(file_id)
+        if not record or record["slot"] != "requirements" or not record["tome"]:
+            return [file_id]
+        tome = record["tome"].casefold()
+        return [r["id"] for r in self.list(slot="requirements") if (r["tome"] or "").casefold() == tome]
+
     def remove_older(self, record):
         """Retire les autres fichiers de même type et de même nom que `record` (et de même tome pour un fichier
         d'exigences ou un plan ; un fichier STDHL ou de fiches chargé à nouveau remplace l'ancien quel que soit son
@@ -336,4 +388,6 @@ class FileDatabase:
             db.execute("DELETE FROM files WHERE id = ?", (file_id,))
         if delete_file:
             (self.folder(record["slot"]) / record["stored_name"]).unlink(missing_ok=True)
+        # Le rapport de l'import part avec le fichier.
+        self.report_path(file_id).unlink(missing_ok=True)
         return True

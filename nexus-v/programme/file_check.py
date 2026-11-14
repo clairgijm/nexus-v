@@ -986,7 +986,7 @@ class FileCheck:
         e = lambda text: html.escape(str(text))
         badge = lambda s: f'<span class="badge {s}">{SEVERITY_LABELS[s]}</span>'
         verdict = lambda s: f'<span class="verdict {s}">{VERDICTS[s]}</span>'
-        title = f"Vérification avant import — {STEP_TITLES[step]}"
+        title = f"Rapport d'import — {STEP_TITLES[step]}"
         out = [f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{e(title)}</title><style>
 :root {{ --text:#1c2330; --muted:#5e6878; --border:#d8dce3; --bg:#ffffff; --head:#eef0f4;
