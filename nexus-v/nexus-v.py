@@ -1,8 +1,8 @@
-"""NEXUS-V — starting the application.
+"""NEXUS-V — lancement de l'application.
 
-To be started with any Python 3 (double-click on the file, or "py nexus-v.py", or "python nexus-v.py"): when that
-Python lacks the modules needed (requirements.txt) and the project environment (.venv) exists, the server is started
-again with the Python of that environment. The options are passed on to the server, for instance:
+À lancer avec n'importe quel Python 3 (double-clic sur le fichier, ou « py nexus-v.py », ou « python nexus-v.py ») :
+quand ce Python n'a pas les modules nécessaires (requirements.txt) et que l'environnement du projet (.venv) existe,
+le serveur est relancé avec le Python de cet environnement. Les options sont transmises au serveur, par exemple :
 py nexus-v.py --port 8001 --sans-navigateur
 """
 import os
@@ -11,12 +11,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-PROGRAM_DIR = ROOT / "programme"   # the code; the root only holds this file and the data folders
+PROGRAM_DIR = ROOT / "programme"   # le code ; la racine ne contient que ce fichier et les dossiers de données
 VENV_PYTHON = ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
 def has_modules():
-    """True when the running Python has the modules NEXUS-V needs."""
+    """True quand le Python en cours a les modules dont NEXUS-V a besoin."""
     try:
         import openpyxl  # noqa: F401
     except ImportError:
@@ -25,8 +25,9 @@ def has_modules():
 
 
 def wait_if_double_clicked():
-    """Keep the window open on an error, so that the message can be read when the file was double-clicked."""
-    # Only in a console window: started from a terminal or a service, nothing waits.
+    """Garde la fenêtre ouverte sur une erreur, pour que le message puisse être lu quand le fichier a été lancé par
+    un double-clic."""
+    # Seulement dans une fenêtre de console : lancé depuis un terminal ou un service, rien n'attend.
     if sys.stdin is not None and sys.stdin.isatty():
         try:
             input("Appuyer sur Entrée pour fermer.")
@@ -35,12 +36,12 @@ def wait_if_double_clicked():
 
 
 def main():
-    """Run the server with this Python, or with the one of .venv when this one lacks the modules."""
-    # Relative paths (base, fichiers-references) are taken from the folder of NEXUS-V, wherever it was started from.
+    """Lance le serveur avec ce Python, ou avec celui de .venv quand celui-ci n'a pas les modules."""
+    # Les chemins relatifs (base, fichiers-references) partent du dossier de NEXUS-V, d'où qu'il ait été lancé.
     os.chdir(ROOT)
     if not has_modules():
-        # Started again with the Python of .venv, with the same options; its exit code becomes ours. The check on the
-        # path avoids starting it again forever if .venv itself lacks the modules.
+        # Relancé avec le Python de .venv, avec les mêmes options ; son code de sortie devient le nôtre. La vérification
+        # du chemin évite de le relancer sans fin si .venv lui-même n'a pas les modules.
         if VENV_PYTHON.is_file() and Path(sys.executable).resolve() != VENV_PYTHON.resolve():
             code = subprocess.call([str(VENV_PYTHON), str(ROOT / "nexus-v.py"), *sys.argv[1:]])
             sys.exit(code)
@@ -50,13 +51,13 @@ def main():
               "programme/requirements.txt)")
         wait_if_double_clicked()
         sys.exit(1)
-    # The code is in programme/: it is put first on the import path, then the server runs in this process.
+    # Le code est dans programme/ : il est mis en tête du chemin d'import, puis le serveur tourne dans ce processus.
     sys.path.insert(0, str(PROGRAM_DIR))
     try:
         import serveur
         serveur.main()
     except SystemExit as e:
-        # A normal stop goes through; an error message of the server is shown and the window waits.
+        # Un arrêt normal passe ; un message d'erreur du serveur est montré et la fenêtre attend.
         if e.code in (None, 0):
             raise
         print(e.code if isinstance(e.code, str) else f"Arrêt (code {e.code}).")

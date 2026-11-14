@@ -1,20 +1,21 @@
-"""SQL database of NEXUS-V: a SQLite file, nexus-v.db, in the folder base of NEXUS-V.
+"""Base SQL de NEXUS-V : un fichier SQLite, nexus-v.db, dans le dossier base de NEXUS-V.
 
-Queries and writes go straight to that file; a committed transaction is saved in it. dump() gives a backup of the
-whole base as SQL (a .sql file), from which it can be built again.
+Les lectures et les écritures vont directement dans ce fichier ; une transaction validée y est enregistrée. dump()
+donne une sauvegarde de toute la base en SQL (un fichier .sql), à partir de laquelle elle peut être reconstruite.
 
-The tables (columns, keys, links, indexes) and the version of the base are defined in nexus-v-schema.sql, next to the
-base and config.json.
+Les tables (colonnes, clés, liens, index) et la version de la base sont définies dans nexus-v-schema.sql, à côté de
+la base et de config.json.
 
-Common referentials (managed from the page Configuration, see configuration.py): tomes, platforms, iadt, mocs, with
-their colour; the release, a single one, is a setting of config.json. Their order is the one of their id: a new
-value comes last. The other tables refer to them by id: renaming a value changes it everywhere without touching
-those tables. A value still used cannot be removed from the configuration. The referential of the tests (fe_tests)
-is filled by the STDHL and the fiches; a test nothing cites any more is removed (SQL triggers).
+Référentiels communs (gérés depuis la page Configuration, voir configuration.py) : tomes, plateformes, iadt, mocs,
+avec leur couleur ; la release, une seule, est un réglage de config.json. Leur ordre est celui de leur id : une
+nouvelle valeur vient en dernier. Les autres tables y renvoient par id : renommer une valeur la change partout sans
+toucher à ces tables. Une valeur encore utilisée ne peut pas être retirée de la configuration. Le référentiel des
+tests (fe_tests) est rempli par les STDHL et les fiches ; un test que plus rien ne cite est retiré (déclencheurs
+SQL).
 
-Links (foreign keys): removing a file removes what came from it (requirements, plan rows, coverage of the STDHL and
-fiches), by cascade. The table meta holds the version of the schema and the next file number. The module sqlite3 is
-part of Python.
+Liens (clés étrangères) : retirer un fichier retire ce qui en vient (exigences, lignes de plan, couverture des STDHL
+et des fiches), par cascade. La table meta contient la version du schéma et le prochain numéro de fichier. Le module
+sqlite3 fait partie de Python.
 """
 import colorsys
 import contextlib
@@ -24,8 +25,8 @@ import sqlite3
 import threading
 from pathlib import Path
 
-# Files of NEXUS-V itself, in a folder of fixed name, relative to the folder of NEXUS-V: settings, definition of the
-# tables, database. It sits in the folder of the imported files, beside their sub-folders.
+# Fichiers propres à NEXUS-V, dans un dossier de nom fixe, relatif au dossier de NEXUS-V : réglages, définition des
+# tables, base. Il se trouve dans le dossier des fichiers importés, à côté de leurs sous-dossiers.
 BASE_FOLDER = "fichiers-references/base"
 CONFIG_NAME = "config.json"
 SCHEMA_NAME = "nexus-v-schema.sql"
@@ -33,17 +34,17 @@ DATABASE_NAME = "nexus-v.db"
 
 
 def read_schema(path):
-    """(version of the database, table names in the order of the file, SQL creating them) from a schema file. The
-    version is the comment « -- version : x » of the file; it only changes when a migration is decided. ValueError when
-    the file is missing or invalid."""
+    """(version de la base, noms des tables dans l'ordre du fichier, SQL qui les crée) d'après un fichier de schéma.
+    La version est le commentaire « -- version : x » du fichier ; elle ne change que lorsqu'une migration est
+    décidée. ValueError quand le fichier manque ou est invalide."""
     try:
         sql = Path(path).read_text(encoding="utf-8")
     except OSError:
         raise ValueError(f"définition des tables introuvable : {path}") from None
     version = re.search(r"^--\s*version\s*:\s*(\S+)", sql, re.M)
     try:
-        # The schema is tried on an empty base in memory: a syntax error is reported before the real base is touched,
-        # and the table names come out in the order of the file.
+        # Le schéma est essayé sur une base vide en mémoire : une erreur de syntaxe est signalée avant de toucher la
+        # vraie base, et les noms des tables sortent dans l'ordre du fichier.
         check = sqlite3.connect(":memory:")
         check.executescript(sql)
         tables = tuple(r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY rowid"))
@@ -55,17 +56,17 @@ def read_schema(path):
     return version[1], tables, sql
 
 
-# Hues (degrees) of the reserved colours, never given to a platform: red (not covered), green (covered); greys are
-# avoided by a saturation of at least 55 %.
+# Teintes (degrés) des couleurs réservées, jamais données à une plateforme : rouge (non couvert), vert (couvert) ; les
+# gris sont évités par une saturation d'au moins 55 %.
 RESERVED_HUES = ((0, 25), (330, 360), (62, 175))
 
 
 
 
 def random_platform_color(taken=()):
-    """A colour drawn at random for a platform: saturated, of medium lightness, outside the red and green hues, and as
-    far as possible from the colours already taken."""
-    # Hue (0-360°) of a colour #rrggbb, and the distance between two hues on the colour wheel.
+    """Une couleur tirée au hasard pour une plateforme : saturée, de luminosité moyenne, hors des teintes rouge et
+    verte, et aussi loin que possible des couleurs déjà prises."""
+    # Teinte (0-360°) d'une couleur #rrggbb, et distance entre deux teintes sur le cercle chromatique.
     def hue_of(color):
         r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
         return colorsys.rgb_to_hls(r, g, b)[0] * 360
@@ -75,23 +76,24 @@ def random_platform_color(taken=()):
 
     used = [hue_of(c) for c in taken if re.fullmatch(r"#[0-9a-fA-F]{6}", c or "")]
     best, best_gap = None, -1
-    for _ in range(40):   # the farthest of 40 draws from the hues already used
+    for _ in range(40):   # la plus éloignée de 40 tirages des teintes déjà utilisées
         hue = random.uniform(0, 360)
         if any(low <= hue < high for low, high in RESERVED_HUES):
             continue
         distance = min((gap(hue, h) for h in used), default=360)
         if distance > best_gap:
             best, best_gap = hue, distance
-    # Medium lightness and strong saturation: never a grey, readable on the light and the dark page.
+    # Luminosité moyenne et forte saturation : jamais un gris, lisible sur la page claire et la page sombre.
     rgb = colorsys.hls_to_rgb(best / 360, random.uniform(0.40, 0.55), random.uniform(0.55, 0.80))
     return "#" + "".join(f"{round(v * 255):02x}" for v in rgb)
 
 
-# First row of tabs of the page Tables de la base: the files and the content of the documents, along the chain.
+# Première rangée d'onglets de la page Tables de la base : les fichiers et le contenu des documents, le long de la
+# chaîne.
 FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fe_test_case", "stdhl_test_case",
                 "fiches_essai")
 
-# Referential name (as in the configuration) -> table, key column, label column (None: a plain list).
+# Nom du référentiel (comme dans la configuration) -> table, colonne clé, colonne libellé (None : une simple liste).
 REFERENTIALS = {
     "tomes": ("list_tomes", "name", None),
     "platforms": ("list_plateformes", "name", None),
@@ -99,7 +101,8 @@ REFERENTIALS = {
     "mocs": ("list_moc", "code", "description"),
 }
 
-# Rows that use a referential value: (label, SQL counting the uses of each value given as ?).
+# Lignes qui utilisent une valeur de référentiel : (libellé, SQL qui compte les utilisations de chaque valeur donnée par
+# ?).
 USES = {
     "tomes": [("exigence", "exigences", "SELECT COUNT(*) FROM requirements WHERE tome_id = (SELECT id FROM list_tomes WHERE name = ?)"),
               ("fichier", "fichiers", "SELECT COUNT(*) FROM files WHERE tome_id = (SELECT id FROM list_tomes WHERE name = ?)")],
@@ -115,90 +118,92 @@ USES = {
 
 
 def value_id(db, table, key, value):
-    """Id of a value of a referential, inside a transaction. A value it does not have is added (command line only:
-    the page has every value settled at import)."""
+    """Id d'une valeur d'un référentiel, dans une transaction. Une valeur qu'il n'a pas est ajoutée (ligne de
+    commande seulement : la page fait régler chaque valeur à l'import)."""
     row = db.execute(f"SELECT id FROM {table} WHERE {key} = ?", (value,)).fetchone()
     return row[0] if row else db.execute(f"INSERT INTO {table} ({key}) VALUES (?)", (value,)).lastrowid
 
 
 def test_id(db, name):
-    """Id of a test of the referential fe_tests (inside a transaction), added when new."""
+    """Id d'un test du référentiel fe_tests (dans une transaction), ajouté s'il est nouveau."""
     db.execute("INSERT OR IGNORE INTO fe_tests (name) VALUES (?)", (name,))
     return db.execute("SELECT id FROM fe_tests WHERE name = ?", (name,)).fetchone()[0]
 
 
-# Migrations of the bases of an older version: {version: function(connection) -> next version}.
+# Migrations des bases d'une version plus ancienne : {version: fonction(connexion) -> version suivante}.
 MIGRATIONS = {}
 
 
 class NexusDatabase:
-    """SQLite database of NEXUS-V. Every module of documents (file_database, requirements_db, plans_db, stdhl_db,
-    fiches_db, traceability_db) and the configuration work on it."""
+    """Base SQLite de NEXUS-V. Chaque module de documents (file_database, requirements_db, plans_db, stdhl_db,
+    fiches_db, traceability_db) et la configuration travaillent dessus."""
 
     def __init__(self, path):
-        """path: the database file (nexus-v.db), created when absent; its tables are defined by nexus-v-schema.sql in
-        the same folder. ValueError when that file is missing or the base has another version."""
+        """path : le fichier de la base (nexus-v.db), créé s'il manque ; ses tables sont définies par
+        nexus-v-schema.sql dans le même dossier. ValueError quand ce fichier manque ou que la base est d'une autre
+        version."""
         self.path = Path(path)
-        self.release = ""   # the release of the base, set by Configuration (general.release)
+        self.release = ""   # la release de la base, fixée par Configuration (general.release)
         self.version, self.tables, schema = read_schema(self.path.parent / SCHEMA_NAME)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
-        self._depth = 0           # nesting of transaction(): only the outer one commits
-        # One connection shared by the server threads, protected by the lock.
+        self._depth = 0           # imbrication de transaction() : seule la plus extérieure valide
+        # Une connexion partagée par les fils du serveur, protégée par le verrou.
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         with self.lock:
             self.db.execute("PRAGMA foreign_keys = ON")
-            # Write-ahead log: writes and small queries are much faster. It needs a local disk; after a power cut the
-            # last transactions may be lost, the file stays valid. The files -wal and -shm exist while the base is open.
+            # Journal d'écriture anticipée (WAL) : les écritures et les petites requêtes sont bien plus rapides. Il faut
+            # un disque local ; après une coupure de courant, les dernières transactions peuvent être perdues, le
+            # fichier reste valide. Les fichiers -wal et -shm existent tant que la base est ouverte.
             self.db.execute("PRAGMA journal_mode = WAL")
             self.db.execute("PRAGMA synchronous = NORMAL")
-            # CREATE TABLE IF NOT EXISTS: a new base gets its tables, an existing one is left as it is (a change of a
-            # table needs a migration).
-            # An older base of a known version is migrated first, step by step, up to the version of the schema: its
-            # tables do not have the columns the indexes and triggers of the schema need.
+            # CREATE TABLE IF NOT EXISTS : une nouvelle base reçoit ses tables, une base existante est laissée telle
+            # quelle (un changement de table demande une migration).
+            # Une base plus ancienne d'une version connue est d'abord migrée, pas à pas, jusqu'à la version du schéma :
+            # ses tables n'ont pas les colonnes dont les index et déclencheurs du schéma ont besoin.
             stored = self.db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").fetchone()
             version = self.db.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone() if stored else None
             version = version[0] if version else None
             while version in MIGRATIONS and version != self.version:
                 version = MIGRATIONS[version](self.db, schema)
             self.db.executescript(schema)
-            self.created = version is None   # a new base: Configuration writes the default referentials into it
+            self.created = version is None   # une nouvelle base : Configuration y écrit les référentiels par défaut
             if version not in (None, self.version):
                 self.db.close()
                 raise ValueError(f"{self.path} : base en version {version}, version attendue : {self.version} ; "
                                  "une migration est nécessaire")
             with self.db:
-                # Cleaning at each opening and after each transaction (see transaction).
+                # Nettoyage à chaque ouverture et après chaque transaction (voir transaction).
                 self._drop_unused(self.db)
                 self.set_meta("schema_version", self.version)
 
     @staticmethod
     def _drop_unused(db):
-        """Remove the STDHL values that no requirement names anymore."""
+        """Retire les valeurs STDHL qu'aucune exigence ne nomme plus."""
         db.execute("DELETE FROM list_stdhl WHERE id NOT IN (SELECT stdhl_id FROM requirements WHERE stdhl_id IS NOT NULL)")
 
     def checkpoint(self):
-        """Move everything into the main file, so that it can be copied alone."""
+        """Fait tout passer dans le fichier principal, pour qu'il puisse être copié seul."""
         with self.lock:
             self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     def dump(self):
-        """Backup of the whole database, as SQL statements."""
+        """Sauvegarde de toute la base, en instructions SQL."""
         with self.lock:
             return "\n".join(self.db.iterdump()) + "\n"
 
     def close(self):
-        """Close the database file."""
+        """Ferme le fichier de la base."""
         with self.lock:
             self.db.close()
 
     @contextlib.contextmanager
     def transaction(self):
-        """Lock + transaction: everything inside is written, or nothing (exception)."""
+        """Verrou + transaction : tout ce qui est dedans est écrit, ou rien (exception)."""
         with self.lock:
-            # Transactions may be nested (a method calling another one): only the outer one commits, or rolls everything
-            # back on an exception. The lock is re-entrant (RLock) for the same reason.
+            # Les transactions peuvent être imbriquées (une méthode qui en appelle une autre) : seule la plus extérieure
+            # valide, ou annule tout sur une exception. Le verrou est réentrant (RLock) pour la même raison.
             outer = self._depth == 0
             self._depth += 1
             try:
@@ -208,19 +213,19 @@ class NexusDatabase:
                         self._drop_unused(self.db)
                 else:
                     yield self.db
-            # A broken constraint (unique value, link to a missing row) becomes a message for the page.
+            # Une contrainte non respectée (valeur unique, lien vers une ligne absente) devient un message pour la page.
             except sqlite3.IntegrityError as e:
                 raise ValueError(f"base SQL : contrainte non respectée ({e})") from None
             finally:
                 self._depth -= 1
 
     def query(self, sql, params=()):
-        """Rows of a SELECT, as dicts."""
+        """Lignes d'un SELECT, sous forme de dicts."""
         with self.lock:
             return [dict(r) for r in self.db.execute(sql, params)]
 
     def scalar(self, sql, params=()):
-        """First value of the first row of a query, or None."""
+        """Première valeur de la première ligne d'une requête, ou None."""
         with self.lock:
             row = self.db.execute(sql, params).fetchone()
             return row[0] if row else None
@@ -230,9 +235,9 @@ class NexusDatabase:
     # ------------------------------------------------------------------ #
 
     def rename_test(self, old, new):
-        """Rename a test of the referential fe_tests: every STDHL and fiche that cites it shows the new name. Refused
-        (ValueError) for an empty name, an unknown test, or a name already taken by another test. The documents are not
-        changed: read again, they give back the name they hold."""
+        """Renomme un test du référentiel fe_tests : chaque STDHL et chaque fiche qui le cite montre le nouveau nom.
+        Refusé (ValueError) pour un nom vide, un test inconnu ou un nom déjà pris par un autre test. Les documents ne
+        sont pas changés : relus, ils redonnent le nom qu'ils contiennent."""
         old, new = str(old or "").strip(), str(new or "").strip()
         if not new:
             raise ValueError("nom de test vide")
@@ -248,53 +253,55 @@ class NexusDatabase:
         return new
 
     def meta(self, key, default=None):
-        """Internal setting of the table meta, or `default`."""
+        """Réglage interne de la table meta, ou `default`."""
         value = self.scalar("SELECT value FROM meta WHERE key = ?", (key,))
         return default if value is None else value
 
     def set_meta(self, key, value, db=None):
-        """Write an internal setting, inside the transaction `db` when given."""
+        """Écrit un réglage interne, dans la transaction `db` quand elle est donnée."""
         (db or self.db).execute("INSERT INTO meta (key, value) VALUES (?, ?) "
                                 "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (key, str(value)))
 
     # ------------------------------------------------------------------ #
-    # Referentials
+    # Référentiels
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _table(kind):
-        """(table, key column, label column) of a referential. KeyError when unknown."""
+        """(table, colonne clé, colonne libellé) d'un référentiel. KeyError s'il est inconnu."""
         if kind not in REFERENTIALS:
             raise KeyError(kind)
         return REFERENTIALS[kind]
 
     def get(self, kind):
-        """Content of a referential in the configuration form: a list of names, or a dict code -> label."""
+        """Contenu d'un référentiel sous la forme de la configuration : une liste de noms, ou un dict code ->
+        libellé."""
         table, key, label = self._table(kind)
         if label is None:
             return [r[key] for r in self.query(f"SELECT {key} FROM {table} ORDER BY id")]
         return {r[key]: r[label] for r in self.query(f"SELECT {key}, {label} FROM {table} ORDER BY id")}
 
     def set_many(self, values):
-        """Replace the content of several referentials in one transaction: {kind: list or dict}.
+        """Remplace le contenu de plusieurs référentiels en une transaction : {type: liste ou dict}.
 
-        The values must already be validated (see Configuration._check): unique names, codes in upper case.
-        A value still used (tome with requirements or files, platform or code of a plan row) cannot be removed.
+        Les valeurs doivent déjà être validées (voir Configuration._check) : noms uniques, codes en majuscules. Une
+        valeur encore utilisée (tome avec des exigences ou des fichiers, plateforme ou code d'une ligne de plan) ne
+        peut pas être retirée.
         """
         with self.lock:
-            # Every referential is checked before anything is written: a refusal leaves the base unchanged.
+            # Chaque référentiel est vérifié avant toute écriture : un refus laisse la base inchangée.
             for kind, value in values.items():
                 self._check_removal(kind, value)
             with self.transaction() as db:
                 for kind, value in values.items():
                     table, key, label = self._table(kind)
-                    # Values removed from the list are deleted (those still used were refused above); the others are
-                    # inserted, or their label updated: an existing value keeps its id, so the rows that use it are
-                    # untouched.
+                    # Les valeurs retirées de la liste sont supprimées (celles encore utilisées ont été refusées plus
+                    # haut) ; les autres sont insérées, ou leur libellé mis à jour : une valeur existante garde son id,
+                    # les lignes qui l'utilisent ne sont donc pas touchées.
                     items = [(name, "") for name in value] if label is None else list(value.items())
                     kept = [name for name, _ in items]
                     others = f"WHERE {key} NOT IN ({','.join('?' * len(kept))})"
-                    db.execute(f"DELETE FROM {table} {others}", kept)   # values in use: refused by _check_removal
+                    db.execute(f"DELETE FROM {table} {others}", kept)   # valeurs utilisées : refusées avant
                     changes = [f"{label} = excluded.{label}"] if label else []
                     action = f"DO UPDATE SET {', '.join(changes)}" if changes else "DO NOTHING"
                     for name, text in items:
@@ -303,19 +310,19 @@ class NexusDatabase:
                                    f"ON CONFLICT ({key}) {action}", values)
 
     def _check_removal(self, kind, value):
-        """ValueError naming the values that would be removed while still in use."""
+        """ValueError qui nomme les valeurs qui seraient retirées alors qu'elles sont encore utilisées."""
         if kind not in USES:
             return
         kept = {str(v).casefold() for v in value}
         removed = [v for v in self.get(kind) if v.casefold() not in kept]
         problems = []
-        # For each value removed: how many rows still use it, per kind of use (see USES).
+        # Pour chaque valeur retirée : combien de lignes l'utilisent encore, par type d'utilisation (voir USES).
         for name in removed:
             uses = [f"{n} {several if n > 1 else one}" for one, several, sql in USES[kind] if (n := self.scalar(sql, (name,)))]
             if uses:
                 problems.append(f"« {name} » ({', '.join(uses)})")
         if problems:
-            # Noun (singular, plural) and agreement of each referential.
+            # Nom (singulier, pluriel) et accord de chaque référentiel.
             noun, nouns, feminine = {"tomes": ("tome", "tomes", False), "platforms": ("plateforme", "plateformes", True),
                                      "iadt": ("code IADT", "codes IADT", False), "mocs": ("code MOC", "codes MOC", False)}[kind]
             many = len(problems) > 1
@@ -323,14 +330,14 @@ class NexusDatabase:
             raise ValueError(f"{nouns if many else noun} encore {used}, suppression impossible : {', '.join(problems)}")
 
     def colors(self, kind):
-        """{name or code: colour} of the values of a referential (platforms, tomes, iadt, mocs); a value
-        without colour gets one drawn at random (kept in the base),"""
+        """{nom ou code: couleur} des valeurs d'un référentiel (plateformes, tomes, iadt, mocs) ; une valeur sans
+        couleur en reçoit une tirée au hasard (gardée dans la base)."""
         table, key, _ = self._table(kind)
         with self.lock:
             rows = self.query(f"SELECT id, {key} AS name, color FROM {table} ORDER BY id")
             taken = {r["color"].lower() for r in rows if r["color"]}
-            # A value without colour (added by the command line or an import) gets one now, kept in the base so that it
-            # is the same everywhere.
+            # Une valeur sans couleur (ajoutée par la ligne de commande ou un import) en reçoit une maintenant, gardée
+            # dans la base pour qu'elle soit partout la même.
             missing = [r for r in rows if not r["color"]]
             if missing:
                 with self.transaction() as db:
@@ -341,17 +348,17 @@ class NexusDatabase:
             return {r["name"]: r["color"] for r in rows}
 
     def tome_descriptions(self):
-        """{tome: description} of the tomes (what each one holds, given by the user)."""
+        """{tome: description} des tomes (ce que chacun contient, donné par l'utilisateur)."""
         return {r["name"]: r["description"] for r in self.query("SELECT name, description FROM list_tomes ORDER BY id")}
 
     def set_tome_descriptions(self, descriptions):
-        """Descriptions of tomes: {name: text}."""
+        """Descriptions des tomes : {nom: texte}."""
         with self.transaction() as db:
             for name, text in descriptions.items():
                 db.execute("UPDATE list_tomes SET description = ? WHERE name = ?", (str(text).strip(), name))
 
     def set_colors(self, colors):
-        """Colours of values of referentials: {kind: {name or code: "#rrggbb"}}."""
+        """Couleurs des valeurs des référentiels : {type: {nom ou code: "#rrggbb"}}."""
         with self.transaction() as db:
             for kind, values in colors.items():
                 table, key, _ = self._table(kind)
@@ -359,25 +366,25 @@ class NexusDatabase:
                     db.execute(f"UPDATE {table} SET color = ? WHERE {key} = ?", (color, name))
 
     def set(self, kind, value):
-        """Replace the content of one referential (see set_many)."""
+        """Remplace le contenu d'un référentiel (voir set_many)."""
         self.set_many({kind: value})
 
     # ------------------------------------------------------------------ #
-    # Direct access to the tables (page Tables de la base)
+    # Accès direct aux tables (page Tables de la base)
     # ------------------------------------------------------------------ #
 
     def _columns(self, table):
-        """Columns of a table: [{name, type, required, key}]. KeyError for an unknown table."""
+        """Colonnes d'une table : [{name, type, required, key}]. KeyError pour une table inconnue."""
         if table not in self.tables:
             raise KeyError(table)
         return [{"name": c["name"], "type": c["type"].upper(), "required": bool(c["notnull"]), "key": bool(c["pk"])}
                 for c in self.query(f"PRAGMA table_info({table})")]
 
     def table_list(self):
-        """Tables with their number of rows and their group, the rows of tabs of the page Tables de la base: 1 the
-        files and the content of the documents (FIRST_TABLES, in that order), 2 the other ones: meta first, then the
-        configuration lists (list_*) and any other table, in the order of the schema file."""
-        # Two rows of tabs: the content along the chain first, then meta and the referentials.
+        """Les tables avec leur nombre de lignes et leur groupe, les rangées d'onglets de la page Tables de la base :
+        1 les fichiers et le contenu des documents (FIRST_TABLES, dans cet ordre), 2 les autres : meta d'abord, puis
+        les listes de la configuration (list_*) et toute autre table, dans l'ordre du fichier de schéma."""
+        # Deux rangées d'onglets : le contenu le long de la chaîne d'abord, puis meta et les référentiels.
         group = lambda t: 1 if t in FIRST_TABLES else 2
         order = [t for t in FIRST_TABLES if t in self.tables] + sorted(
             (t for t in self.tables if t not in FIRST_TABLES),
@@ -385,23 +392,24 @@ class NexusDatabase:
         return [{"name": t, "rows": self.scalar(f"SELECT COUNT(*) FROM {t}"), "group": group(t)} for t in order]
 
     def table(self, table):
-        """Content of a table: {name, columns, rows: [{rowid, values: {column: value}}]}."""
+        """Contenu d'une table : {name, columns, rows: [{rowid, values: {colonne: valeur}}]}."""
         columns = self._columns(table)
-        # rowid identifies a row even in a table whose key is not a number (meta).
+        # rowid repère une ligne même dans une table dont la clé n'est pas un nombre (meta).
         rows = self.query(f"SELECT rowid AS rowid_, * FROM {table} ORDER BY rowid")
         return {"name": table, "columns": columns,
                 "rows": [{"rowid": r["rowid_"], "values": {c["name"]: r[c["name"]] for c in columns}} for r in rows]}
 
     def _cell_values(self, table, values):
-        """Values typed for a row, converted: a whole number for an INTEGER column, NULL for an empty optional value."""
+        """Valeurs saisies pour une ligne, converties : un nombre entier pour une colonne INTEGER, NULL pour une
+        valeur facultative vide."""
         columns = {c["name"]: c for c in self._columns(table)}
         clean = {}
         for name, value in values.items():
             if name not in columns:
                 raise ValueError(f"colonne inconnue : {name}")
             text = "" if value is None else str(value)
-            # The page sends every value as text: an INTEGER column takes a whole number, an empty optional value
-            # becomes NULL.
+            # La page envoie chaque valeur en texte : une colonne INTEGER prend un nombre entier, une valeur facultative
+            # vide devient NULL.
             if columns[name]["type"] == "INTEGER":
                 try:
                     clean[name] = int(text) if text.strip() else None
@@ -412,7 +420,7 @@ class NexusDatabase:
         return clean
 
     def insert_row(self, table, values):
-        """Add a row; columns left empty take their default value."""
+        """Ajoute une ligne ; les colonnes laissées vides prennent leur valeur par défaut."""
         if table == "files":
             raise ValueError("un fichier se charge depuis la page Vérification : il faut aussi sa copie stockée")
         clean = {k: v for k, v in self._cell_values(table, values).items() if v not in (None, "")}
@@ -422,7 +430,7 @@ class NexusDatabase:
             db.execute(f"INSERT INTO {table} ({', '.join(clean)}) VALUES ({', '.join('?' * len(clean))})", list(clean.values()))
 
     def update_row(self, table, rowid, values):
-        """Change values of a row. The links between tables stay checked by the database."""
+        """Change des valeurs d'une ligne. Les liens entre tables restent vérifiés par la base."""
         clean = self._cell_values(table, values)
         if clean:
             with self.transaction() as db:
@@ -430,37 +438,37 @@ class NexusDatabase:
                            [*clean.values(), rowid])
 
     def delete_row(self, table, rowid):
-        """Remove a row (and what depends on it by cascade); refused when other rows still use it."""
+        """Retire une ligne (et ce qui en dépend par cascade) ; refusé quand d'autres lignes l'utilisent encore."""
         self._columns(table)
         with self.transaction() as db:
             db.execute(f"DELETE FROM {table} WHERE rowid = ?", (rowid,))
 
     def requirement_platforms(self):
-        """The platforms the requirements (not deleted) are delegated to, in the order of the referential."""
+        """Les plateformes auxquelles les exigences (non supprimées) sont déléguées, dans l'ordre du référentiel."""
         return [r["name"] for r in self.query(
             "SELECT DISTINCT p.id, p.name FROM requirements q JOIN list_plateformes p ON p.id = q.delegation_id "
             "WHERE q.deleted = 0 ORDER BY p.id")]
 
     def file_releases(self):
-        """Release of each file: {file number: [the release of the base]} — one release for the whole base
-        (configuration general.release, kept in self.release by Configuration)."""
+        """Release de chaque fichier : {numéro de fichier: [la release de la base]} — une release pour toute la base
+        (configuration general.release, gardée dans self.release par Configuration)."""
         if not self.release:
             return {}
         return {r["id"]: [self.release] for r in self.query("SELECT id FROM files")}
 
     def tome_id(self, name):
-        """Id of a tome, from its name; None if unknown."""
+        """Id d'un tome, d'après son nom ; None s'il est inconnu."""
         return self.scalar("SELECT id FROM list_tomes WHERE name = ?", (name,))
 
     def rename(self, renames):
-        """Rename values of the referentials: {kind: {old name: new name}}. One UPDATE of the referential: what refers
-        to it by id follows."""
+        """Renomme des valeurs des référentiels : {type: {ancien nom: nouveau nom}}. Une seule mise à jour du
+        référentiel : ce qui y renvoie par id suit."""
         with self.lock:
             for kind, names in renames.items():
                 table, key, _ = self._table(kind)
                 for old, new in names.items():
-                    # Every rename is checked first (old value known, new value free), then all are applied in one
-                    # transaction.
+                    # Chaque renommage est vérifié d'abord (ancienne valeur connue, nouvelle valeur libre), puis tous
+                    # sont appliqués en une transaction.
                     current = self.scalar(f"SELECT id FROM {table} WHERE {key} = ?", (old,))
                     if current is None:
                         raise ValueError(f"valeur inconnue dans {kind} : « {old} »")
@@ -473,7 +481,7 @@ class NexusDatabase:
                         db.execute(f"UPDATE {table} SET {key} = ? WHERE {key} = ?", (new, old))
 
     def ensure(self, kind, names, db=None):
-        """Add to a list referential (tomes) the names it does not have yet, at the end."""
+        """Ajoute à un référentiel en liste (tomes) les noms qu'il n'a pas encore, à la fin."""
         table, key, label = self._table(kind)
         db = db or self.db
         for name in names:

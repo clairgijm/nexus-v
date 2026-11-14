@@ -1,16 +1,17 @@
-"""Fiches d'essai of the other platforms: Excel files, in the SQL database (tables files and fiches_essai).
+"""Fiches d'essai des autres plateformes : fichiers Excel, dans la base SQL (tables files et fiches_essai).
 
-These Excel files run beside the XML fiches: they trace the requirements delegated to other platforms. Like an XML
-fiches file, a file belongs to a tome or to none (it then applies to every tome); removing it removes its content
-(cascade).
+Ces fichiers Excel accompagnent les fiches XML : ils tracent les exigences déléguées aux autres plateformes. Comme un
+fichier de fiches XML, un fichier appartient à un tome ou à aucun (il s'applique alors à tous les tomes) ; le retirer
+retire son contenu (cascade).
 
-Their format is not described yet: only the requirement numbers of its tome found in its cells are stored, in the
-table fiches_essai (one test without name, no test case). The file keeps the platform it comes from, chosen at load.
-A number unknown in its tome is shown at import, where it can only be ignored. A file without any number is refused.
+Leur format n'est pas encore décrit : seuls les numéros d'exigence de son tome trouvés dans ses cellules sont
+enregistrés, dans la table fiches_essai (un test sans nom, sans test case). Le fichier garde la plateforme d'où il
+vient, choisie au chargement. Un numéro inconnu de son tome est montré à l'import, où il ne peut qu'être ignoré. Un
+fichier sans aucun numéro est refusé.
 
-For the page (to_dict):
+Pour la page (to_dict) :
 
-    {"traceability": {"12": {"file_id": 12, "name": "...xlsx", "tome": "fct1" (None: every tome), "releases": ["A"],
+    {"traceability": {"12": {"file_id": 12, "name": "...xlsx", "tome": "fct1" (None : tous), "releases": ["A"],
                              "platform": "PLT1_N-1", "ids": [ID]}}}
 """
 import io
@@ -23,23 +24,24 @@ from file_database import FileDatabase
 
 
 class TraceabilityDatabase:
-    """Requirement numbers cited by the traceability files of the other platforms, in the SQL database."""
+    """Numéros d'exigence cités par les fichiers de traçabilité des autres plateformes, dans la base SQL."""
 
     def __init__(self, sql):
-        """sql: the shared NexusDatabase."""
+        """sql : la NexusDatabase partagée."""
         self.sql = sql
         self.path = sql.path
 
     @staticmethod
     def read_excel(content, config=None):
-        """Read a traceability workbook (bytes). Returns {"ids": requirement numbers cited in any cell}."""
+        """Lit un classeur de traçabilité (octets). Renvoie {"ids": numéros d'exigence cités dans une cellule
+        quelconque}."""
         get = config.get if config is not None else DEFAULT_CONFIG.get
         regex = re.compile(get("requirement_regex"))
         try:
-            # Read only and values only (not formulas): the format of these files is not defined yet, so every cell of
-            # every sheet is searched for requirement numbers.
+            # Lecture seule et valeurs seules (pas les formules) : le format de ces fichiers n'est pas encore défini,
+            # toutes les cellules de toutes les feuilles sont donc parcourues à la recherche de numéros d'exigence.
             workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-        except Exception as e:   # not an .xlsx / .xlsm workbook
+        except Exception as e:   # pas un classeur .xlsx / .xlsm
             raise ValueError(f"classeur Excel illisible (formats .xlsx et .xlsm) : {e}") from None
         try:
             ids = {}
@@ -47,7 +49,7 @@ class TraceabilityDatabase:
                 for row in sheet.iter_rows(values_only=True):
                     for value in row:
                         if value is not None:
-                            # A dict keeps the numbers once, in the order they are met.
+                            # Un dictionnaire garde chaque numéro une fois, dans l'ordre où il est rencontré.
                             ids.update(dict.fromkeys(regex.findall(str(value))))
             return {"ids": list(ids)}
         finally:
@@ -55,49 +57,49 @@ class TraceabilityDatabase:
 
     @classmethod
     def _readable(cls, content, config=None):
-        """Content of a file that can be loaded: ValueError when no requirement number was found."""
+        """Contenu d'un fichier chargeable : ValueError quand aucun numéro d'exigence n'a été trouvé."""
         data = cls.read_excel(content, config)
         if not data["ids"]:
             raise ValueError("aucun numéro d'exigence trouvé : fichier non chargé")
         return data
 
     def _known(self, tome):
-        """Numbers of the requirements of a tome (None without tome)."""
-        # Without tome the numbers are checked against the whole base (FileDatabase.to_ignore).
+        """Numéros des exigences d'un tome (None sans tome)."""
+        # Sans tome, les numéros sont vérifiés par rapport à toute la base (FileDatabase.to_ignore).
         if not tome:
             return None
         tome_id = self.sql.tome_id(tome)
         return set(FileDatabase.tome_requirements(self.sql.db, tome_id)) if tome_id is not None else set()
 
     def analyse(self, content, config=None, tome=None, releases=()):
-        """What loading a traceability file would do: number of requirement numbers and the numbers unknown in the
-        `tome` (in the whole base without tome), to ignore (same form as the plan entries to settle). Refused
-        (ValueError) when unreadable or without any number."""
+        """Ce que ferait le chargement d'un fichier de traçabilité : le nombre de numéros d'exigence et les numéros
+        inconnus du `tome` (de toute la base sans tome), à ignorer (même forme que les entrées de plan à régler).
+        Refusé (ValueError) quand il est illisible ou sans aucun numéro."""
         ids = self._readable(content, config)["ids"]
         return {"ids": len(ids), "to_confirm": FileDatabase.to_ignore(self.sql.db, ids, tome or None)}
 
     @staticmethod
     def _write(db, file_id, ids):
-        """Replace the requirements of a file in fiches_essai (inside a transaction): the requirements of its tome (of
-        the whole base without tome), under one test without name (fe_tests) nor test case."""
+        """Remplace les exigences d'un fichier dans fiches_essai (dans une transaction) : les exigences de son tome
+        (de toute la base sans tome), sous un test sans nom (fe_tests) ni test case."""
         from fiches_db import FichesDatabase
-        # Stored like a fiche: one test without name and without test case, the requirements of its tome (all of them
-        # without tome).
+        # Enregistré comme une fiche : un test sans nom et sans test case, les exigences de son tome (toutes sans tome).
         tome_id = db.execute("SELECT tome_id FROM files WHERE id = ?", (file_id,)).fetchone()[0]
         FichesDatabase.store_tests(db, file_id, [("", "", list(dict.fromkeys(ids)))], tome_id, by_case=False)
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None, platform=""):
-        """Load a fiches file of another platform (Excel): attached to a tome that has requirements or to none ("":
-        every tome), and to the `platform` it comes from. The numbers unknown in its tome must be ignored by the user
-        (`decisions` {"rows": {number: {"ignore": true}}}, or {"accept_all": true} on the command line). The file is
-        stored, then its content (the file is removed again on failure); a file of the same name is replaced,
-        whatever its tome."""
+        """Charge un fichier de fiches d'une autre plateforme (Excel) : rattaché à un tome qui a des exigences ou à
+        aucun ("" : tous les tomes), et à la `platform` d'où il vient. Les numéros inconnus de son tome doivent être
+        ignorés par l'utilisateur (`decisions` {"rows": {numéro: {"ignore": true}}}, ou {"accept_all": true} en ligne
+        de commande). Le fichier est enregistré, puis son contenu (le fichier est retiré en cas d'échec) ; un fichier
+        de même nom est remplacé, quel que soit son tome."""
         tome = files.check_tome("de fiches d'une autre plateforme", requirements, tome)
-        # The platform the file comes from is required: coverage is judged against the delegation of the plans.
+        # La plateforme d'où vient le fichier est obligatoire : la couverture est jugée par rapport à la délégation des
+        # plans.
         if config is not None and not config.is_platform(platform or ""):
             raise ValueError("indiquer la plateforme d'où vient ce fichier (une plateforme de la configuration)")
         data = self._readable(content, config)
-        # Numbers absent from the tome (from the base without tome): ignored by the user, not stored.
+        # Numéros absents du tome (de la base sans tome) : ignorés par l'utilisateur, non enregistrés.
         unknown = FileDatabase.to_ignore(self.sql.db, data["ids"], tome)
         FileDatabase.check_ignored(unknown, decisions)
         record = files.add("traceability", name, content, tome=tome, releases=releases)
@@ -105,7 +107,8 @@ class TraceabilityDatabase:
             with self.sql.transaction() as db:
                 self._write(db, record["id"], data["ids"])
                 if config is not None:
-                    # The platform as written in the configuration (the page may send it in another case).
+                    # La plateforme telle qu'elle est écrite dans la configuration (la page peut l'envoyer dans une
+                    # autre casse).
                     name_ok = next(p for p in config.get("platforms") if p.casefold() == platform.casefold())
                     db.execute("UPDATE files SET platform_id = (SELECT id FROM list_plateformes WHERE name = ?) "
                                "WHERE id = ?", (name_ok, record["id"]))
@@ -116,10 +119,10 @@ class TraceabilityDatabase:
                 "replaced": files.remove_older(record)}
 
     def read_missing(self, files, config=None, again=False):
-        """Read and store the content of the traceability files that have none yet, and of all of them with `again`
-        (the requirements changed). Returns the names read."""
-        # Files without any row in fiches_essai have not been read yet (new base, tables emptied).
-        known = {r["file_id"] for r in self.sql.query("SELECT DISTINCT file_id FROM fiches_essai")}   # rows stored
+        """Lit et enregistre le contenu des fichiers de traçabilité qui n'en ont pas encore, et de tous avec `again`
+        (les exigences ont changé). Renvoie les noms lus."""
+        # Les fichiers sans aucune ligne dans fiches_essai n'ont pas encore été lus (nouvelle base, tables vidées).
+        known = {r["file_id"] for r in self.sql.query("SELECT DISTINCT file_id FROM fiches_essai")}   # déjà lus
         done = []
         for record in files.list(slot="traceability"):
             if again or record["id"] not in known:
@@ -133,10 +136,10 @@ class TraceabilityDatabase:
         return done
 
     def documents(self):
-        """The fiches files of the other platforms, in the same form as the Fiches d'essai (FichesDatabase)."""
+        """Les fichiers de fiches des autres plateformes, sous la même forme que les Fiches d'essai (FichesDatabase)."""
         from fiches_db import FichesDatabase
         return FichesDatabase(self.sql).documents("traceability")
 
     def to_dict(self):
-        """The traceability files by file number, for the page."""
+        """Les fichiers de traçabilité par numéro de fichier, pour la page."""
         return {"traceability": {str(d["file_id"]): d for d in self.documents()}}

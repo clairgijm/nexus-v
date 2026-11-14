@@ -1,9 +1,9 @@
-"""NEXUS-V — check of the traceability on the command line, with the same classes as the server (verification.py):
-requirements (Excel) -> acceptance plan (Word) -> STDHL (Word) -> fiches d'essai (XML).
+"""NEXUS-V — vérification de la traçabilité en ligne de commande, avec les mêmes classes que le serveur
+(verification.py) : exigences (Excel) -> plan d'acceptation (Word) -> STDHL (Word) -> fiches d'essai (XML).
 
-Two uses: without files, check the base of NEXUS-V (a copy of it: the server may be running); with files, check them
-against each other, only the referentials and settings of the base being taken over. Exit code 0 when everything is
-consistent, 1 otherwise. The help of the command line (HELP, in French) gives the usage.
+Deux usages : sans fichier, vérifier la base de NEXUS-V (une copie : le serveur peut tourner) ; avec des fichiers,
+les vérifier entre eux, seuls les référentiels et les réglages de la base étant repris. Code de sortie 0 quand tout
+est cohérent, 1 sinon. L'aide de la ligne de commande (HELP) donne l'usage.
 """
 import argparse
 import shutil
@@ -26,7 +26,7 @@ except ModuleNotFoundError as missing:
     sys.exit(f"Module Python manquant : {missing.name}\n"
              f"Installer les modules nécessaires : python -m pip install -r requirements.txt")
 
-# Help of the command line, shown to the user (in French, like the interface).
+# Aide de la ligne de commande, affichée à l'utilisateur.
 HELP = """NEXUS-V — Le fil d’Ariane de la traçabilité, de la spécification à l'essai.
 
 Vérification de la traçabilité en ligne de commande :
@@ -51,13 +51,14 @@ Exemples :
 """
 
 ROOT = Path(__file__).resolve().parent
-BASE_DIR = ROOT.parent / BASE_FOLDER   # fichiers-references/base/ at the root of NEXUS-V
-TOME = "exigences"   # single tome of the files given on the command line
-SETTINGS = ("release", "platforms", "iadt", "mocs")   # referentials taken over from the storage folder
+BASE_DIR = ROOT.parent / BASE_FOLDER   # fichiers-references/base/ à la racine de NEXUS-V
+TOME = "exigences"   # tome unique des fichiers donnés en ligne de commande
+SETTINGS = ("release", "platforms", "iadt", "mocs")   # référentiels repris du dossier des fichiers
 
 
 class Workspace:
-    """The classes of NEXUS-V on a temporary folder: what they write never reaches the storage folder."""
+    """Les classes de NEXUS-V sur un dossier temporaire : ce qu'elles écrivent n'atteint jamais le dossier des
+    fichiers."""
 
     def __init__(self, directory):
         self.sql = NexusDatabase(directory / DATABASE_NAME)
@@ -72,24 +73,24 @@ class Workspace:
                                          self.traceability)
 
     def close(self):
-        """Release the temporary database."""
+        """Libère la base temporaire."""
         self.sql.close()
 
 
 def storage_folder(given):
-    """Folder of the files of NEXUS-V: --base, otherwise fichiers-references/base of NEXUS-V."""
+    """Dossier des fichiers de NEXUS-V : --base, sinon fichiers-references/base de NEXUS-V."""
     return given or BASE_DIR
 
 
 def copy_base(folder, target):
-    """Copy the database and the settings of a storage folder, not the stored files."""
+    """Copie la base et les réglages d'un dossier des fichiers, pas les fichiers enregistrés."""
     if (folder / CONFIG_NAME).is_file():
         shutil.copy(folder / CONFIG_NAME, target / CONFIG_NAME)
     if (folder / SCHEMA_NAME).is_file():
         shutil.copy(folder / SCHEMA_NAME, target / SCHEMA_NAME)
     if (folder / DATABASE_NAME).is_file():
-        # Through SQLite, not as a file: the copy is consistent even if the server is writing.
-        # Opened read only: the real base is never written by the command line.
+        # Par SQLite, pas comme un fichier : la copie est cohérente même si le serveur écrit.
+        # Ouverte en lecture seule : la ligne de commande n'écrit jamais dans la vraie base.
         source = sqlite3.connect(f"{(folder / DATABASE_NAME).resolve().as_uri()}?mode=ro", uri=True)
         copy = sqlite3.connect(target / DATABASE_NAME)
         source.backup(copy)
@@ -98,26 +99,28 @@ def copy_base(folder, target):
 
 
 def load_files(work, args, settings):
-    """Load the files of the command line into an empty workspace."""
+    """Charge les fichiers de la ligne de commande dans un espace de travail vide."""
     work.config.update(settings)
     content = args.requirements.read_bytes()
-    found = [work.config.get("release")]   # one release for the base
+    found = [work.config.get("release")]   # une release pour la base
     work.requirements.import_file(work.files, content, args.requirements.name, TOME, sheet=args.sheet, config=work.config)
     for path in args.plan:
-        # Nobody to ask: rows breaking the IADT/MOC rules are loaded as they are (several delegations stay an anomaly).
+        # Personne à qui demander : les lignes qui ne respectent pas les règles IADT/MOC sont chargées telles quelles
+        # (plusieurs délégations restent une anomalie).
         work.plans.load_file(work.files, work.requirements, path.read_bytes(), path.name, TOME, found, config=work.config,
                              decisions={"accept_all": True})
     for path in args.stdhl:
         work.stdhl.load_file(work.files, work.requirements, path.read_bytes(), path.name, "", found, config=work.config)
-    # The fiches XML of the command line come from the platform of system level (configuration system_platform).
+    # Les fiches XML de la ligne de commande viennent de la plateforme de niveau système (configuration
+    # system_platform).
     work.fiches.load_file(work.files, work.requirements, args.xml.read_bytes(), args.xml.name, "", found,
                           config=work.config, platform=work.config.get("system_platform"))
 
 
 def print_report(result):
-    """Print the requirements with their status at each stage, then the summary and the anomalies."""
+    """Affiche les exigences avec leur statut à chaque étape, puis la synthèse et les anomalies."""
     rows, names, labels = result["rows"], result["names"], result["status_labels"]
-    # Widths of the columns of the text table, from the longest values (bounded).
+    # Largeurs des colonnes du tableau texte, d'après les valeurs les plus longues (bornées).
     w_id = max([len(r["id"]) for r in rows] + [10])
     w_rel = min(20, max([len(", ".join(r["releases"])) for r in rows] + [8]))
     w_doc = min(30, max([len(r["stdhl"]) for r in rows] + [5]))
@@ -130,8 +133,8 @@ def print_report(result):
               *[labels[s].center(18) for s in r["statuses"]], " " + r["lost_at"], sep=" | ")
 
     print("\nRésumé :")
-    # One line per stage, from the tiles of the page (OK out of the requirements expected at that stage) and the
-    # requirements lost at that stage.
+    # Une ligne par étape, d'après les tuiles de la page (OK sur les exigences attendues à cette étape) et les exigences
+    # perdues à cette étape.
     for k, (name, tile) in enumerate(zip(names, result["tiles"][1:])):
         if tile.get("waiting"):
             print(f"  {name} : à charger")
@@ -142,7 +145,7 @@ def print_report(result):
 
 
 def arguments():
-    """The options of the command line, checked."""
+    """Les options de la ligne de commande, vérifiées."""
     parser = argparse.ArgumentParser(description=HELP, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("requirements", type=Path, nargs="?", help="Exigences (Excel) ; sans fichier, la base est vérifiée")
     parser.add_argument("xml", type=Path, nargs="?", help="Fiches d'Essai (XML)")
@@ -157,7 +160,7 @@ def arguments():
     parser.add_argument("--rapport", dest="report", type=Path, help="Écrire aussi un rapport Excel (.xlsx)")
     args = parser.parse_args()
     given = [args.requirements, args.xml, *args.plan, *args.stdhl]
-    # With files, the whole chain is needed; without any, the base is checked.
+    # Avec des fichiers, toute la chaîne est nécessaire ; sans fichier, c'est la base qui est vérifiée.
     if any(given) and not (args.xml and args.plan and args.stdhl):
         parser.error("avec des fichiers, il faut les Exigences, les Fiches d'Essai, --plan et --stdhl")
     if (args.regex or args.sheet) and not any(given):
@@ -169,14 +172,14 @@ def arguments():
 
 
 def run(args, directory):
-    """Run the check in a temporary folder. Returns True when everything is consistent."""
+    """Lance la vérification dans un dossier temporaire. Renvoie True quand tout est cohérent."""
     folder = storage_folder(args.folder)
     copy_base(folder, directory)
     work = Workspace(directory)
     try:
         if args.requirements:
-            # With files: the referentials and settings of the base are kept, then the copied base is replaced by an
-            # empty one into which only the given files are loaded.
+            # Avec des fichiers : les référentiels et réglages de la base sont gardés, puis la base copiée est remplacée
+            # par une base vide où seuls les fichiers donnés sont chargés.
             settings = {name: work.config.get(name) for name in SETTINGS}
             if args.release:
                 settings["release"] = args.release.upper()
@@ -186,7 +189,7 @@ def run(args, directory):
             (directory / DATABASE_NAME).unlink(missing_ok=True)
             work = Workspace(directory)
             load_files(work, args, settings)
-        releases = []   # one release for the base: everything is checked
+        releases = []   # une release pour la base : tout est vérifié
         result = work.verification.run(releases)
         if "rows" not in result:
             sys.exit(result["message"] or f"Aucune exigence dans la base de {folder}.")
@@ -195,14 +198,14 @@ def run(args, directory):
             args.report.write_bytes(work.verification.report(releases)[1])
             print(f"\nRapport écrit : {args.report}")
         print(f"\n{result['verdict']['text']}")
-        # Consistent: no requirement lost and no stage left without file.
+        # Cohérent : aucune exigence perdue et aucune étape sans fichier.
         return not result["defects"] and not result["waiting"]
     finally:
         work.close()
 
 
 def main():
-    """Read the options, run the check and give its result as exit code."""
+    """Lit les options, lance la vérification et donne son résultat comme code de sortie."""
     args = arguments()
     with tempfile.TemporaryDirectory(prefix="nexus-v-") as directory:
         try:

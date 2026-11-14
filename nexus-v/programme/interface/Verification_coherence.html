@@ -7,14 +7,14 @@
 <link rel="icon" type="image/png" href="logo-nexus-v.png">
 <style>
   :root {
-    /* The two blues of the logo, used for the name, the slogan and the side bar icons. */
+    /* Les deux bleus du logo, utilisés pour le nom, le slogan et les icônes de la barre latérale. */
     --brand-light: #10aed6; --brand-dark: #0569a3;
     --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef0f4; --border: #d8dce3;
     --text: #1c2330; --muted: #5e6878; --accent: #1f5fbf; --accent-text: #ffffff;
     --ok: #1d7a46; --ok-bg: #e2f4ea; --ko: #b42318; --ko-bg: #fde8e6; --not-covered: #e8211a;
     --warn: #8a5a00; --warn-bg: #fdf1d6;
-    /* Categories of the charts, without red, green nor grey (reserved); orange and pink last (near the reds); used again in turn
-       beyond 16. A platform has its own colour (list_plateformes.color). */
+    /* Catégories des camemberts, sans rouge, vert ni gris (réservés) ; orange et rose en dernier (proches des rouges) ;
+       réutilisées à tour de rôle au-delà de 16. Une plateforme a sa propre couleur (list_plateformes.color). */
     --series-1: #2a78d6; --series-2: #6250d6; --series-3: #eda100; --series-4: #0e8fa3;
     --series-5: #9c5a2c; --series-6: #b5179e; --series-7: #4c5fd5; --series-8: #d4a017;
     --series-9: #1f3a93; --series-10: #8e44ad; --series-11: #00a3d9; --series-12: #c06c00;
@@ -54,7 +54,7 @@
            position: sticky; top: 0; z-index: 15; background: var(--bg); }
   .brand a { display: flex; flex: none; }
   .brand .logo { width: 64px; height: 64px; flex: none; }
-  /* Release picker, on the right of the header */
+  /* Choix de la release, à droite de l'en-tête */
   .release-picker { margin-left: auto; position: relative; display: flex; align-items: center; gap: 8px; }
   .release-name { padding: 4px 12px; border-radius: 999px; background: var(--brand-dark); color: #fff; font-weight: 600; }
   .release-name.missing { background: var(--ko); }
@@ -64,7 +64,7 @@
   section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
             padding: 18px; margin-bottom: 18px; }
 
-  /* Icon side bar */
+  /* Barre latérale des icônes */
   body { padding-left: 60px; }
   .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 60px; z-index: 10;
              display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0;
@@ -80,8 +80,9 @@
                      background: var(--brand-dark); color: #ffffff; font-size: .7rem; font-weight: 700; line-height: 18px; }
   .nav-item .count:empty { display: none; }
 
-  /* Tabs inside a page */
-  /* Tabs: rounded top, page background, grey text and border; the selected one in brand colour with white text. */
+  /* Onglets dans une page */
+  /* Onglets : haut arrondi, fond de la page, texte et bord gris ; celui sélectionné aux couleurs de la marque, texte
+     blanc. */
   .subtabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; border-bottom: 2px solid var(--brand-dark);
              margin: 14px 0 10px; }
   .subtab { border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; background: var(--bg);
@@ -89,17 +90,17 @@
   .subtab:hover { color: var(--text); border-color: var(--brand-dark); }
   .subtab.active, .subtab.active:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
   .subtab .n { font-weight: 400; margin-left: 5px; }
-  /* Plans: every requirement of the tome declined (ok) or some missing (ko). */
+  /* Plans : chaque exigence du tome déclinée (ok) ou certaines manquantes (ko). */
   .subtab .decl { margin-left: 6px; font-weight: 700; }
   .subtab .decl.ok { color: var(--ok); }
   .subtab .decl.ko { color: var(--not-covered); }
   .subtab.active .decl { color: #fff; }
   .banner { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; }
 
-  /* File chain */
+  /* Chaîne des fichiers */
   .chain { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 14px; }
-  /* The Fiches d'Essai box ends the chain: no arrow after it. It takes the fiches XML and the Excel files of the
-     other platforms (traceability). */
+  /* La boîte Fiches d'Essai termine la chaîne : pas de flèche après elle. Elle prend les fiches XML et les fichiers
+     Excel des autres plateformes (traçabilité). */
   .chain .drop[data-slot=xml]::after { content: none; }
   .drop { position: relative; border: 2px dashed var(--border); border-radius: 10px; padding: 14px;
           min-height: 118px; cursor: pointer; background: var(--surface-2);
@@ -113,19 +114,19 @@
   .drop.loaded .name { color: var(--ok); }
   .drop.error .name { color: var(--ko); }
   .drop input { display: none; }
-  /* Card whose files can be checked before import: the check button takes its left edge. */
+  /* Carte dont les fichiers peuvent être vérifiés avant import : le bouton de vérification prend son bord gauche. */
   .drop.has-check { padding-left: 46px; }
   .drop-check { position: absolute; left: 0; top: 0; bottom: 0; width: 32px; margin: 0; padding: 0; border: none;
     border-right: 1px solid var(--border); border-radius: 8px 0 0 8px; background: var(--ok-bg); color: var(--ok);
     cursor: pointer; display: grid; place-items: center; }
   .drop-check:hover, .drop-check:focus-visible { filter: brightness(.94); color: var(--accent); }
   .drop-check svg { width: 16px; height: 16px; }
-  /* Arrow between two boxes: drawn, so that it is exactly centred (a font character is not). */
+  /* Flèche entre deux boîtes : dessinée, pour être exactement centrée (un caractère de police ne l'est pas). */
   .drop:not(:last-child)::after { content: ""; position: absolute; right: -13px; top: 50%; width: 12px; height: 10px;
           transform: translateY(-50%); background: var(--muted);
           -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M0 4.5h9L5.5 1l.7-.7L11 5l-4.8 4.7-.7-.7L9 5.5H0z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M0 4.5h9L5.5 1l.7-.7L11 5l-4.8 4.7-.7-.7L9 5.5H0z'/%3E%3C/svg%3E") center / contain no-repeat; }
 
-  /* Settings */
+  /* Réglages */
   .params { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .params .wide { grid-column: 1 / -1; }
   label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
@@ -136,30 +137,31 @@
   input[type=text].mono { font-family: Consolas, monospace; }
   .hint { font-size: .8rem; color: var(--muted); }
 
-  /* Action buttons: brand colour, white text (navigation icons, tabs and filters have their own style). */
+  /* Boutons d'action : couleur de la marque, texte blanc (les icônes de navigation, les onglets et les filtres ont leur
+     propre style). */
   button { font: inherit; border-radius: 6px; cursor: pointer;
            border: 1px solid var(--brand-dark); background: var(--brand-dark); color: #fff; }
   button.primary { font-weight: 600; }
   button.small { padding: 3px 10px; font-size: .85rem; }
   button:disabled { opacity: .5; cursor: default; }
 
-  /* Configuration editor */
+  /* Éditeur de configuration */
   .cfg-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .cfg-row { display: grid; gap: 8px; align-items: start; }
   .cfg-row.one { grid-template-columns: 1fr auto; }
   .cfg-row.two { grid-template-columns: 140px 1fr auto; }
   .cfg-row.platform-row { grid-template-columns: 220px 44px 1fr auto; align-items: center; }
-  /* Cumulative bar: one segment per tome, its width the share of the requirements (page Exigences). */
+  /* Barre cumulée : un segment par tome, sa largeur la part des exigences (page Exigences). */
   .share { margin: 4px 0 14px; }
   .share .bar { display: flex; height: 46px; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
-  /* Each segment shows its tome and its share, one under the other (cut when the segment is too narrow). */
+  /* Chaque segment montre son tome et sa part, l'un sous l'autre (coupés quand le segment est trop étroit). */
   .share .bar span { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;
                      min-width: 2px; overflow: hidden; cursor: pointer; color: #fff; line-height: 1.15;
                      font-size: .8rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, .45); white-space: nowrap; }
   .share .bar span small { font-weight: 400; font-size: .75rem; }
   .share .bar span + span { border-left: 2px solid var(--surface); }
   .share .bar span.active { outline: 2px solid var(--text); outline-offset: -2px; }
-  /* Plans page: share of each platform in the delegations of each tome, one bar per tome. */
+  /* Page Plans : part de chaque plateforme dans les délégations de chaque tome, une barre par tome. */
   .deleg { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; margin: 4px 0 14px; }
   .deleg .name { font-size: .85rem; font-weight: 600; cursor: pointer; }
   .deleg .name.active { color: var(--brand-dark); text-decoration: underline; }
@@ -175,14 +177,15 @@
   .cfg-row.two.colored { grid-template-columns: 140px 1fr 44px auto; align-items: center; }
   .cfg-row input[type=color] { width: 40px; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; }
   .cfg-actions { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--border); }
-  [data-config-pane] h3 { font-size: .95rem; margin: 4px 0 6px; color: var(--brand-dark); }   /* subject titles */
-  /* Line (brand colour) between the subjects of a configuration tab, for readability (not above the first one). */
+  [data-config-pane] h3 { font-size: .95rem; margin: 4px 0 6px; color: var(--brand-dark); }   /* titres des sujets */
+  /* Trait (couleur de la marque) entre les sujets d'un onglet de configuration, pour la lisibilité (pas au-dessus du
+     premier). */
   [data-config-pane] h3:not(:first-child), [data-config-pane] .storage + h3 {
     border-top: 1px solid var(--brand-dark); padding-top: 14px; margin-top: 18px; }
-  .storage { padding-bottom: 2px; }   /* the line below is the one of the next subject title */
+  .storage { padding-bottom: 2px; }   /* le trait du dessous est celui du titre du sujet suivant */
   .storage-row { display: flex; gap: 8px; }
 
-  /* Releases dialog */
+  /* Fenêtre des releases */
   dialog { width: 620px; max-height: 80vh; border: 1px solid var(--border); border-radius: 10px; padding: 20px;
            background: var(--surface); color: var(--text); }
   dialog::backdrop { background: rgb(0 0 0 / .45); }
@@ -212,10 +215,10 @@
   #diff-body .banner { margin: 4px 0 8px; }
   .diff-old { color: var(--ko); text-decoration: line-through; }
   .diff-new { color: var(--ok); }
-  /* Cancel buttons: muted colour; the page background keeps the text readable in both themes. */
+  /* Boutons d'annulation : couleur atténuée ; le fond de la page garde le texte lisible dans les deux thèmes. */
   #cfg-cancel, #diff-cancel, #plan-cancel, #import-cancel, #conflict-cancel, #files-delete-cancel {
     background: var(--muted); border-color: var(--muted); color: var(--surface); }
-  /* Deletion: colour ko (crosses of the lists and rows, confirmation button). */
+  /* Suppression : couleur ko (croix des listes et des lignes, bouton de confirmation). */
   .cfg-row.rule { grid-template-columns: 110px 1fr auto; align-items: center; }
   .rule-mocs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; }
   .rule-mocs label.check { margin: 0; }
@@ -224,8 +227,8 @@
   #conflict-body .plan-values { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 4px 22px; }
   button.danger, button[data-req-delete], button[data-db-delete], button[data-remove], button[data-header-remove], button[data-rule-remove], button[data-plan-delete] {
     background: var(--ko); border-color: var(--ko); color: var(--surface); }
-  /* Icon buttons of a row being edited or deleted: green check validates, red cross cancels. */
-  /* Every icon button of a row (edit, delete, validate, cancel) has the same size. */
+  /* Boutons-icônes d'une ligne modifiée ou supprimée : coche verte pour valider, croix rouge pour annuler. */
+  /* Chaque bouton-icône d'une ligne (modifier, supprimer, valider, annuler) a la même taille. */
   button.icon, button[data-req-edit], button[data-req-delete], button[data-db-edit], button[data-db-delete],
   button[data-plan-modify], button[data-plan-delete] {
     display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 28px; padding: 0;
@@ -233,9 +236,9 @@
   button.icon { font-weight: 700; }
   button.icon.ok { background: var(--ok); border-color: var(--ok); color: var(--surface); }
   button.icon.ko { background: var(--ko); border-color: var(--ko); color: var(--surface); }
-  tr.req-manual td { color: var(--accent); }                              /* added or modified by hand */
-  tr.req-deleted td:not(.actions) { text-decoration: line-through; color: var(--muted); }   /* deleted by hand */
-  /* A deleted row whose requirement is no longer in any plan: said once, on the row. */
+  tr.req-manual td { color: var(--accent); }                              /* ajoutée ou modifiée à la main */
+  tr.req-deleted td:not(.actions) { text-decoration: line-through; color: var(--muted); }   /* supprimée à la main */
+  /* Une ligne supprimée dont l'exigence n'est plus dans aucun plan : dit une fois, sur la ligne. */
   tr.req-deleted td.actions .absent { color: var(--not-covered); font-size: .8rem; margin-right: 6px; white-space: nowrap; }
   #tome-table td.actions { white-space: nowrap; text-align: right; }
   #tome-table input[type=text] { width: 100%; min-width: 60px; }
@@ -249,19 +252,19 @@
   #db-table td.actions { max-width: none; overflow: visible; }
   #db-table th small { display: block; font-weight: 400; color: var(--muted); }
   #db-table textarea { width: 100%; min-width: 110px; font: inherit; resize: vertical; }
-  #db-table textarea.num { min-width: 56px; }   /* ids and links to other tables: short numbers */
-  /* Buttons column pinned to the right: Enregistrer stays reachable when a wide row scrolls sideways. */
+  #db-table textarea.num { min-width: 56px; }   /* ids et liens vers d'autres tables : nombres courts */
+  /* Colonne des boutons fixée à droite : Enregistrer reste accessible quand une ligne large défile de côté. */
   #db-table td.actions, #db-table th:last-child { position: sticky; right: 0; background: var(--surface);
     box-shadow: -8px 0 8px -8px rgba(0, 0, 0, .3); }
   #db-table th:last-child { background: var(--surface-2); z-index: 2; }
   .tome-toolbar { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
-  /* Filter of the Exigences page: a wide search field, the state list at its natural width. */
+  /* Filtre de la page Exigences : un large champ de recherche, la liste des états à sa largeur naturelle. */
   #req-filters { flex-wrap: wrap; }
   #req-search { flex: 1 1 320px; max-width: 480px; min-width: 220px; width: auto; padding: 6px 8px; }
   #req-state { flex: 0 0 auto; width: auto; }
   #req-filters button, #req-filter-count { white-space: nowrap; }
   #plan-filters { flex-wrap: wrap; }
-  /* Search of the pages STDHL and Fiches d'essai. */
+  /* Recherche des pages STDHL et Fiches d'essai. */
   .search-bar { flex-wrap: wrap; }
   .search-bar input[type=search] { flex: 1 1 320px; max-width: 480px; min-width: 220px; width: auto; padding: 6px 8px; }
   .search-bar button, .search-bar .hint { white-space: nowrap; }
@@ -271,15 +274,15 @@
   #plan-table td.actions { white-space: nowrap; text-align: right; }
   #plan-add { white-space: nowrap; }
   #plan-table select { max-width: 100%; }
-  tr.diff-added td { color: var(--ok); }      /* requirements added by the import */
-  tr.diff-removed td { color: var(--ko); }    /* requirements removed from the tome */
+  tr.diff-added td { color: var(--ok); }      /* exigences ajoutées par l'import */
+  tr.diff-removed td { color: var(--ko); }    /* exigences retirées du tome */
   .storage-row input { font-family: Consolas, monospace; }
   label.check { flex-direction: row; align-items: center; gap: 8px; margin: 12px 0 4px; color: var(--text); }
   .cfg-status { margin-left: 10px; }
   .cfg-status.ko { color: var(--ko); }
   .cfg-status.ok { color: var(--ok); }
 
-  /* Results */
+  /* Résultats */
   .verdict { border-radius: 8px; padding: 12px 14px; font-weight: 600; margin-bottom: 14px; }
   .verdict.ok { background: var(--ok-bg); color: var(--ok); }
   .verdict.ko { background: var(--ko-bg); color: var(--ko); }
@@ -288,12 +291,12 @@
   .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .chart { background: var(--surface-2); border-radius: 8px; padding: 12px; }
   .chart h3 { margin: 0 0 2px; font-size: .95rem; }
-  /* Pie on top, legend below (in columns when the chart has many parts). */
+  /* Camembert en haut, légende dessous (en colonnes quand le camembert a beaucoup de parts). */
   .chart .body { display: flex; flex-direction: column; gap: 12px; align-items: stretch; margin-top: 8px; }
   .chart svg { width: 150px; height: 150px; flex: none; align-self: center; }
-  .chart svg path, .chart svg circle { stroke: none; }   /* parts side by side, without separation */
+  .chart svg path, .chart svg circle { stroke: none; }   /* parts côte à côte, sans séparation */
   .chart svg path:hover, .chart svg circle:hover { opacity: .8; }
-  /* A part (or its legend line) lists its requirements when clicked. */
+  /* Une part (ou sa ligne de légende) liste ses exigences quand on clique dessus. */
   .chart [data-part] { cursor: pointer; }
   .chart li[data-part]:hover span { text-decoration: underline; }
   #part-dialog { width: min(1400px, 96vw); overflow: hidden; }
@@ -342,7 +345,7 @@
 </style>
 </head>
 <body>
-<!-- Icons: Feather (MIT licence), inlined. -->
+<!-- Icônes : Feather (licence MIT), intégrées. -->
 <nav class="sidebar" aria-label="Navigation">
   <button class="nav-item active" data-tab="check" title="Vérification" aria-label="Vérification" aria-current="page">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -929,17 +932,18 @@
 const SOURCE_NAME = "Exigences";
 const STAGES = ["plan", "stdhl", "xml"];
 const STAGE_NAMES = { plan: "Plan d'acceptation", stdhl: "STDHL", xml: "Fiches d'Essai" };
-// Traceability files of the other platforms: an output right after the plan, in parallel with STDHL and fiches;
-// not yet a stage of the verification.
+// Fichiers de traçabilité des autres plateformes : une sortie juste après le plan, en parallèle des STDHL et des fiches
+// ; pas encore une étape de la vérification.
 const SLOT_NAMES = { requirements: SOURCE_NAME, ...STAGE_NAMES, traceability: "Traçabilité des autres plateformes" };
-const MULTI_SLOTS = new Set(["plan", "stdhl", "xml", "traceability"]);   // several files in use at the same time
-// Files attached, when loaded, to a tome (with requirements) and to releases; they are all used (no "Utilisé").
+const MULTI_SLOTS = new Set(["plan", "stdhl", "xml", "traceability"]);   // plusieurs fichiers utilisés en même temps
+// Fichiers rattachés, au chargement, à un tome (avec des exigences) et à des releases ; ils sont tous utilisés (pas de
+// « Utilisé »).
 const ATTACHED = new Set(["plan", "stdhl", "xml", "traceability"]);
-// Slots without a box of their own: the Excel files of the other platforms are dropped on the Fiches d'Essai box.
+// Emplacements sans boîte à eux : les fichiers Excel des autres plateformes sont déposés sur la boîte Fiches d'Essai.
 const CARD_OF = { traceability: "xml" };
 const SLOTS_OF_CARD = { xml: ["xml", "traceability"] };
-const ATTACHED_API = { plan: "plans", stdhl: "stdhl", xml: "fiches", traceability: "traceability" };   // addresses of their classes on the server
-// Releases selected in the header: every view only shows what applies to them (nothing selected = everything).
+const ATTACHED_API = { plan: "plans", stdhl: "stdhl", xml: "fiches", traceability: "traceability" };   // adresses de leurs classes
+// Releases sélectionnées dans l'en-tête : chaque vue ne montre que ce qui s'y applique (rien de sélectionné = tout).
 const inSelection = releases => !selectedReleases.size || (releases ?? []).some(x => selectedReleases.has(x));
 const selectionNote = (shown, total, noun) => selectedReleases.size && shown < total
   ? ` — filtré sur ${selectedReleases.size > 1 ? "les releases" : "la release"} ${[...selectedReleases].sort(byName).join(", ")} :`
@@ -948,29 +952,29 @@ const selectionNote = (shown, total, noun) => selectedReleases.size && shown < t
 
 
 
-// Configuration used when the page is opened without the server (same as configuration.py).
+// Configuration utilisée quand la page est ouverte sans le serveur (la même que configuration.py).
 
-// Comparable form of a label: no accents, lower case, single spaces.
+// Forme comparable d'un libellé : sans accents, en minuscules, espaces simples.
 const fold = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
 const state = {
-  records: [],         // files known to the store, see the store section
-  cache: {},           // record id -> extracted data, or { error }
-  errors: {},          // slot -> error of the last upload
-  reqDb: { tomes: {} },   // requirements stored by tome (see requirements_db.py)
-  plansDb: { plans: {} },   // content of the acceptance plans, by file n° (see plans_db.py)
-  planChecks: {},          // tome checks given by the server, by tome and selected releases
-  lostStage: "",           // home page: stage where the requirements shown are lost ("" = all)
-  chartSlots: {},          // colour slot of each category, by chart
-  stdhlDb: { stdhl: {} },   // content of the STDHL, by file n° (see stdhl_db.py)
-  fichesDb: { fiches: {} }, // requirement numbers of the fiches files, by file n° (see fiches_db.py)
-  traceDb: { traceability: {} },   // numbers of the traceability files of the other platforms (see traceability_db.py)
-  requirements: [],    // every requirement of the base: { id, title, releases, stdhl, file_id, tome }
-  plans: [],           // acceptance plans in use: { name, text, rows }
-  stdhl: [],           // STDHL documents in use: { name, stdhlName, rows, issues }
-  xml: null,           // Fiches d'Essai in use: { name, text }
-  config: {},          // read from the server when the page starts
-  draft: null,         // configuration being edited in the Configuration tab
+  records: [],         // fichiers connus du magasin, voir la section du magasin
+  cache: {},           // id d'enregistrement -> données extraites, ou { error }
+  errors: {},          // emplacement -> erreur du dernier envoi
+  reqDb: { tomes: {} },   // exigences enregistrées par tome (voir requirements_db.py)
+  plansDb: { plans: {} },   // contenu des plans d'acceptation, par n° de fichier (voir plans_db.py)
+  planChecks: {},          // vérifications des tomes données par le serveur, par tome et releases sélectionnées
+  lostStage: "",           // page d'accueil : étape où les exigences montrées sont perdues ("" = toutes)
+  chartSlots: {},          // emplacement de couleur de chaque catégorie, par camembert
+  stdhlDb: { stdhl: {} },   // contenu des STDHL, par n° de fichier (voir stdhl_db.py)
+  fichesDb: { fiches: {} }, // numéros d'exigence des fichiers de fiches, par n° de fichier (voir fiches_db.py)
+  traceDb: { traceability: {} },   // numéros des fichiers de traçabilité (traceability_db.py)
+  requirements: [],    // chaque exigence de la base : { id, title, releases, stdhl, file_id, tome }
+  plans: [],           // plans d'acceptation utilisés : { name, text, rows }
+  stdhl: [],           // documents STDHL utilisés : { name, stdhlName, rows, issues }
+  xml: null,           // Fiches d'Essai utilisées : { name, text }
+  config: {},          // lue sur le serveur au démarrage de la page
+  draft: null,         // configuration en cours de modification dans l'onglet Configuration
   result: null,
 };
 const $ = s => document.querySelector(s);
@@ -978,31 +982,32 @@ const escapeHtml = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;",
 const unique = values => [...new Set(values.filter(Boolean))];
 
 // --------------------------------------------------------------------------
-// Preferences kept between sessions
+// Préférences gardées d'une session à l'autre
 // --------------------------------------------------------------------------
-// v3: earlier versions stored the default regex itself, hiding later changes of the configuration.
+// v3 : les versions précédentes gardaient l'expression régulière par défaut elle-même, ce qui masquait les changements
+// ultérieurs de la configuration.
 const PREFS_KEY = "verif-coherence-prefs-v3";
-// Choices of this browser, kept in localStorage.
+// Choix de ce navigateur, gardés dans localStorage.
 function readPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; } }
-// Remember the releases selected in the header.
+// Mémorise les releases sélectionnées dans l'en-tête.
 function writePrefs() {
   Object.assign(prefs, { releases: [...selectedReleases] });
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* stockage indisponible */ }
 }
 const prefs = readPrefs();
-// Header filled from the configuration once loaded.
+// En-tête rempli d'après la configuration une fois chargée.
 function applyConfigDefaults() {
   $("#slogan").textContent = state.config.slogan;
 }
 
 // --------------------------------------------------------------------------
-// Store: files and configuration kept by serveur.py in its storage directory,
-// or in memory when the page is opened without the server.
-// Record: { id, slot, name, stored_name, tome }
+// Magasin : fichiers et configuration gardés par serveur.py dans son dossier des fichiers,
+// ou en mémoire quand la page est ouverte sans le serveur.
+// Enregistrement : { id, slot, name, stored_name, tome }
 // --------------------------------------------------------------------------
 async function request(url, options) {
   const response = await fetch(url, options);
-  // A refusal (400) carries a message meant for the user; other errors keep their HTTP status.
+  // Un refus (400) porte un message destiné à l'utilisateur ; les autres erreurs gardent leur statut HTTP.
   if (!response.ok) {
     const text = await response.text();
     throw new Error(response.status === 400 ? text : `serveur : ${response.status} ${text}`);
@@ -1012,9 +1017,9 @@ async function request(url, options) {
 
 const jsonOptions = (method, data) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 
-// Body of a requirements request: the choices of the user in JSON, then the file.
+// Corps d'une requête d'exigences : les choix de l'utilisateur en JSON, puis le fichier.
 function withChoices(buffer, choices) {
-  // Any choice (row of a repeated number, version kept, STDHL value) goes first.
+  // Tout choix (ligne d'un numéro répété, version gardée, valeur STDHL) vient en premier.
   const text = new TextEncoder().encode(choices && Object.keys(choices).length ? JSON.stringify(choices) : "");
   return { body: new Blob([text, buffer]), size: text.length };
 }
@@ -1028,8 +1033,8 @@ const serverStore = {
   saveConfig: config => request("api/config", jsonOptions("PUT", config)).then(r => r.json()),
   getRequirements: () => request("api/requirements").then(r => r.json()),
   getPlans: () => request("api/plans").then(r => r.json()),
-  // Plan, STDHL or fiches file sent as is: the server reads, checks and stores it (analyse, then load_file
-  // of PlansDatabase, StdhlDatabase or FichesDatabase).
+  // Fichier de plan, STDHL ou fiches envoyé tel quel : le serveur le lit, le vérifie et l'enregistre (analyse, puis
+  // load_file de PlansDatabase, StdhlDatabase ou FichesDatabase).
   analyseFile: (slot, file, buffer, params = {}) =>
     request(`api/${ATTACHED_API[slot]}/analyse?${new URLSearchParams({ name: file.name, ...params })}`,
             { method: "POST", body: buffer }).then(r => r.json()),
@@ -1047,7 +1052,7 @@ const serverStore = {
   getTraceability: () => request("api/traceability").then(r => r.json()),
   checkPlans: (tome, releases) =>
     request(`api/plans/check?${new URLSearchParams({ tome, releases: releases.join(",") })}`).then(r => r.json()),
-  // Requirements file sent as is: the server reads it (RequirementsDatabase.analyse / import_file).
+  // Fichier d'exigences envoyé tel quel : le serveur le lit (RequirementsDatabase.analyse / import_file).
   analyseRequirements: (buffer, params, choices) => {
     const { body, size } = withChoices(buffer, choices);
     return request(`api/requirements/analyse?${new URLSearchParams({ ...params, choices_size: size })}`,
@@ -1065,20 +1070,21 @@ const serverStore = {
 const store = serverStore;
 
 // --------------------------------------------------------------------------
-// Check
+// Vérification
 // --------------------------------------------------------------------------
 const isPlatform = name => state.config.platforms.some(p => fold(p) === fold(name));
 
-// Comparable form of a STDHL name: letters and digits only, lower case, without a "STDHL" prefix.
+// Forme comparable d'un nom de STDHL : lettres et chiffres seulement, en minuscules, sans préfixe « STDHL ».
 
-// Ask the server for the check of the selected releases; the page only shows its result (class Verification).
-let checkTicket = 0;   // only the last request counts
+// Demande au serveur la vérification des releases sélectionnées ; la page ne fait qu'en montrer le résultat (classe
+// Verification).
+let checkTicket = 0;   // seule la dernière demande compte
 async function check() {
   const $results = $("#results");
   $("#msg").hidden = true;
   renderReleasePicker();
-  // Several checks may run at once (quick loads): only the answer of the last one asked is shown, an older answer
-  // arriving late is dropped.
+  // Plusieurs vérifications peuvent tourner à la fois (chargements rapides) : seule la réponse de la dernière demandée
+  // est montrée, une réponse plus ancienne arrivée en retard est abandonnée.
   const ticket = ++checkTicket;
   let result;
   try {
@@ -1092,12 +1098,12 @@ async function check() {
     $results.hidden = true;
     return result.message && showMessage(result.message);
   }
-  // The page only shows what the server computed: statuses, tiles, charts and verdict come ready.
+  // La page ne montre que ce que le serveur a calculé : statuts, tuiles, camemberts et verdict arrivent prêts.
   state.result = result;
   showResults();
 }
 
-// Show a message above the results.
+// Montre un message au-dessus des résultats.
 function showMessage(text) {
   const $msg = $("#msg");
   $msg.textContent = text;
@@ -1105,25 +1111,26 @@ function showMessage(text) {
 }
 
 // --------------------------------------------------------------------------
-// Display
+// Affichage
 // --------------------------------------------------------------------------
-// Pie chart given by the server; a category keeps its colour when a filter removes others (slots given once, in
-// order of appearance), and the « nothing found » parts are grey.
-const SERIES = 16;   // series colours of the charts (--series-1 to --series-16)
+// Camembert donné par le serveur ; une catégorie garde sa couleur quand un filtre en retire d'autres (emplacements
+// donnés une fois, dans l'ordre d'apparition), et les parts « rien trouvé » sont grises.
+const SERIES = 16;   // couleurs de série des camemberts (--series-1 à --series-16)
 function pieChart({ title, hint, parts }, at) {
-  // `at`: "list:index" of the chart in the result, for the list of the requirements of a clicked part.
+  // `at` : « liste:index » du camembert dans le résultat, pour la liste des exigences d'une part cliquée.
   const part = i => at === undefined ? "" : ` data-part="${at}:${i}"`;
   const sum = parts.reduce((n, p) => n + p.count, 0);
   const slots = state.chartSlots[title] ??= {};
-  // 16 series colours; beyond, they are used again.
-  // A label keeps the same series colour from one drawing to the next (slots per chart); when there are more labels
-  // than colours, the slots start again.
+  // 16 couleurs de série ; au-delà, elles sont réutilisées.
+  // Un libellé garde la même couleur de série d'un dessin à l'autre (emplacements par camembert) ; quand il y a plus de
+  // libellés que de couleurs, les emplacements recommencent.
   if (parts.filter(p => !(p.label in slots) && !p.neutral).length + Object.keys(slots).length > SERIES) state.chartSlots[title] = {};
   const slotOf = label => (state.chartSlots[title][label] ??= Object.keys(state.chartSlots[title]).length + 1);
-  // The colour given by the server first (platform, reserved colours), then grey, then the series colours.
+  // La couleur donnée par le serveur d'abord (plateforme, couleurs réservées), puis le gris, puis les couleurs de
+  // série.
   const color = p => p.color || (p.neutral ? "var(--muted)" : `var(--series-${(slotOf(p.label) - 1) % SERIES + 1})`);
-  // Slices drawn clockwise from 12 o'clock, on a circle of radius 48 centred in a 100 × 100 box; a part that is the
-  // whole chart is a full circle (an arc cannot draw 360°).
+  // Parts dessinées dans le sens des aiguilles d'une montre à partir de midi, sur un cercle de rayon 48 centré dans une
+  // boîte de 100 × 100 ; une part qui fait tout le camembert est un cercle complet (un arc ne peut pas dessiner 360°).
   let angle = -Math.PI / 2;
   const point = a => `${(50 + 48 * Math.cos(a)).toFixed(2)} ${(50 + 48 * Math.sin(a)).toFixed(2)}`;
   const slices = parts.map((p, i) => {
@@ -1131,17 +1138,18 @@ function pieChart({ title, hint, parts }, at) {
     if (p.count === sum) return `<circle cx="50" cy="50" r="48" fill="${color(p)}"${part(i)}>${tip}</circle>`;
     const start = angle;
     angle += 2 * Math.PI * p.count / sum;
-    // SVG arc: the large-arc flag is set for a slice over half of the pie.
+    // Arc SVG : l'indicateur de grand arc est mis pour une part de plus de la moitié du camembert.
     return `<path d="M50 50 L${point(start)} A48 48 0 ${p.count / sum > .5 ? 1 : 0} 1 ${point(angle)} Z" fill="${color(p)}"${part(i)}>${tip}</path>`;
   }).join("");
-  // The explanation of the chart is shown on hovering its title only.
+  // L'explication du camembert n'est montrée qu'au survol de son titre.
   return `<div class="chart"><h3 title="${escapeHtml(hint)}">${escapeHtml(title)}</h3>
     <div class="body"><svg viewBox="0 0 100 100" role="img" aria-label="${escapeHtml(title)}">${slices}</svg>
       <ul>${parts.map((p, i) => `<li${part(i)}><i style="background:${color(p)}"></i><span>${escapeHtml(p.label)}</span>
         <b>${p.count}</b><small>${p.percent} %</small></li>`).join("")}</ul></div></div>`;
 }
 
-// Draw the verdict, tiles, charts, table of defective requirements and anomalies given by the server.
+// Dessine le verdict, les tuiles, les camemberts, le tableau des exigences en défaut et les anomalies donnés par le
+// serveur.
 function showResults() {
   const $verdict = $("#verdict");
   const { names, rows, verdict, tiles, charts, defects, lost, status_labels: labels } = state.result;
@@ -1157,16 +1165,16 @@ function showResults() {
         <div class="val">${t.value}<small> / ${t.expected}</small> <small class="pct">${t.percent} %</small></div></div>`).join("");
 
   $("#charts").innerHTML = charts.map((c, i) => pieChart(c, `charts:${i}`)).join("");
-  // Page Statistiques: coverage of each platform by its fiches, against the delegation of the plans.
+  // Page Statistiques : couverture de chaque plateforme par ses fiches, par rapport à la délégation des plans.
   $("#fiches-charts").innerHTML = (state.result.platform_charts ?? []).map((c, i) => pieChart(c, `platform_charts:${i}`)).join("");
   $("#result-charts").innerHTML = (state.result.result_charts ?? []).map((c, i) => pieChart(c, `result_charts:${i}`)).join("");
 
   const query = $("#search").value.trim().toUpperCase();
-  // Filter on the stage where requirements are lost, with the number of requirements of each stage.
+  // Filtre sur l'étape où les exigences sont perdues, avec le nombre d'exigences de chaque étape.
   if (!lost.some(([name]) => name === state.lostStage)) state.lostStage = "";
   $("#lost-filter").innerHTML = `<option value="">Toutes les étapes (${defects})</option>` +
     lost.map(([name, n]) => `<option value="${escapeHtml(name)}" ${name === state.lostStage ? "selected" : ""}>Perdues à : ${escapeHtml(name)} (${n})</option>`).join("");
-  // Only the requirements with a problem are shown.
+  // Seules les exigences qui ont un problème sont montrées.
   const visible = rows.filter(r => r.lost_at && (!state.lostStage || r.lost_at === state.lostStage) &&
     (!query || [r.id, r.stdhl, r.delegation].some(v => v.toUpperCase().includes(query))));
 
@@ -1184,12 +1192,12 @@ function showResults() {
       `<tr><td colspan="${names.length + 6}" class="empty">Aucune exigence en défaut.</td></tr>`}</tbody>`;
 }
 
-// Tooltip of a status TEST MANQUANT: the tests asked by the STDHL and those found in the fiches.
+// Info-bulle d'un statut TEST MANQUANT : les tests demandés par le STDHL et ceux trouvés dans les fiches.
 const testsTitle = (r, status) => status !== "test" ? "" : `title="${escapeHtml(
   `Tests demandés par le STDHL : ${r.tests_asked.join(", ")} — manquants dans les fiches : ${r.tests_absent.join(", ")}`
   + (r.tests_found.length ? ` — trouvés : ${r.tests_found.join(", ")}` : ""))}"`;
 
-// The requirements of a part of a chart (clicked on the pie or in the legend), with their state in the chain.
+// Les exigences d'une part d'un camembert (cliquée sur le camembert ou dans la légende), avec leur état dans la chaîne.
 function showPart(at) {
   const [list, chart, index] = at.split(":");
   const c = state.result?.[list]?.[Number(chart)], p = c?.parts[Number(index)];
@@ -1212,13 +1220,13 @@ document.addEventListener("click", e => {
 });
 $("#part-close").addEventListener("click", () => $("#part-dialog").close());
 
-// Check of files before their import, from the button on the left of a tile: the files of that stage are sent to
-// the server, which reads them without storing anything and answers with an HTML report, opened or saved here.
+// Vérification de fichiers avant leur import, depuis le bouton à gauche d'une tuile : les fichiers de cette étape sont
+// envoyés au serveur, qui les lit sans rien enregistrer et répond par un rapport HTML, ouvert ou enregistré ici.
 const CHECKS = { requirements: { accept: ".xlsx,.xlsm", what: "d'exigences" }, plans: { accept: ".docx", what: "de plan" },
                  stdhl: { accept: ".docx,.docm", what: "STDHL" }, fiches: { accept: ".xml", what: "de fiches d'essai" } };
-let checkReport = null;   // last answer of the server: {summary, file_name, html}
+let checkReport = null;   // dernière réponse du serveur : {summary, file_name, html}
 
-// The check button, on the left edge of the cards of the stages that have one (data-check).
+// Le bouton de vérification, sur le bord gauche des cartes des étapes qui en ont un (data-check).
 function checkButton(step) {
   return `<button class="drop-check" data-check="${step}" title="Vérifier des fichiers ${CHECKS[step].what} avant import"
     aria-label="Vérifier des fichiers ${CHECKS[step].what} avant import"><svg viewBox="0 0 24 24" fill="none"
@@ -1228,7 +1236,7 @@ function checkButton(step) {
 
 for (const card of document.querySelectorAll(".drop[data-check]")) {
   card.insertAdjacentHTML("afterbegin", checkButton(card.dataset.check));
-  // On the button itself: the card under it imports on a click, the check only reads.
+  // Sur le bouton lui-même : la carte en dessous importe sur un clic, la vérification ne fait que lire.
   card.querySelector(".drop-check").addEventListener("click", e => {
     e.stopPropagation();
     const $checkInput = $("#check-input");
@@ -1239,7 +1247,7 @@ for (const card of document.querySelectorAll(".drop[data-check]")) {
   });
 }
 
-// Files chosen: checked at once (requirements for both imports, replacement and complement).
+// Fichiers choisis : vérifiés aussitôt (exigences pour les deux imports, remplacement et complément).
 $("#check-input").addEventListener("change", e => {
   const files = [...e.target.files];
   const step = e.target.dataset.check;
@@ -1250,7 +1258,7 @@ $("#check-input").addEventListener("change", e => {
   $("#check-open").disabled = $("#check-save").disabled = true;
   $("#check-dialog").showModal();
   if (step !== "fiches") return runCheck(step, files);
-  // Fiches: the platform of each file chosen first, the default one proposed.
+  // Fiches : la plateforme de chaque fichier est choisie d'abord, aucune n'est proposée.
   const platforms = state.config.platforms ?? [];
   $("#check-platform-rows").innerHTML = files.map((f, i) => `<tr><td>${escapeHtml(f.name)}</td><td><select data-check-platform="${i}">
     <option value="">— choisir —</option>${platforms.map(p => `<option>${escapeHtml(p)}</option>`).join("")}</select></td></tr>`).join("");
@@ -1269,7 +1277,7 @@ async function runCheck(step, files, platforms = null) {
   $checkSummary.className = "hint";
   $checkOpen.disabled = $checkSave.disabled = true;
   checkReport = null;
-  // Body: the list of the files (name, size) in JSON, then their bytes in the same order.
+  // Corps : la liste des fichiers (nom, taille) en JSON, puis leurs octets dans le même ordre.
   const manifest = new TextEncoder().encode(JSON.stringify(files.map((f, i) => ({ name: f.name, size: f.size,
     ...(platforms ? { platform: platforms[i] } : {}) }))));
   try {
@@ -1296,15 +1304,15 @@ $("#check-save").addEventListener("click", () => {
 });
 $("#check-close").addEventListener("click", () => $("#check-dialog").close());
 
-// The server writes the complete Excel report; the browser saves it.
+// Le serveur écrit le rapport Excel complet ; le navigateur l'enregistre.
 function exportReport() {
   location.assign(`api/verification/report?${new URLSearchParams({ releases: [...selectedReleases].join(",") })}`);
 }
 
-// Asks, when importing a requirements file, which sheet to read (only when there are several) and which
-// tome the requirements belong to: an existing one or a new one, then added to the configuration.
-// When the tome already has requirements, asks whether the file completes or replaces them.
-// Resolves to { sheet, tome, mode }, or null if cancelled.
+// Demande, à l'import d'un fichier d'exigences, quelle feuille lire (seulement quand il y en a plusieurs) et à quel
+// tome appartiennent les exigences : un tome existant ou un nouveau, ajouté alors à la configuration.
+// Quand le tome a déjà des exigences, demande si le fichier les complète ou les remplace.
+// Résout en { sheet, tome, mode }, ou null en cas d'annulation.
 function chooseImport(fileName, sheetNames, tomeName = "") {
   const $importStatus = $("#import-status");
   const $importNewTomeChoice = $("#import-new-tome-choice");
@@ -1317,7 +1325,8 @@ function chooseImport(fileName, sheetNames, tomeName = "") {
     $("#import-sheets").innerHTML = sheetNames.map((n, i) => `<label class="release-row">
         <input type="radio" name="import-sheet" value="${escapeHtml(n)}" ${i === 0 ? "checked" : ""}><strong>${escapeHtml(n)}</strong></label>`).join("");
     const tomes = state.config.tomes ?? [];
-    // The tome named in the file name (found by the server) is ticked; a new one is written in the new tome field.
+    // Le tome nommé dans le nom du fichier (trouvé par le serveur) est coché ; un nouveau est écrit dans le champ du
+    // nouveau tome.
     const named = tomes.find(t => fold(t) === fold(tomeName));
     $importTomes.innerHTML = tomes.map(t => `<label class="release-row">
         <input type="radio" name="import-tome" value="${escapeHtml(t)}" ${t === named ? "checked" : ""}><strong>${escapeHtml(t)}</strong></label>`).join("");
@@ -1325,7 +1334,7 @@ function chooseImport(fileName, sheetNames, tomeName = "") {
     $importNewTomeChoice.checked = !named && (!tomes.length || !!tomeName);
     $importStatus.textContent = "";
     let result = null;
-    // Complement or replacement is only asked when the chosen tome already has requirements.
+    // Le complément ou le remplacement n'est demandé que lorsque le tome choisi a déjà des exigences.
     const showMode = () => {
       const choice = document.querySelector("[name=import-tome]:checked");
       const tome = !choice || choice.id === "import-new-tome-choice" ? $importNewTome.value.trim() : choice.value;
@@ -1370,9 +1379,9 @@ function chooseImport(fileName, sheetNames, tomeName = "") {
   });
 }
 
-// Asks, when loading an acceptance plan, the tome it belongs to (an existing tome with requirements: no tome
-// is created here) and the releases it applies to (at least one). previous = choices made for the previous
-// plan of the same loading, offered again. Resolves to { tome, releases }, or null if cancelled.
+// Demande, au chargement d'un plan d'acceptation, le tome auquel il appartient (un tome existant avec des exigences :
+// aucun tome n'est créé ici) et les releases auxquelles il s'applique (au moins une). previous = choix faits pour le
+// plan précédent du même chargement, proposés à nouveau. Résout en { tome, releases }, ou null en cas d'annulation.
 function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName = "") {
   const $planDialogStatus = $("#plan-dialog-status");
   return new Promise(resolve => {
@@ -1380,10 +1389,11 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
     const tomes = Object.keys(state.reqDb.tomes);
     const releases = Object.keys(state.config.releases ?? {}).sort(byName);
     $("#plan-file").textContent = `${fileName} (${SLOT_NAMES[slot]})`;
-    // A STDHL or a fiches file may belong to no tome: it then applies to every tome (a single STDHL, for instance).
+    // Un STDHL ou un fichier de fiches peut n'appartenir à aucun tome : il s'applique alors à tous les tomes (un seul
+    // STDHL, par exemple).
     const optional = slot !== "plan";
-    // The tome named in the file name: found by the server (plan), or the STDHL name or a word of the file name equal
-    // to a tome (STDHL, fiches); else the previous choice, else the only tome.
+    // Le tome nommé dans le nom du fichier : trouvé par le serveur (plan), ou le nom du STDHL ou un mot du nom du
+    // fichier égal à un tome (STDHL, fiches) ; sinon le choix précédent, sinon le seul tome.
     const words = [stdhlName, ...fileName.split(/[_\-.\s]+/)].filter(Boolean).map(fold);
     const named = slot === "plan" ? tomeName : tomes.find(t => words.includes(fold(t))) ?? "";
     const tome = tomes.includes(named) ? named : tomes.includes(previous?.tome) ? previous.tome
@@ -1396,21 +1406,23 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
         <span class="hint">${plural(state.reqDb.tomes[t].requirements.length, "exigence")}</span></label>`).join("")
       + (optional ? `<label class="release-row"><input type="radio" name="plan-tome" value="" ${tome === "" ? "checked" : ""}>
         <strong>Aucun</strong><span class="hint">tous les tomes</span></label>` : "");
-    // Plans, STDHL and fiches: the known releases are ticked by default; next files of a loading get the previous choice.
-    // A plan, STDHL or fiches file applies to one release only: a single choice, made by the user for each file (the
-    // file name does not tell it).
+    // Plans, STDHL et fiches : les releases connues sont cochées par défaut ; les fichiers suivants d'un chargement
+    // reprennent le choix précédent.
+    // Un fichier de plan, STDHL ou fiches s'applique à une seule release : un seul choix, fait par l'utilisateur pour
+    // chaque fichier (le nom du fichier ne la dit pas).
     $("#plan-releases-title").textContent = "Release à laquelle ce fichier s'applique (une seule)";
     $("#plan-releases").innerHTML = releases.map(r => `<label class="release-row">
         <input type="radio" name="plan-release" value="${escapeHtml(r)}">
         <strong>${escapeHtml(r)}</strong><span class="hint">${escapeHtml(releaseDescription(r))}</span></label>`).join("") ||
       `<p class="hint">Aucune release déclarée : en ajouter dans Configuration &gt; Releases.</p>`;
     $planDialogStatus.textContent = "";
-    // Fiches file: the platform it comes from. XML: every platform, the default one proposed; Excel: another one.
+    // Fichier de fiches : la plateforme d'où il vient, à choisir parmi toutes les plateformes ; le choix précédent est
+    // repris.
     const askPlatform = slot === "traceability" || slot === "xml";
     const others = state.config.platforms ?? [];
     const platform = others.includes(previous?.platform) ? previous.platform : others.length === 1 ? others[0] : null;
     $("#plan-platform-part").hidden = !askPlatform;
-    // A fiches file has no tome: it applies to every tome, only its platform is asked.
+    // Un fichier de fiches n'a pas de tome : il s'applique à tous les tomes, seule sa plateforme est demandée.
     $("#plan-tome-part").hidden = askPlatform;
     $("#plan-platforms").innerHTML = others.map(p => `<label class="release-row">
         <input type="radio" name="plan-platform" value="${escapeHtml(p)}" ${p === platform ? "checked" : ""}><strong>${escapeHtml(p)}</strong></label>`).join("")
@@ -1430,12 +1442,13 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
   });
 }
 
-// Differences between the requirements of a tome and those of a file, for a "complement" or a "replace" import.
+// Différences entre les exigences d'un tome et celles d'un fichier, pour un import « complement » ou « replace ».
 const DIFF_FIELDS = { title: "Titre", releases: "Releases", stdhl: "STDHL" };
 
 
-// Import approval window, shown before storing a requirements file into a tome that already has requirements: the
-// differences (added in green, modified, removed in red). Resolves to true if the user approves (or for a new tome).
+// Fenêtre d'approbation de l'import, montrée avant d'enregistrer un fichier d'exigences dans un tome qui a déjà des
+// exigences : les différences (ajoutées en vert, modifiées, retirées en rouge). Résout en true si l'utilisateur
+// approuve (ou pour un nouveau tome).
 function approveImport(fileName, { tome, mode }, analysis) {
   const $diffBody = $("#diff-body");
   if (!analysis.tome_exists) return Promise.resolve(true);
@@ -1471,11 +1484,12 @@ function approveImport(fileName, { tome, mode }, analysis) {
   });
 }
 
-// Conflicts found by the server. A number on several rows of the file is settled first, alone: the other conflicts
-// depend on the row kept. Then the user keeps one version of a requirement already in the base, and one value when
-// the STDHL column has several. Returns the choices, null when cancelled; nothing is asked without conflict.
-// In a complement of a tome (`mode` "complement"), the version of the new file is ticked by default; otherwise only an
-// identical requirement is ticked, on its existing version.
+// Conflits trouvés par le serveur. Un numéro sur plusieurs lignes du fichier est réglé d'abord, seul : les autres
+// conflits dépendent de la ligne gardée. Puis l'utilisateur garde une version d'une exigence déjà dans un autre tome de
+// la base, et une valeur quand la colonne STDHL en a plusieurs. Renvoie les choix, null en cas d'annulation ; rien
+// n'est demandé sans conflit.
+// Dans un complément d'un tome (`mode` « complement »), la version du nouveau fichier est cochée par défaut ; sinon
+// seule une exigence identique est cochée, sur sa version existante.
 function chooseConflicts(fileName, analysis, mode = "replace") {
   const $conflictOk = $("#conflict-ok");
   const $conflictBody = $("#conflict-body");
@@ -1513,7 +1527,7 @@ function chooseConflicts(fileName, analysis, mode = "replace") {
     .map(box => [box.name.slice(prefix.length + 1), box.value]));
   const left = () => repeated.length + duplicates.length + multi.length
     - Object.keys(picked("row")).length - Object.keys(picked("keep")).length - Object.keys(picked("stdhl")).length;
-  // Continuer is clickable once every choice is made.
+  // Continuer est cliquable une fois chaque choix fait.
   const update = () => {
     const n = left();
     $conflictOk.disabled = n > 0;
@@ -1544,17 +1558,18 @@ function chooseConflicts(fileName, analysis, mode = "replace") {
   });
 }
 
-// Plan rows the user must settle before loading: an empty or unknown IADT, MOC or delegation, a MOC breaking the
-// IADT/MOC rules or several delegations are replaced by a value of the configuration — the MOC among those expected
-// for the IADT —, or the row is ignored. Returns {rows: {key: decision}}, null when cancelled.
+// Lignes de plan que l'utilisateur doit régler avant le chargement : un IADT, un MOC ou une délégation vide ou inconnu,
+// un MOC qui ne respecte pas les règles IADT/MOC ou plusieurs délégations sont remplacés par une valeur de la
+// configuration — le MOC parmi ceux attendus pour l'IADT —, ou la ligne est ignorée. Renvoie {rows: {clé: décision}},
+// null en cas d'annulation.
 function confirmPlanRows(fileName, rows, slot = "plan") {
   const $conflictOk = $("#conflict-ok");
   const $conflictBody = $("#conflict-body");
   const dialog = $("#conflict-dialog");
-  const plan = slot === "plan";   // a traceability file only has numbers (unknown ones, to ignore)
+  const plan = slot === "plan";   // un fichier de traçabilité n'a que des numéros (inconnus, à ignorer)
   $("#conflict-title").textContent = `${plan ? "Lignes" : "Numéros"} à régler dans ${fileName}`;
   const rules = state.config.iadt_moc_rules ?? {};
-  // MOC proposed for an IADT cell: the expected ones (and all of them together), every MOC without a rule.
+  // MOC proposés pour une cellule IADT : ceux attendus (et tous ensemble), chaque MOC sans règle.
   const expected = iadtCell => {
     const codes = iadtCell.split(",").map(c => c.trim()).filter(Boolean);
     if (!codes.length || codes.some(c => !(c in rules))) return Object.keys(state.config.mocs ?? {});
@@ -1563,7 +1578,7 @@ function confirmPlanRows(fileName, rows, slot = "plan") {
   };
   const labels = { iadt: "IADT", moc: "MOC", delegation: "délégation" };
   const options = (field, values) => {
-    // A single possible value is chosen already.
+    // Une seule valeur possible est déjà choisie.
     const single = values.length === 1;
     return (single ? "" : `<option value="">${labels[field]}…</option>`)
       + values.map(v => `<option value="${escapeHtml(v)}" ${single ? "selected" : ""}>${escapeHtml(v)}</option>`).join("");
@@ -1591,13 +1606,14 @@ function confirmPlanRows(fileName, rows, slot = "plan") {
           ${r.duplicate?.length ? `garder celle de ${escapeHtml(r.duplicate.join(", "))}` : `ignorer ${plan ? "la ligne" : "ce numéro"}`}</label></div></td></tr>`).join("")}
     </tbody></table></div>`;
   const field = (key, name) => document.querySelector(`#conflict-body select[data-plan-key="${CSS.escape(key)}"][data-plan-field="${name}"]`);
-  // Answer of a row: ignored, or corrected with a value for every cell to choose; null while incomplete.
+  // Réponse d'une ligne : ignorée, ou corrigée avec une valeur pour chaque cellule à choisir ; null tant qu'elle est
+  // incomplète.
   const answer = r => {
     const picked = document.querySelector(`#conflict-body input[name="plan:${CSS.escape(r.key)}"]:checked`)?.value;
     const chosen = Object.fromEntries(r.choose.map(f => [f, field(r.key, f).value]));
     return picked === "ignore" ? { ignore: true } : picked === "accept" && Object.values(chosen).every(Boolean) ? chosen : null;
   };
-  // Continuer is clickable once every row has its answer.
+  // Continuer est cliquable une fois que chaque ligne a sa réponse.
   const update = () => {
     const left = rows.filter(r => !answer(r)).length;
     $conflictOk.disabled = left > 0;
@@ -1608,7 +1624,7 @@ function confirmPlanRows(fileName, rows, slot = "plan") {
     if (all) for (const box of document.querySelectorAll(`#conflict-body input[value="${all}"]`)) box.checked = true;
     update();
   };
-  // Choosing a value selects « corriger avec »; choosing the IADT gives the MOC expected for it.
+  // Choisir une valeur sélectionne « corriger avec » ; choisir l'IADT donne le MOC attendu pour lui.
   $conflictBody.onchange = e => {
     const { planKey: key, planField: name } = e.target.dataset;
     if (!key) return;
@@ -1639,12 +1655,12 @@ function confirmPlanRows(fileName, rows, slot = "plan") {
 }
 
 const releaseDescription = () => "";
-const selectedReleases = new Set();   // no selection of releases anymore: everything is checked
+const selectedReleases = new Set();   // plus de sélection de releases : tout est vérifié
 
-// Names sorted alphabetically, numbers in natural order (VS2 before VS10).
+// Noms triés par ordre alphabétique, nombres dans l'ordre naturel (VS2 avant VS10).
 const byName = (a, b) => a.localeCompare(b, "fr", { numeric: true });
 
-// The release changes only while no file is loaded (the server refuses it too).
+// La release ne change que tant qu'aucun fichier n'est chargé (le serveur le refuse aussi).
 function lockRelease() {
   const $cfgRelease = $("#cfg-release");
   const loaded = state.records.length > 0;
@@ -1652,7 +1668,7 @@ function lockRelease() {
   $cfgRelease.title = loaded ? "Des fichiers sont chargés : les supprimer pour changer de release." : "";
 }
 
-// Show the release of the base in the header.
+// Montre la release de la base dans l'en-tête.
 function renderReleasePicker() {
   const $releaseName = $("#release-name");
   const release = state.config.release ?? "";
@@ -1660,12 +1676,12 @@ function renderReleasePicker() {
   $releaseName.classList.toggle("missing", !release);
 }
 
-// Drop zones: names of the files in use, or the last error.
-// Content of a plan, STDHL or fiches file in the base.
+// Zones de dépôt : noms des fichiers utilisés, ou la dernière erreur.
+// Contenu d'un fichier de plan, STDHL ou fiches dans la base.
 const stored = r => r.slot === "plan" ? state.plansDb.plans[r.id] : r.slot === "stdhl" ? state.stdhlDb.stdhl[r.id]
   : r.slot === "traceability" ? state.traceDb.traceability[r.id] : state.fichesDb.fiches[r.id];
 
-// Draw the loading boxes of the home page: number of files and last message.
+// Dessine les boîtes de chargement de la page d'accueil : nombre de fichiers et dernier message.
 function renderCards() {
   for (const card of document.querySelectorAll(".drop")) {
     const slot = card.dataset.slot, slots = SLOTS_OF_CARD[slot] ?? [slot];
@@ -1674,29 +1690,30 @@ function renderCards() {
     const error = slots.map(s => state.errors[s]).filter(Boolean).join(" ; ");
     card.classList.toggle("loaded", count > 0 && !error);
     card.classList.toggle("error", !!error);
-    // Only the message of the last import: the full lists are on the other pages.
+    // Seul le message du dernier import : les listes complètes sont dans les autres pages.
     card.querySelector(".name").textContent = error || (count ? prefs.lastLoad?.[slot] || plural(count, "chargé") : "")
       || (MULTI_SLOTS.has(slot) ? "Déposer un ou plusieurs documents…" : "Déposer ou cliquer…");
   }
 }
 
-// « 1 ligne », « 3 lignes » (singular up to 1, as in French).
+// « 1 ligne », « 3 lignes » (singulier jusqu'à 1, comme en français).
 const plural = (n, singular, several = singular + "s") => `${n} ${n > 1 ? several : singular}`;
 
-// Remembers the message of the last import of a box (kept in this browser only).
+// Mémorise le message du dernier import d'une boîte (gardé dans ce navigateur seulement).
 function setLastLoad(slot, text) {
   prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: text };
   writePrefs();
 }
 
-// "Exigences par tome" page: one tab per tome, the last one opened being remembered.
+// Page « Exigences par tome » : un onglet par tome, le dernier ouvert étant mémorisé.
 const TOME_TAB_KEY = "nexus-v-tome-tab";
 let tomeTab = (() => { try { return localStorage.getItem(TOME_TAB_KEY); } catch { return null; } })();
 
-// Draw the page Exigences par tome, with the row being edited.
+// Dessine la page Exigences par tome, avec la ligne en cours de modification.
 function renderTomes() {
   const tomes = Object.keys(state.reqDb.tomes);
-  // Sidebar badge: number of tomes, like the number of loaded files; the tooltip adds the requirements.
+  // Pastille de la barre latérale : nombre de tomes, comme le nombre de fichiers chargés ; l'info-bulle ajoute les
+  // exigences.
   const total = tomes.reduce((n, t) => n + state.reqDb.tomes[t].requirements.length, 0);
   $("#tomes-count").textContent = tomes.length || "";
   document.querySelector('.nav-item[data-tab="requirements"]').title =
@@ -1708,7 +1725,7 @@ function renderTomes() {
     `${escapeHtml(t)}<span class="n">(${shown(t).filter(r => !r.deleted).length})</span></button>`).join("");
   const fileName = id => state.records.find(r => r.id === id)?.name ?? "";
   const tome = tomeTab ? { ...state.reqDb.tomes[tomeTab], requirements: shown(tomeTab) } : null;
-  // Filter of the page, on the tome shown: words of the search all found, and the state chosen.
+  // Filtre de la page, sur le tome montré : tous les mots de la recherche trouvés, et l'état choisi.
   const words = fold($("#req-search").value).split(" ").filter(Boolean), wanted = $("#req-state").value;
   const stateOf = r => r.deleted ? "deleted" : r.manual === "added" ? "added" : r.manual ? "modified" : "imported";
   const validationLabel = v => state.reqDb.validation_states?.[v] ?? v ?? "";
@@ -1727,11 +1744,11 @@ function renderTomes() {
     : "Aucun tome : importer un fichier d'Exigences depuis la page Vérification.";
   $("#tome-toolbar").hidden = !tome;
   if (reqEdit && reqEdit.tome !== tomeTab) reqEdit = null;
-  // Releases and STDHL of a row being edited are chosen among the existing values: the releases of the
-  // configuration (a checkbox each) and the values of the table list_stdhl (a list, empty allowed).
+  // Les releases et le STDHL d'une ligne en cours de modification sont choisis parmi les valeurs existantes : les
+  // releases de la configuration (une case chacune) et les valeurs de la table list_stdhl (une liste, vide admis).
   const stdhlChoices = current => [`<option value="">(aucune)</option>`,
     ...(state.reqDb.stdhl_values ?? []).map(v => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`)].join("");
-  // IADT, MOC, delegation and validation: chosen among the values of the configuration (and of the server).
+  // IADT, MOC, délégation et validation : choisis parmi les valeurs de la configuration (et du serveur).
   const choices = (values, current, labels = {}) => values.map(v =>
     `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(labels[v] ?? v)}</option>`).join("");
   const referenceCells = r => `
@@ -1740,7 +1757,7 @@ function renderTomes() {
       <td><select data-field="delegation" aria-label="Délégation">${choices(state.config.platforms ?? [], r.delegation ?? "")}</select></td>
       <td><select data-field="validation" aria-label="Validation">${choices(Object.keys(state.reqDb.validation_states ?? {}),
         r.validation ?? "to_qualify", state.reqDb.validation_states ?? {})}</select></td>`;
-  // Row being edited (or added): input fields.
+  // Ligne en cours de modification (ou d'ajout) : champs de saisie.
   const editRow = r => `<tr class="req-manual" data-req="${escapeHtml(r.id ?? "")}">
       <td><input type="text" class="mono" data-field="id" value="${escapeHtml(r.id ?? "")}" placeholder="ID"></td>
       <td><input type="text" data-field="title" value="${escapeHtml(r.title ?? "")}" placeholder="Titre"></td>
@@ -1768,21 +1785,22 @@ function renderTomes() {
     : "";
 }
 
-// Filter of the Exigences page: applied while typing.
+// Filtre de la page Exigences : appliqué pendant la saisie.
 $("#req-search").addEventListener("input", () => renderTomes());
 $("#req-state").addEventListener("change", () => renderTomes());
 $("#req-filter-clear").addEventListener("click", () => { $("#req-search").value = ""; $("#req-state").value = ""; renderTomes(); });
 
-// Statistics page: share of the requirements by tome, delegations by tome and platform (data given by the server).
+// Page Statistiques : part des exigences par tome, délégations par tome et par plateforme (données fournies par le
+// serveur).
 function renderStats() {
-  // Share of the requirements in each tome, given by the server: one segment each, in the colour of the tome.
+  // Part des exigences dans chaque tome, donnée par le serveur : un segment chacun, à la couleur du tome.
   const share = state.reqDb.distribution ?? [];
   const pct = s => `${s.percent.toFixed(1).replace(".", ",")} %`;
   $("#tome-share").innerHTML = share.length ? `<div class="bar" role="img" aria-label="Répartition des exigences par tome">${
     share.map(s => `<span data-tome-tab="${escapeHtml(s.tome)}"
       style="flex: ${s.count} 0 0; background: ${escapeHtml(s.color || "var(--muted)")}"
       title="${escapeHtml(s.tome)} : ${plural(s.count, "exigence")} (${pct(s)})">${escapeHtml(s.tome)}<small>${pct(s)}</small></span>`).join("")}</div>` : `<p class="hint">Aucune exigence importée.</p>`;
-  // Share of the platforms in the delegations of each tome (given by the server): one bar per tome.
+  // Part des plateformes dans les délégations de chaque tome (donnée par le serveur) : une barre par tome.
   const shares = (state.reqDb?.delegation_shares ?? [])
     .sort((a, b) => byName(a.tome, b.tome));
   const pctOf = p => `${p.percent.toFixed(1).replace(".", ",")} %`;
@@ -1796,7 +1814,7 @@ function renderStats() {
     + `<div class="keys">${[...used].map(([name, color]) => `<span><i style="background: ${escapeHtml(color || "var(--muted)")}"></i>${escapeHtml(name)}</span>`).join("")}</div>` : `<p class="hint">Aucune exigence importée.</p>`;
 }
 
-// A bar of the statistics opens its tome in the page Exigences or Plans d'acceptation.
+// Une barre des statistiques ouvre son tome dans la page Exigences ou Plans d'acceptation.
 $("#tome-share").addEventListener("click", e => {
   const seg = e.target.closest("[data-tome-tab]");
   if (!seg) return;
@@ -1812,25 +1830,25 @@ $("#plan-deleg").addEventListener("click", e => {
   renderPlans();
 });
 
-// A tab, or a segment of the cumulative bar, shows its tome.
+// Un onglet, ou un segment de la barre cumulée, montre son tome.
 const chooseTome = e => {
   const tab = e.target.closest("[data-tome-tab]");
   if (!tab) return;
   tomeTab = tab.dataset.tomeTab;
-  try { localStorage.setItem(TOME_TAB_KEY, tomeTab); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(TOME_TAB_KEY, tomeTab); } catch { /* stockage indisponible */ }
   renderTomes();
 };
 $("#tome-tabs").addEventListener("click", chooseTome);
 
-// HTML of a tome check (shared by the window shown after loading plans and the Plans page).
-// In the Plans page (`inPage`), only the summary and the requirements found in a plan of another release or without
-// release: the absent requirements and the anomalies are in the table of the tome.
+// HTML de la vérification d'un tome (partagé par la fenêtre montrée après le chargement de plans et la page Plans).
+// Dans la page Plans (`inPage`), seulement le résumé et les exigences trouvées dans un plan d'une autre release ou sans
+// release : les exigences absentes et les anomalies sont dans le tableau du tome.
 function planCheckHtml(c, inPage = false) {
   if (c.error) return `<p class="hint ko">Contrôle indisponible : ${escapeHtml(c.error)}</p>`;
   if (!c.requirements) return `<p class="hint ko">Le tome « ${escapeHtml(c.tome)} » ne contient aucune exigence.</p>`;
   if (inPage) {
     const fine = !c.missing.length && !c.misplaced.length;
-    // Only what needs attention: no « 0 absente ».
+    // Seulement ce qui demande de l'attention : pas de « 0 absente ».
     const notes = [
       c.missing.length && `${plural(c.missing.length, "exigence absente", "exigences absentes")} des plans (en rouge dans le tableau)`,
       c.misplaced.length && `${plural(c.misplaced.length, "exigence citée", "exigences citées")} seulement dans un plan qui ne s'applique pas à ${c.misplaced.length > 1 ? "leurs" : "ses"} releases (détail ci-dessous)`,
@@ -1882,8 +1900,8 @@ function planCheckHtml(c, inPage = false) {
   </div>`;
 }
 
-// Check of a tome by the server (PlansDatabase.check_tome), for the releases selected in the header;
-// kept until the next refresh. Resolves to the check, or { tome, error }.
+// Vérification d'un tome par le serveur (PlansDatabase.check_tome), pour les releases sélectionnées dans l'en-tête ;
+// gardée jusqu'au prochain rafraîchissement. Résout en la vérification, ou { tome, error }.
 function planCheck(tome) {
   const releases = [...selectedReleases].sort(byName);
   const key = `${tome}|${releases.join(",")}`;
@@ -1891,8 +1909,9 @@ function planCheck(tome) {
   return state.planChecks[key];
 }
 
-// Window shown after loading plans: the check of each tome concerned. It waits for the configuration
-// windows (platforms found in the plans) to be closed, since adding a platform changes the anomalies.
+// Fenêtre montrée après le chargement de plans : la vérification de chaque tome concerné. Elle attend la fermeture des
+// fenêtres de configuration (plateformes trouvées dans les plans), puisque l'ajout d'une plateforme change les
+// anomalies.
 async function showPlanCheck(tomes, skipped = []) {
   const $planCheckDialog = $("#plan-check-dialog");
   const $planCheckBody = $("#plan-check-body");
@@ -1909,11 +1928,11 @@ async function showPlanCheck(tomes, skipped = []) {
   $planCheckDialog.showModal();
 }
 
-// Manual changes of the requirements of the open tome (overwritten by the next import of the tome).
-let reqEdit = null;      // { tome, id } of the row being edited; id null: new requirement
-let reqConfirm = null;   // ID whose deletion awaits confirmation
+// Modifications à la main des exigences du tome ouvert (écrasées par le prochain import du tome).
+let reqEdit = null;      // { tome, id } de la ligne en cours de modification ; id null : nouvelle exigence
+let reqConfirm = null;   // ID dont la suppression attend une confirmation
 
-// Send a manual change of a requirement, then reload everything.
+// Envoie une modification à la main d'une exigence, puis recharge tout.
 async function saveRequirementChange(body) {
   const $reqStatus = $("#req-status");
   try {
@@ -1957,26 +1976,26 @@ $("#tome-table").addEventListener("click", e => {
   }
 });
 
-// Enter saves, Escape cancels, in the row being edited.
+// Entrée enregistre, Échap annule, dans la ligne en cours de modification.
 $("#tome-table").addEventListener("keydown", e => {
   if (!e.target.matches("input[data-field]")) return;
   if (e.key === "Enter") e.target.closest("tr").querySelector("[data-req-save]").click();
   if (e.key === "Escape") e.target.closest("tr").querySelector("[data-req-cancel]").click();
 });
 
-// Acceptance plans page, built like the requirements one: one tab per tome, then the plans of that tome
-// (with their releases), the last tab opened being remembered.
+// Page des plans d'acceptation, construite comme celle des exigences : un onglet par tome, puis les plans de ce tome
+// (avec leurs releases), le dernier onglet ouvert étant mémorisé.
 const PLAN_TAB_KEY = "nexus-v-plan-tab";
-const NO_TOME = "(sans tome)";   // plans loaded before plans were attached to a tome
+const NO_TOME = "(sans tome)";   // plans chargés avant que les plans soient rattachés à un tome
 let planTab = (() => { try { return localStorage.getItem(PLAN_TAB_KEY); } catch { return null; } })();
 
-let planEdit = null;      // { tome, file, requirement } of the row being edited; requirement null: new row
-let planConfirm = null;   // { file, requirement } whose deletion awaits confirmation
-const planMissing = {};   // requirements absent from the plans of their release, by tome (from the check)
+let planEdit = null;      // { tome, file, requirement } de la ligne modifiée ; requirement null : nouvelle
+let planConfirm = null;   // { file, requirement } dont la suppression attend une confirmation
+const planMissing = {};   // exigences absentes des plans de leur release, par tome (d'après la vérification)
 
-// Draw the page Plans d'acceptation: one tab per plan, then the check of its tome.
-// Tab of a tome: its requirements in the plans (rows not deleted), then whether every requirement of the tome
-// (selected release) is declined in its plans: ✓, or ⚠ and the number missing; the details on hovering.
+// Dessine la page Plans d'acceptation : un onglet par plan, puis la vérification de son tome.
+// Onglet d'un tome : ses exigences dans les plans (lignes non supprimées), puis si chaque exigence du tome (release
+// sélectionnée) est déclinée dans ses plans : ✓, ou ⚠ et le nombre manquant ; le détail au survol.
 function planTabCount(tome, plans) {
   const rows = plans.flatMap(p => p.rows.filter(r => !r.deleted));
   const declined = new Set(rows.map(r => r.key));
@@ -2028,9 +2047,9 @@ function renderPlans() {
   });
 }
 
-// Plans page: the table of the tome shown, its filter and its manual changes.
+// Page Plans : le tableau du tome montré, son filtre et ses modifications à la main.
 
-// MOC proposed for an IADT: the expected ones (and all of them together), every MOC when the IADT has no rule.
+// MOC proposés pour un IADT : ceux attendus (et tous ensemble), chaque MOC quand l'IADT n'a pas de règle.
 function expectedMocs(iadt) {
   const rules = state.config.iadt_moc_rules ?? {};
   if (!(iadt in rules)) return Object.keys(state.config.mocs ?? {});
@@ -2038,26 +2057,28 @@ function expectedMocs(iadt) {
   return allowed.length > 1 ? [...allowed, allowed.join(", ")] : allowed;
 }
 
-// Draw the table of the tome: the rows of its plans (with their release) and its absent requirements, filtered.
+// Dessine le tableau du tome : les lignes de ses plans (avec leur release) et ses exigences absentes, filtrées.
 function drawPlanTable() {
   const tab = planTab, here = $("#plan-table");
   if (!here) return;
-  if (!tab) { here.innerHTML = ""; return; }   // no plan: the message of the page only, as for STDHL and fiches
+  if (!tab) { here.innerHTML = ""; return; }   // pas de plan : seulement le message de la page
   const plans = state.plans.filter(p => inSelection(p.releases) && (p.tome || NO_TOME) === tab);
   const reqs = state.reqDb.tomes[tab]?.requirements ?? [];
   const titleOf = id => reqs.find(x => x.id === id)?.title ?? "";
-  // STDHL asked for the requirement (column STDHL of the requirements): only those delegated to the default platform
-  // have one; a difference is shown in red.
+  // STDHL demandé pour l'exigence (colonne STDHL des exigences) : seules celles déléguées à la plateforme de niveau
+  // système en ont un ; une différence est montrée en rouge.
   const stdhlOf = id => reqs.find(x => x.id === id)?.stdhl ?? "";
   const stdhlCell = (id, r) => {
-    // The column STDHL is optional: only a STDHL asked for a requirement delegated to another platform is wrong.
+    // La colonne STDHL est facultative : seul un STDHL demandé pour une exigence déléguée à une autre plateforme est
+    // faux.
     const value = stdhlOf(id), top = r && r.effective_delegation === state.config.system_platform;
     const wrong = r && !r.deleted && !top && !!value;
     const why = wrong ? `STDHL demandé mais déléguée à ${r.effective_delegation}` : "";
     return `<td class="${wrong ? "stdhl-wrong" : ""}" ${why ? `title="${escapeHtml(why)}"` : ""}>${escapeHtml(value) || (wrong ? "—" : "")}</td>`;
   };
   const stateOf = r => r.deleted ? "deleted" : r.manual === "added" ? "added" : r.manual ? "modified" : "imported";
-  // A requirement absent from the plans because its rows were deleted: its deleted rows say so, no line of its own.
+  // Une exigence absente des plans parce que ses lignes ont été supprimées : ses lignes supprimées le disent, pas de
+  // ligne à elle.
   const missingIds = new Set((planMissing[tab] ?? []).map(m => m.id));
   const deletedIds = new Set(plans.flatMap(plan => plan.rows.filter(r => r.deleted).map(r => r.key)));
   const all = [
@@ -2066,7 +2087,7 @@ function drawPlanTable() {
     ...(planMissing[tab] ?? []).filter(m => !deletedIds.has(m.id))
       .map(m => ({ release: "", id: m.id, missing: m, state: "missing" })),
   ].sort((a, b) => byName(a.id, b.id) || byName(a.release, b.release));
-  // Filter: words of the search all found, and the state chosen; the row being edited stays.
+  // Filtre : tous les mots de la recherche trouvés, et l'état choisi ; la ligne en cours de modification reste.
   const words = fold($("#plan-search").value).split(" ").filter(Boolean), wanted = $("#plan-state").value;
   const text = x => fold([x.release, x.id, x.missing ? x.missing.title : titleOf(x.id), stdhlOf(x.id),
                            ...(x.r ? [x.r.iadt, x.r.moc, x.r.effective_delegation] : [])].join(" "));
@@ -2078,12 +2099,13 @@ function drawPlanTable() {
   $("#plan-filter-count").textContent = filtering ? `${plural(rows.length, "ligne affichée", "lignes affichées")} sur ${all.length}` : "";
   const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
   const mocOptions = (iadt, current) => (iadt ? expectedMocs(iadt) : []).map(m => option(m, m, m === current)).join("");
-  // Row being edited (requirement null: new row; `preset`: requirement absent from the plans, added from its line).
+  // Ligne en cours de modification (requirement null : nouvelle ligne ; `preset` : exigence absente des plans, ajoutée
+  // depuis sa ligne).
   const editRow = (x, preset) => {
     const r = x?.r, adding = !r;
     const plansOf = plans.filter(pl => !preset || pl.releases.some(rel => preset.releases.includes(rel)));
     const iadt = r ? r.iadt_codes.join(", ") : "";
-    // A new row goes into the plan of the tome; with several plans, the user chooses it.
+    // Une nouvelle ligne va dans le plan du tome ; avec plusieurs plans, l'utilisateur le choisit.
     const planField = !adding ? "" : plansOf.length > 1
       ? `<select data-plan-field="file" aria-label="Plan">${plansOf.map(pl => option(pl.id, pl.name, pl.id === planEdit.file)).join("")}</select>`
       : `<input type="hidden" data-plan-field="file" value="${plansOf[0]?.id ?? ""}">`;
@@ -2129,12 +2151,13 @@ function drawPlanTable() {
       `<tr><td colspan="7" class="empty">${filtering ? "Aucune ligne ne correspond au filtre." : "Aucune ligne dans les plans de ce tome."}</td></tr>`}</tbody></table></div>`;
 }
 
-// Bring the row being edited into view: its select fields widen the columns, which may push it out of the table.
+// Amène la ligne en cours de modification à l'écran : ses listes de choix élargissent les colonnes, ce qui peut la
+// pousser hors du tableau.
 function showEditedRow(selector) {
   requestAnimationFrame(() => document.querySelector(selector)?.scrollIntoView({ block: "center", inline: "nearest" }));
 }
 
-// Send a manual change of a plan row, then reload everything.
+// Envoie une modification à la main d'une ligne de plan, puis recharge tout.
 async function savePlanChange(body) {
   const $planStatus = $("#plan-status");
   try {
@@ -2159,7 +2182,7 @@ $("#plan-add").addEventListener("click", () => {
   showEditedRow("#plan-table [data-plan-edit]");
 });
 $("#plan-body").addEventListener("change", e => {
-  // The MOC proposed depend on the IADT chosen.
+  // Les MOC proposés dépendent de l'IADT choisi.
   if (e.target.dataset.planField !== "iadt") return;
   const moc = e.target.closest("tr").querySelector('[data-plan-field="moc"]');
   const values = e.target.value ? expectedMocs(e.target.value) : [];
@@ -2197,26 +2220,26 @@ $planBody.addEventListener("click", e => {
                      values: { iadt: value("iadt"), moc: value("moc"), delegation: value("delegation") } });
   }
 });
-// Escape cancels the row being edited.
+// Échap annule la ligne en cours de modification.
 $("#plan-body").addEventListener("keydown", e => {
   if (e.key === "Escape" && e.target.closest("[data-plan-edit]")) e.target.closest("tr").querySelector("[data-plan-cancel]").click();
 });
 
-// A tab, or a bar of the delegations, shows its tome.
+// Un onglet, ou une barre des délégations, montre son tome.
 const choosePlanTab = e => {
   const tab = e.target.closest("[data-plan-tab]");
   if (!tab) return;
   planTab = tab.dataset.planTab;
-  try { localStorage.setItem(PLAN_TAB_KEY, planTab); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(PLAN_TAB_KEY, planTab); } catch { /* stockage indisponible */ }
   renderPlans();
 };
 $("#plan-tabs").addEventListener("click", choosePlanTab);
 
-// STDHL page: one tab per STDHL, the last one opened being remembered.
+// Page STDHL : un onglet par STDHL, le dernier ouvert étant mémorisé.
 const STDHL_TAB_KEY = "nexus-v-stdhl-tab";
 let stdhlTab = (() => { try { return localStorage.getItem(STDHL_TAB_KEY); } catch { return null; } })();
 
-// Draw the page STDHL: one tab per document, with its rows and anomalies.
+// Dessine la page STDHL : un onglet par document, avec ses lignes et ses anomalies.
 function renderStdhl() {
   const docs = state.stdhl.filter(d => inSelection(d.releases));
   const lines = d => d.rows.reduce((n, row) => n + row.requirements.length, 0);
@@ -2233,7 +2256,7 @@ function renderStdhl() {
       + ` — ${plural(new Set(doc.rows.map(r => r.test).filter(Boolean)).size, "test")}, ${plural(new Set(doc.rows.flatMap(r => r.requirements)).size, "exigence")}`
       + selectionNote(docs.length, state.stdhl.length, "STDHL")
     : "Aucun STDHL : en charger depuis la page Vérification (après les Exigences).";
-  // Titles are not stored with the STDHL: they are taken from the requirements.
+  // Les titres ne sont pas enregistrés avec le STDHL : ils sont pris dans les exigences.
   const titles = new Map(state.requirements.map(r => [r.id, r.title]));
   const all = doc ? doc.rows.flatMap(row => row.requirements.map(id => ({ id, title: titles.get(id) ?? "", test: row.test,
                                                                             deleted: row.deleted }))) : [];
@@ -2256,10 +2279,10 @@ function renderStdhl() {
     : "";
 }
 
-// Name of a test changed in place: the cell becomes a field; the new name goes to the referential of the tests
-// (fe_tests), for every STDHL and fiche that cite it. The document itself is to be corrected too.
+// Nom d'un test modifié sur place : la cellule devient un champ ; le nouveau nom va dans le référentiel des tests
+// (fe_tests), pour chaque STDHL et chaque fiche qui le citent. Le document lui-même est à corriger aussi.
 $("#stdhl-table").addEventListener("click", async e => {
-  // A row deleted (kept struck through, left out of the check) or restored.
+  // Une ligne supprimée (gardée barrée, laissée de côté par la vérification) ou rétablie.
   const act = e.target.closest("[data-stdhl-action]");
   if (act) {
     const tr = act.closest("tr");
@@ -2305,12 +2328,12 @@ $("#stdhl-table").addEventListener("keydown", e => {
 const FICHES_TAB_KEY = "nexus-v-fiches-tab";
 let fichesTab = (() => { try { return localStorage.getItem(FICHES_TAB_KEY); } catch { return null; } })();
 
-// Draw the page Fiches d'Essai: one tab per file, with its tests, test cases and requirements.
+// Dessine la page Fiches d'Essai : un onglet par fichier, avec ses tests, test cases et exigences.
 function renderFiches() {
   const docs = state.xmls.filter(d => inSelection(d.releases));
   $("#fiches-count").textContent = docs.length || "";
   document.querySelector('.nav-item[data-tab="fiches"]').title = "Fiches d'Essai" + (docs.length ? ` : ${plural(docs.length, "fichier")}` : "");
-  // One line per requirement and test case, filed under the function of the requirement (column STDHL).
+  // Une ligne par exigence et test case, rangée sous la fonction de l'exigence (colonne STDHL).
   const byId = new Map(state.requirements.map(r => [r.id, r]));
   const lines = docs.flatMap(d => d.rows.flatMap(row => row.requirements.map(id => ({
     id, title: byId.get(id)?.title ?? "", fn: byId.has(id) ? byId.get(id).tome : "(exigence inconnue)",
@@ -2337,8 +2360,9 @@ function renderFiches() {
     : "";
 }
 
-// Lines of the page `key` (stdhl, fiches) holding every word of its search field (case and accents ignored), and the
-// state of its search bar: shown when the page has lines, count and clear button while a search is typed.
+// Lignes de la page `key` (stdhl, fiches) qui contiennent chaque mot de son champ de recherche (casse et accents
+// ignorés), et l'état de sa barre de recherche : montrée quand la page a des lignes, compte et bouton d'effacement
+// pendant une recherche.
 function searched(lines, key, fields) {
   const words = fold($(`#${key}-search`).value).split(" ").filter(Boolean);
   const kept = words.length ? lines.filter(l => { const text = fold(fields(l).join(" ")); return words.every(w => text.includes(w)); }) : lines;
@@ -2356,7 +2380,7 @@ $("#fiches-tabs").addEventListener("click", e => {
   const tab = e.target.closest("[data-fiches-tab]");
   if (!tab) return;
   fichesTab = tab.dataset.fichesTab;
-  try { localStorage.setItem(FICHES_TAB_KEY, fichesTab); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(FICHES_TAB_KEY, fichesTab); } catch { /* stockage indisponible */ }
   renderFiches();
 });
 
@@ -2364,17 +2388,17 @@ $("#stdhl-tabs").addEventListener("click", e => {
   const tab = e.target.closest("[data-stdhl-tab]");
   if (!tab) return;
   stdhlTab = tab.dataset.stdhlTab;
-  try { localStorage.setItem(STDHL_TAB_KEY, stdhlTab); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(STDHL_TAB_KEY, stdhlTab); } catch { /* stockage indisponible */ }
   renderStdhl();
 });
 
-// File management page: one tab per file type, the last one opened being remembered.
+// Page de gestion des fichiers : un onglet par type de fichier, le dernier ouvert étant mémorisé.
 const FILES_TAB_KEY = "nexus-v-files-tab";
 let filesSelected = new Set(), filesShown = [], filesConfirm = false;
 let filesTab = (() => { try { return localStorage.getItem(FILES_TAB_KEY); } catch { return null; } })();
 if (!(filesTab in SLOT_NAMES)) filesTab = "requirements";
 
-// Draw the page Gestion des fichiers for the current type of file.
+// Dessine la page Gestion des fichiers pour le type de fichier en cours.
 function renderFiles() {
   const $filesTabHint = $("#files-tab-hint");
   $("#files-count").textContent = state.records.length || "";
@@ -2387,10 +2411,10 @@ function renderFiles() {
     ? "Chaque plan est rattaché à un tome ; tous les plans chargés sont utilisés (page Plans d'acceptation)."
     : "Chaque fichier est rattaché à un tome, ou à aucun : il s'applique alors à tous les tomes.";
   const all = state.records.filter(r => r.slot === filesTab);
-  // Plans, STDHL and fiches apply to releases: only those of the selection are shown.
+  // Les plans, STDHL et fiches s'appliquent à des releases : seuls ceux de la sélection sont montrés.
   const records = all.filter(r => !ATTACHED.has(r.slot) || inSelection(r.releases)).sort((a, b) => b.id - a.id);
   $filesTabHint.textContent += selectionNote(records.length, all.length, "fichier");
-  filesSelected = new Set(records.map(r => r.id).filter(id => filesSelected.has(id)));   // what is shown only
+  filesSelected = new Set(records.map(r => r.id).filter(id => filesSelected.has(id)));   // seulement ce qui est montré
   filesShown = records.map(r => r.id);
   $("#files-table").innerHTML =
     `<thead><tr><th><input type="checkbox" id="files-all" title="Tout sélectionner" aria-label="Tout sélectionner"></th><th>N°</th><th>Fichier</th><th>Tome</th>` +
@@ -2407,7 +2431,7 @@ function renderFiles() {
   drawFilesSelection();
 }
 
-// Selection of files to delete at once: number chosen, requirements leaving with them, confirmation.
+// Sélection de fichiers à supprimer en une fois : nombre choisi, exigences qui partent avec eux, confirmation.
 function drawFilesSelection() {
   const n = filesSelected.size;
   if (!n) filesConfirm = false;
@@ -2455,27 +2479,27 @@ $("#files-tabs").addEventListener("click", e => {
   if (!tab) return;
   filesTab = tab.dataset.filesTab;
   filesSelected = new Set();
-  try { localStorage.setItem(FILES_TAB_KEY, filesTab); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(FILES_TAB_KEY, filesTab); } catch { /* stockage indisponible */ }
   renderFiles();
 });
 
 // --------------------------------------------------------------------------
-// File loading
+// Chargement des fichiers
 // --------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------
-// Tables de la base: one tab per table; the server reads and changes the rows (NexusDatabase).
+// Tables de la base : un onglet par table ; le serveur lit et modifie les lignes (NexusDatabase).
 // --------------------------------------------------------------------------
 const DB_TAB_KEY = "nexus-v-db-tab";
 let dbTab = (() => { try { return localStorage.getItem(DB_TAB_KEY); } catch { return null; } })();
 let dbList = [], dbData = null;
-let dbEdit = null;      // row being edited: its rowid, or "new"
-let dbConfirm = null;   // row whose deletion is being confirmed
+let dbEdit = null;      // ligne en cours de modification : son rowid, ou « new »
+let dbConfirm = null;   // ligne dont la suppression est en cours de confirmation
 let dbQuery = "";
 
 const dbCell = v => v === null || v === undefined ? "" : String(v);
 
-// Read the list of tables and the current table, then draw them.
+// Lit la liste des tables et la table en cours, puis les dessine.
 async function renderTables() {
   try {
     dbList = await store.getTables();
@@ -2489,11 +2513,12 @@ async function renderTables() {
   drawTable();
 }
 
-// Draw the tabs and the rows of the current table from what is already read.
+// Dessine les onglets et les lignes de la table en cours d'après ce qui est déjà lu.
 function drawTable() {
   const $dbHint = $("#db-hint");
   const $dbTable = $("#db-table");
-  // Three rows of tabs: files and content of the documents, configuration lists (list_*), the other tables.
+  // Trois rangées d'onglets : fichiers et contenu des documents, listes de la configuration (list_*), les autres
+  // tables.
   const tab = t => `<button class="subtab ${t.name === dbTab ? "active" : ""}" role="tab" aria-selected="${t.name === dbTab}" data-db-tab="${escapeHtml(t.name)}">` +
     `${escapeHtml(t.name)}<span class="n">(${t.rows})</span></button>`;
   $("#db-tabs").innerHTML = [1, 2].map(g => dbList.filter(t => (t.group ?? 2) === g))
@@ -2506,7 +2531,8 @@ function drawTable() {
   $dbHint.textContent = `${plural(shown.length, "ligne")}${shown.length < rows.length ? ` sur ${rows.length}` : ""}.`;
   const editRow = r => `<tr class="req-manual" data-rowid="${r?.rowid ?? "new"}">${columns.map(c => {
       const value = dbCell(r?.values[c.name]);
-      // Short numbers get a narrow field; a text field is as wide as its longest line, between 110 and 320 px.
+      // Les nombres courts ont un champ étroit ; un champ texte est aussi large que sa plus longue ligne, entre 110 et
+      // 320 px.
       const longest = Math.max(...value.split("\n").map(line => line.length));
       const num = /INT|REAL|NUM/i.test(c.type) ? ` class="num"`
         : ` style="min-width: ${Math.min(Math.max(longest * 8 + 24, 110), 320)}px"`;
@@ -2526,7 +2552,7 @@ function drawTable() {
     `<tbody>${dbEdit === "new" ? editRow(null) : ""}${shown.map(r => r.rowid === dbEdit ? editRow(r) : viewRow(r)).join("")}</tbody>`;
 }
 
-// After a change: this table, then everything that shows the data of the base.
+// Après une modification : cette table, puis tout ce qui montre les données de la base.
 async function afterTableChange() {
   dbEdit = dbConfirm = null;
   $("#db-status").textContent = "";
@@ -2537,7 +2563,7 @@ async function afterTableChange() {
   await refresh();
 }
 
-// Send the row being edited: only the changed values, or every value of a new row.
+// Envoie la ligne en cours de modification : seulement les valeurs changées, ou chaque valeur d'une nouvelle ligne.
 async function saveTableRow(tr) {
   const original = dbData.rows.find(r => r.rowid === dbEdit);
   const values = {};
@@ -2560,7 +2586,7 @@ $("[data-panel=tables]").addEventListener("click", async e => {
       dbEdit = dbConfirm = null;
       dbQuery = $("#db-search").value = "";
       $dbStatus.textContent = "";
-      try { localStorage.setItem(DB_TAB_KEY, dbTab); } catch { /* storage unavailable: not important */ }
+      try { localStorage.setItem(DB_TAB_KEY, dbTab); } catch { /* stockage indisponible */ }
       await renderTables();
     }
     else if (target.id === "db-add") { dbEdit = "new"; dbConfirm = null; drawTable(); }
@@ -2575,38 +2601,38 @@ $("[data-panel=tables]").addEventListener("click", async e => {
 });
 $("#db-search").addEventListener("input", e => { dbQuery = e.target.value; drawTable(); });
 
-// Reload everything from the server and run the check.
+// Recharge tout depuis le serveur et lance la vérification.
 async function refresh() {
-  // Reload everything the pages show, in this order: files, contents of the documents, requirements; then each page is
-  // drawn again and the check runs.
+  // Recharge tout ce que montrent les pages, dans cet ordre : fichiers, contenus des documents, exigences ; puis chaque
+  // page est redessinée et la vérification se lance.
   try { state.records = await store.list(); }
   catch (e) { showMessage("Liste des fichiers indisponible : " + (e.message || e)); }
-  lockRelease();   // the release changes only while no file is loaded
+  lockRelease();   // la release ne change que tant qu'aucun fichier n'est chargé
   try {
     [state.plansDb, state.stdhlDb, state.fichesDb, state.traceDb] =
-      // The four contents are asked at the same time.
+      // Les quatre contenus sont demandés en même temps.
       await Promise.all([store.getPlans(), store.getStdhl(), store.getFiches(), store.getTraceability()]);
   }
   catch (e) { showMessage("Base indisponible : " + (e.message || e)); }
 
   try { state.reqDb = await store.getRequirements(); }
   catch (e) { showMessage("Base des exigences indisponible : " + (e.message || e)); }
-  // Requirements deleted by hand stay in the base (struck through) but are not checked.
+  // Les exigences supprimées à la main restent dans la base (barrées) mais ne sont pas vérifiées.
   state.requirements = Object.entries(state.reqDb.tomes)
     .flatMap(([tome, t]) => t.requirements.filter(r => !r.deleted).map(r => ({ ...r, tome })));
   renderTomes();
-  // Plans: content and checked rows given by the server; tome and releases are the ones chosen when loading.
+  // Plans : contenu et lignes vérifiées donnés par le serveur ; tome et releases sont ceux choisis au chargement.
   state.plans = Object.values(state.plansDb.plans).map(p => ({ id: p.file_id, name: p.name, tome: p.tome,
                                                                 releases: p.releases, rows: p.rows }));
   state.planChecks = {};
   renderPlans();
   renderStats();
-  // STDHL and fiches: content given by the server.
+  // STDHL et fiches : contenu donné par le serveur.
   state.stdhl = Object.values(state.stdhlDb.stdhl).map(d => ({ id: d.file_id, name: d.name, tome: d.tome, releases: d.releases,
                                                                stdhlName: d.stdhl_name,
                                                                rows: d.rows, issues: d.issues }));
   renderStdhl();
-  // Fiches d'essai: XML files (default platform) and Excel files of the other platforms, same content.
+  // Fiches d'essai : fichiers XML et fichiers Excel, chacun de la plateforme choisie à son import, même contenu.
   state.xmls = [...Object.values(state.fichesDb.fiches), ...Object.values(state.traceDb.traceability)]
     .map(x => ({ id: x.file_id, name: x.name, releases: x.releases, platform: x.platform ?? "", tome: x.tome,
                  ids: x.ids, rows: x.rows ?? [] }));
@@ -2617,47 +2643,48 @@ async function refresh() {
   await check();
 }
 
-// Load files dropped on a box: analyse, ask for the attachment, then store each one.
+// Charge les fichiers déposés sur une boîte : analyse, demande du rattachement, puis enregistrement de chacun.
 async function loadFiles(slot, files) {
   const $itemsDialog = $("#items-dialog");
   const card = document.querySelector(`.drop[data-slot="${CARD_OF[slot] ?? slot}"]`);
   card.querySelector(".name").textContent = "Lecture…";
   const errors = [];
-  const planFiles = [];   // acceptance plans loaded
-  // Plans, STDHL and fiches belong to a tome: the requirements must be imported first.
+  const planFiles = [];   // plans d'acceptation chargés
+  // Plans, STDHL et fiches appartiennent à un tome : les exigences doivent être importées d'abord.
   if (ATTACHED.has(slot) && !Object.keys(state.reqDb.tomes).length) {
     state.errors[slot] = `Aucun tome d'exigences : importer d'abord les Exigences, puis charger les fichiers ${SLOT_NAMES[slot]}.`;
     return refresh();
   }
-  let planChoice = null;   // tome and releases of the previous plan, offered again for the next one
-  const planTomes = [];    // tomes of the plans loaded, checked at the end
-  const planSkipped = [];  // tables of these plans left out (incomplete header), shown with the check
+  let planChoice = null;   // tome et releases du plan précédent, proposés à nouveau pour le suivant
+  const planTomes = [];    // tomes des plans chargés, vérifiés à la fin
+  const planSkipped = [];  // tableaux de ces plans laissés de côté (en-tête incomplet), montrés avec la vérification
   for (const file of files) {
     try {
       const buffer = await file.arrayBuffer();
       if (slot === "requirements") {
-        // The server reads the file: sheets first, then the requirements of the chosen sheet for the tome chosen.
-        // Steps of a requirements import, each a window the user may cancel: sheet and tome, groups outside the
-        // release, repeated numbers, conflicts with the base and STDHL values, then the differences to approve. After
-        // each choice the server analyses the file again with all the choices made so far (`choices`), so that the next
-        // window shows the result.
+        // Le serveur lit le fichier : les feuilles d'abord, puis les exigences de la feuille choisie pour le tome
+        // choisi.
+        // Étapes d'un import d'exigences, chacune une fenêtre que l'utilisateur peut annuler : feuille et tome, numéros
+        // répétés, conflits avec la base et valeurs STDHL, puis les différences à approuver. Après chaque choix, le
+        // serveur analyse à nouveau le fichier avec tous les choix faits jusque-là (`choices`), pour que la fenêtre
+        // suivante montre le résultat.
         const first = await store.analyseRequirements(buffer, { name: file.name });
         const extra = await chooseImport(file.name, first.sheets, first.tome_name ?? "");
         if (!extra) { errors.push(`${file.name} — import annulé`); continue; }
         const params = { sheet: extra.sheet ?? "", tome: extra.tome, mode: extra.mode };
-        // Only the requirements of the release of the base are imported (the server filters them).
+        // Seules les exigences de la release de la base sont importées (le serveur les filtre).
         let analysis = await store.analyseRequirements(buffer, params);
         if (!analysis.count && !analysis.outside?.length) {
           errors.push(`${file.name} — aucune exigence trouvée dans la feuille « ${analysis.sheet} » : fichier non importé`);
           continue;
         }
-        // Rows without the release of the base: rejected by the server, nothing to choose.
+        // Lignes sans la release de la base : rejetées par le serveur, rien à choisir.
         const choices = {};
         if (!analysis.count) {
           errors.push(`${file.name} — aucune exigence de la release ${state.config.release} à importer : fichier non importé`);
           continue;
         }
-        // Rows of a number repeated in the file first, then the conflicts with the base and the STDHL values.
+        // Les lignes d'un numéro répété dans le fichier d'abord, puis les conflits avec la base et les valeurs STDHL.
         let picked = await chooseConflicts(file.name, analysis, params.mode);
         if (picked?.row) {
           choices.row = picked.row;
@@ -2668,9 +2695,9 @@ async function loadFiles(slot, files) {
         Object.assign(choices, picked);
         if (Object.keys(choices).length) analysis = await store.analyseRequirements(buffer, params, choices);
         if (!await approveImport(file.name, extra, analysis)) { errors.push(`${file.name} — import annulé`); continue; }
-        // The import itself, with every choice: the server refuses it if something is still unsettled.
+        // L'import lui-même, avec chaque choix : le serveur le refuse si quelque chose n'est pas encore réglé.
         const summary = await store.importRequirementsFile(file, buffer, params, choices);
-        state.config = await store.getConfig();   // a new tome may have joined the configuration
+        state.config = await store.getConfig();   // un nouveau tome a pu rejoindre la configuration
         state.draft = toDraft(state.config);
         renderConfig();
         const message = `${file.name} → ${summary.tome} : ${summary.created ? "nouveau tome, " : summary.mode === "replace" ? "remplacement, " : "complément, "}`
@@ -2684,25 +2711,28 @@ async function loadFiles(slot, files) {
         setLastLoad(slot, message);
         continue;
       }
-      // Plan, STDHL or fiches: refused here if unreadable or empty, before anything is asked.
-      // Steps of a plan, STDHL or fiches load: read once to refuse an unreadable file before asking anything, then the
-      // tome (preselected from the file name), the unknown platforms of a plan, the rows to settle, and the load.
+      // Plan, STDHL ou fiches : refusé ici s'il est illisible ou vide, avant de rien demander.
+      // Étapes d'un chargement de plan, STDHL ou fiches : une lecture pour refuser un fichier illisible avant de rien
+      // demander, puis le tome (présélectionné d'après le nom du fichier), les plateformes inconnues d'un plan, les
+      // lignes à régler, et le chargement.
       const analysis = await store.analyseFile(slot, file, buffer);
       planChoice = await choosePlan(file.name, planChoice, slot, analysis.stdhl_name ?? "", analysis.tome_name ?? "");
       if (!planChoice) { errors.push(`${file.name} — chargement annulé`); continue; }
-      // Plan: the delegations unknown of the configuration are offered for adding first; those not added are then
-      // settled with the other rows (another platform, or the row ignored).
+      // Plan : les délégations inconnues de la configuration sont d'abord proposées à l'ajout ; celles non ajoutées
+      // sont ensuite réglées avec les autres lignes (une autre plateforme, ou la ligne ignorée).
       if (slot === "plan" && analysis.unknown_platforms?.length) {
         openItemsDialog("platforms", file.name, analysis.unknown_platforms);
         while ($itemsDialog.open) await new Promise(r => $itemsDialog.addEventListener("close", r, { once: true }));
       }
-      // Plan or fiches file: with the tome chosen (none: the whole base), the rows to settle (numbers unknown in the
-      // tome, values out of the configuration or of the IADT/MOC rules): corrected with the expected values, or ignored.
+      // Fichier de plan ou de fiches : avec le tome choisi (aucun : toute la base), les lignes à régler (numéros
+      // inconnus du tome, valeurs hors de la configuration ou des règles IADT/MOC) : corrigées avec les valeurs
+      // attendues, ou ignorées.
       const settle = slot === "plan" || slot === "traceability" || slot === "xml"
         ? (await store.analyseFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(",") })).to_confirm ?? [] : [];
       const decisions = settle.length ? await confirmPlanRows(file.name, settle, slot) : null;
       if (settle.length && !decisions) { errors.push(`${file.name} — chargement annulé`); continue; }
-      // Loaded with the tome and decisions; a message per file says what was stored, ignored or worth checking.
+      // Chargé avec le tome et les décisions ; un message par fichier dit ce qui a été enregistré, ignoré ou mérite une
+      // vérification.
       const result = await store.loadFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(","),
                                                                 platform: planChoice.platform ?? "",
                                                                 ...(decisions ? { decisions: JSON.stringify(decisions) } : {}) });
@@ -2713,7 +2743,8 @@ async function loadFiles(slot, files) {
       const format = result.format ? ` (format ${result.format})` : "";
       setLastLoad(slot, `${file.name}${format}${where} : ${result.rows != null ? plural(result.rows, "ligne")
                                                                      : plural(result.ids, "numéro d'exigence", "numéros d'exigence")}${skipped}${ignored}`);
-      // Plan: delegations that do not match the column STDHL of the requirements (only TOP is in a STDHL).
+      // Plan : délégations qui ne correspondent pas à la colonne STDHL des exigences (seule la plateforme de niveau
+      // système est dans un STDHL).
       if (result.stdhl_warnings?.length) errors.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
       if (slot === "plan") {
         planFiles.push(file.name);
@@ -2724,15 +2755,16 @@ async function loadFiles(slot, files) {
       errors.push(`${file.name} — ${e.message || e}`);
     }
   }
-  // Messages of the files of this box (refusals, cancellations, warnings), shown under it after the refresh.
+  // Messages des fichiers de cette boîte (refus, annulations, avertissements), montrés dessous après le
+  // rafraîchissement.
   state.errors[slot] = errors.join(" ; ");
   await refresh();
   if (planTomes.length) await showPlanCheck(planTomes, planSkipped);
 }
 
 // --------------------------------------------------------------------------
-// Dialog shown after loading plans: lists the platforms they name; the unknown ones that the
-// user ticks are added to the configuration, the others stay reported as errors.
+// Fenêtre montrée après le chargement de plans : liste les plateformes qu'ils nomment ; les inconnues que
+// l'utilisateur coche sont ajoutées à la configuration, les autres restent signalées comme erreurs.
 // --------------------------------------------------------------------------
 const ITEM_KINDS = {
   platforms: {
@@ -2741,22 +2773,22 @@ const ITEM_KINDS = {
     isKnown: name => isPlatform(name), describe: () => "",
     add: async added => {
       state.config = await store.saveConfig({ ...state.config, platforms: [...state.config.platforms, ...Object.keys(added)] });
-      // The configuration form follows: names and colours (drawn by the server for the new platforms).
+      // Le formulaire de configuration suit : noms et couleurs (tirées par le serveur pour les nouvelles plateformes).
       state.draft.platforms = state.config.platforms.map(n => [n, n]);
       state.draft.colors.platforms = state.config.platforms.map(n => state.config.colors?.platforms?.[n] ?? "");
-      await refresh();   // the plan rows are checked again by the server
+      await refresh();   // les lignes de plan sont revérifiées par le serveur
     },
   },
 };
 let itemsKind = null;
-const dialogQueue = [];   // a second dialog waits until the first one is closed
+const dialogQueue = [];   // une deuxième fenêtre attend la fermeture de la première
 
-// Offer to add to the configuration the releases or platforms a file names, and it does not know.
+// Propose d'ajouter à la configuration les releases ou plateformes qu'un fichier nomme et qu'elle ne connaît pas.
 function openItemsDialog(kind, fileLabel, items) {
   const $itemsAdd = $("#items-add");
   const $itemsDialog = $("#items-dialog");
   const k = ITEM_KINDS[kind];
-  // Shown only when the file names releases / platforms the configuration does not know yet.
+  // Montrée seulement quand le fichier nomme des releases / plateformes que la configuration ne connaît pas encore.
   if (!items.some(i => !k.isKnown(i))) return;
   if ($itemsDialog.open) { dialogQueue.push([kind, fileLabel, items]); return; }
   itemsKind = kind;
@@ -2792,7 +2824,7 @@ $("#items-add").addEventListener("click", async () => {
     return;
   }
   try {
-    await ITEM_KINDS[itemsKind].add(added);   // ends with refresh(), which runs the check again
+    await ITEM_KINDS[itemsKind].add(added);   // se termine par refresh(), qui relance la vérification
     renderConfig();
     $("#items-dialog").close();
   } catch (e) {
@@ -2801,16 +2833,16 @@ $("#items-add").addEventListener("click", async () => {
 });
 $("#items-close").addEventListener("click", () => $("#items-dialog").close());
 $("#items-dialog").addEventListener("close", () => { if (dialogQueue.length) openItemsDialog(...dialogQueue.shift()); });
-// Typing a description ticks the item.
+// Saisir une description coche l'élément.
 $("#items-list").addEventListener("input", e => {
   const name = e.target.dataset.itemDescription;
   if (name) document.querySelector(`[data-new-item="${CSS.escape(name)}"]`).checked = e.target.value.trim() !== "";
 });
 
-// Delete one file after confirmation, naming the requirements that leave with it.
+// Supprime un fichier après confirmation, en nommant les exigences qui partent avec lui.
 async function deleteFile(id) {
   const record = state.records.find(r => r.id === id);
-  // Requirements imported from this file, per tome: they are deleted with it.
+  // Exigences importées de ce fichier, par tome : elles sont supprimées avec lui.
   const linked = Object.entries(state.reqDb?.tomes ?? {})
     .map(([tome, t]) => [tome, t.requirements.filter(r => r.file_id === id).length]).filter(([, n]) => n);
   const total = linked.reduce((sum, [, n]) => sum + n, 0);
@@ -2829,7 +2861,8 @@ for (const card of document.querySelectorAll(".drop")) {
   const input = card.querySelector("input");
   const take = files => [...files].slice(0, MULTI_SLOTS.has(slot) ? undefined : 1);
   card.addEventListener("click", () => input.click());
-  // The Fiches d'Essai box: each file read by its format, XML (fiches) or Excel (traceability of the other platforms).
+  // La boîte Fiches d'Essai : chaque fichier lu selon son format, XML (fiches) ou Excel (traçabilité des autres
+  // plateformes).
   const load = async files => {
     if (slot !== "xml") return loadFiles(slot, files);
     const xml = files.filter(f => /\.xml$/i.test(f.name)), excel = files.filter(f => !/\.xml$/i.test(f.name));
@@ -2851,10 +2884,11 @@ $("#files-table").addEventListener("click", e => {
 });
 
 // --------------------------------------------------------------------------
-// Configuration tab: edits a draft, saved with the "Enregistrer" button.
-// Draft lists are arrays ([name] or [code, label]) so rows keep their order while being edited.
+// Onglet Configuration : modifie un brouillon, enregistré avec le bouton « Enregistrer ».
+// Les listes du brouillon sont des tableaux ([nom] ou [code, libellé]) pour que les lignes gardent leur ordre pendant
+// la modification.
 // --------------------------------------------------------------------------
-// Single-value variables edited with a [data-var] field, and their type.
+// Variables à une seule valeur modifiées avec un champ [data-var], et leur type.
 const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str", plan_folder: "str", stdhl_folder: "str",
                       fiches_folder: "str", traceability_folder: "str", requirement_regex: "str", release_separator_regex: "str",
                       stdhl_separator_regex: "str", code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
@@ -2864,9 +2898,9 @@ const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str",
                       stdhl2_requirements_label: "str", stdhl2_release_label: "str",
                       stdhl2_release_regex: "str", stdhl2_test_case_regex: "str" };
 
-// Table header settings of the configuration: setting -> { title, hint, roles: { role: label } }.
-// The columns with a role are read by NEXUS-V: required (text editable, not removable). The others
-// count to validate the table ("check") or not ("ignore"), and can be added or removed.
+// Réglages des en-têtes de tableaux de la configuration : réglage -> { title, hint, roles: { rôle: libellé } }.
+// Les colonnes qui ont un rôle sont lues par NEXUS-V : obligatoires (texte modifiable, non retirable). Les autres
+// comptent pour valider le tableau (« check ») ou non (« ignore »), et peuvent être ajoutées ou retirées.
 const HEADER_SETTINGS = {
   headers_requirements: { title: "Fichier d'Exigences (Excel, ligne 1)",
     hint: "Les colonnes sont repérées par leur en-tête, dans n'importe quel ordre.",
@@ -2882,15 +2916,15 @@ const HEADER_SETTINGS = {
     roles: { requirements: "Exigences associées" } },
 };
 
-// Editable copy of the configuration.
-// Colour of each row of the referential, in their order: {kind: [colour]}.
+// Copie modifiable de la configuration.
+// Couleur de chaque ligne du référentiel, dans leur ordre : {type: [couleur]}.
 const draftColors = config => Object.fromEntries(["platforms", "tomes", "iadt", "mocs"].map(kind => {
   const values = config[kind] ?? [];
   return [kind, (Array.isArray(values) ? values : Object.keys(values)).map(n => config.colors?.[kind]?.[n] ?? "")];
 }));
 
 function toDraft(config) {
-  // Each row of a referential keeps its saved name, last: changing the name renames the value.
+  // Chaque ligne d'un référentiel garde son nom enregistré, en dernier : changer le nom renomme la valeur.
   const rows = values => Object.entries(values ?? {}).map(([code, label]) => [code, label, code]);
   return {
            platforms: config.platforms.map(n => [n, n]), colors: draftColors(config), tomes: (config.tomes ?? []).map(n => [n, n]),
@@ -2902,7 +2936,7 @@ function toDraft(config) {
            rules: Object.entries(config.iadt_moc_rules ?? {}).map(([iadt, mocs]) => [iadt, [...mocs]]) };
 }
 
-// Simple variables of the draft, converted to their type.
+// Variables simples du brouillon, converties dans leur type.
 function scalarsFromDraft(vars) {
   const result = {};
   for (const [name, type] of Object.entries(SCALAR_VARS)) {
@@ -2919,7 +2953,7 @@ function scalarsFromDraft(vars) {
   return result;
 }
 
-// Names of a one-column list of the draft, without blanks nor duplicates.
+// Noms d'une liste à une colonne du brouillon, sans blancs ni doublons.
 function names(list, what) {
   const result = list.map(([n]) => n.trim()).filter(Boolean);
   const duplicate = result.find((n, i) => result.findIndex(m => fold(m) === fold(n)) !== i);
@@ -2927,7 +2961,7 @@ function names(list, what) {
   return result;
 }
 
-// Configuration to save, from the draft. Throws on an empty or duplicate value.
+// Configuration à enregistrer, d'après le brouillon. Lève une erreur sur une valeur vide ou en double.
 function fromDraft(draft) {
   const platforms = names(draft.platforms, "plateforme");
   const codes = (list, what) => {
@@ -2950,7 +2984,7 @@ function fromDraft(draft) {
       headers[name][t] = role;
     }
   }
-  // Rows whose name changed: one UPDATE on the server, instead of a removal and an addition.
+  // Lignes dont le nom a changé : une seule mise à jour sur le serveur, au lieu d'un retrait et d'un ajout.
   const changed = (list, clean = s => s) => Object.fromEntries(list
     .map(row => [row.at(-1), clean(row[0].trim())]).filter(([saved, name]) => name && name !== saved));
   const upper = s => s.toUpperCase();
@@ -2963,11 +2997,11 @@ function fromDraft(draft) {
     if (!mocs.length) throw new Error(`règle de l'IADT ${iadt} : cocher au moins un MOC`);
     rules[iadt] = mocs;
   }
-  // Colour of each value of the referential, by its name (code in upper case) once saved.
+  // Couleur de chaque valeur du référentiel, par son nom (code en majuscules) une fois enregistrée.
   const colors = Object.fromEntries(["platforms", "tomes", "iadt", "mocs"].map(kind => [kind, Object.fromEntries(
     draft[kind].map((row, i) => [kind === "iadt" || kind === "mocs" ? row[0].trim().toUpperCase() : row[0].trim(),
                                  draft.colors[kind][i]]).filter(([name, color]) => name && color))]));
-  // Description of each tome, by its name once saved.
+  // Description de chaque tome, par son nom une fois enregistrée.
   const tome_descriptions = Object.fromEntries(draft.tomes.map((row, i) => [row[0].trim(), draft.tomeDescriptions[i] ?? ""])
     .filter(([name]) => name));
   return { platforms, colors, tome_descriptions, tomes: names(draft.tomes, "tome"), renames, iadt: codes(draft.iadt, "IADT"), mocs: codes(draft.mocs, "MOC"),
@@ -2975,11 +3009,11 @@ function fromDraft(draft) {
            ...scalarsFromDraft(draft.vars), ...headers };
 }
 
-// Draw the lists and fields of the Configuration page from the draft.
+// Dessine les listes et les champs de la page Configuration d'après le brouillon.
 function renderConfig() {
   const d = state.draft;
   const remove = (list, i) => `<button class="small" data-remove="${list}:${i}" title="Supprimer">✕</button>`;
-  // IADT / MOC rules: the IADT chosen in the list of IADT codes, the expected MOC ticked among the MOC codes.
+  // Règles IADT / MOC : l'IADT choisi dans la liste des codes IADT, les MOC attendus cochés parmi les codes MOC.
   const iadtCodes = d.iadt.map(r => r[0].trim().toUpperCase()).filter(Boolean);
   const mocCodes = d.mocs.map(r => r[0].trim().toUpperCase()).filter(Boolean);
   $("#cfg-rules").innerHTML = d.rules.map(([iadt, mocs], i) => `<div class="cfg-row rule">
@@ -3005,7 +3039,7 @@ function renderConfig() {
        <textarea rows="1" data-edit="mocs:${i}:1" placeholder="Description">${escapeHtml(description)}</textarea>
        <input type="color" data-color="mocs:${i}" value="${escapeHtml(d.colors.mocs[i] || "#888888")}" title="Couleur dans les camemberts" aria-label="Couleur">${remove("mocs", i)}</div>`).join("");
   lockRelease();
-  // Each type of file shows its own table headers, in its tab.
+  // Chaque type de fichier montre ses propres en-têtes de tableaux, dans son onglet.
   for (const [name, setting] of Object.entries(HEADER_SETTINGS)) document.querySelector(`[data-headers="${name}"]`).innerHTML = `
     <p class="hint">${escapeHtml(setting.title)} : ${escapeHtml(setting.hint)}</p>
     <div class="cfg-list">${d.headers[name].map(([text, role], i) => `
@@ -3019,8 +3053,8 @@ function renderConfig() {
              <button class="small" data-header-remove="${name}:${i}" title="Retirer cette colonne">✕</button>`}
       </div>`).join("")}</div>
     <button class="small" data-header-add="${name}">Ajouter une colonne</button>`;
-  // The platform of the STDHL is chosen among the platforms of the configuration (being edited).
-  // The platform of system level: not set, or one of the platforms the requirements imported are delegated to.
+  // La plateforme de niveau système : non définie, ou l'une des plateformes auxquelles les exigences importées sont
+  // déléguées.
   $("#cfg-system-platform").innerHTML = `<option value="">— non définie —</option>` + (state.config.system_platforms ?? [])
     .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
   for (const field of document.querySelectorAll("[data-var]")) {
@@ -3029,7 +3063,7 @@ function renderConfig() {
   }
 }
 
-// Show the state of the configuration next to its buttons.
+// Montre l'état de la configuration à côté de ses boutons.
 function setConfigStatus(text, kind = "") {
   const $cfgStatus = $("#cfg-status");
   $cfgStatus.textContent = text;
@@ -3069,11 +3103,11 @@ $("[data-panel=config]").addEventListener("click", e => {
   const { add, remove, headerAdd, headerRemove, ruleRemove } = e.target.dataset;
   if (e.target.matches("[data-rule-add]")) state.draft.rules.push(["", []]);
   else if (ruleRemove) state.draft.rules.splice(Number(ruleRemove), 1);
-  else if (headerAdd) state.draft.headers[headerAdd].push(["", "check"]);   // a column checked to validate the table
+  else if (headerAdd) state.draft.headers[headerAdd].push(["", "check"]);   // colonne vérifiée pour valider le tableau
   else if (headerRemove) { const [name, i] = headerRemove.split(":"); state.draft.headers[name].splice(Number(i), 1); }
   else if (add) {
     state.draft[add].push(add === "platforms" || add === "tomes" ? [""] : ["", ""]);
-    // A colour drawn at random by the server (not red, green nor grey), away from those of the list.
+    // Une couleur tirée au hasard par le serveur (ni rouge, ni vert, ni gris), loin de celles de la liste.
     if (add === "tomes") state.draft.tomeDescriptions.push("");
     const draft = state.draft, list = draft.colors[add], at = list.push("") - 1;
     store.drawColor(list.filter(Boolean)).then(({ color }) => {
@@ -3083,9 +3117,9 @@ $("[data-panel=config]").addEventListener("click", e => {
   else if (remove) {
     const [list, i] = remove.split(":");
     state.draft[list].splice(Number(i), 1);
-    state.draft.colors[list].splice(Number(i), 1);   // the colour follows its row
-    if (list === "tomes") state.draft.tomeDescriptions.splice(Number(i), 1);   // and the description
-    if (list === "platforms") {   // the mark too
+    state.draft.colors[list].splice(Number(i), 1);   // la couleur suit sa ligne
+    if (list === "tomes") state.draft.tomeDescriptions.splice(Number(i), 1);   // et la description
+    if (list === "platforms") {   // la marque aussi
       const d = state.draft;
     }
   }
@@ -3100,8 +3134,8 @@ $("#cfg-save").addEventListener("click", async () => {
     renderConfig();
     setConfigStatus("Configuration enregistrée.", "ok");
     $("#slogan").textContent = state.config.slogan;
-    renderReleasePicker();   // the release of the base, in the header
-    await refresh();   // the plan rows are checked again by the server against the new configuration
+    renderReleasePicker();   // la release de la base, dans l'en-tête
+    await refresh();   // les lignes de plan sont revérifiées par le serveur par rapport à la nouvelle configuration
   } catch (e) {
     setConfigStatus("Non enregistrée : " + (e.message || e), "ko");
   }
@@ -3112,10 +3146,10 @@ $("#cfg-cancel").addEventListener("click", () => {
   setConfigStatus("");
 });
 
-// One tab per configuration subject, the last one opened being remembered.
+// Un onglet par sujet de configuration, le dernier ouvert étant mémorisé.
 const CONFIG_TAB_KEY = "nexus-v-config-tab";
 
-// Show a tab of the Configuration page and remember it.
+// Montre un onglet de la page Configuration et le mémorise.
 function showConfigTab(name) {
   if (!document.querySelector(`[data-config-pane="${name}"]`)) name = "general";
   for (const tab of document.querySelectorAll("[data-config-tab]")) {
@@ -3123,10 +3157,10 @@ function showConfigTab(name) {
     tab.setAttribute("aria-selected", tab.dataset.configTab === name);
   }
   for (const pane of document.querySelectorAll("[data-config-pane]")) pane.hidden = pane.dataset.configPane !== name;
-  try { localStorage.setItem(CONFIG_TAB_KEY, name); } catch { /* storage unavailable: not important */ }
+  try { localStorage.setItem(CONFIG_TAB_KEY, name); } catch { /* stockage indisponible */ }
 }
 
-// Storage folder: shown everywhere it is mentioned, changed from the "Stockage" tab.
+// Dossier des fichiers : montré partout où il est cité, changé depuis l'onglet « Stockage ».
 function renderStorage(info) {
   $("#files-dir").textContent = info.files_dir;
   $("#database-path").textContent = info.database;
@@ -3137,7 +3171,7 @@ function renderStorage(info) {
     + `La configuration, la définition des tables et la base restent dans ${info.base}.`;
 }
 
-// Show the state of a change of storage folder.
+// Montre l'état d'un changement de dossier des fichiers.
 function setStorageStatus(text, kind = "") {
   const $storageStatus = $("#storage-status");
   $storageStatus.textContent = text;
@@ -3161,7 +3195,7 @@ $("#storage-apply").addEventListener("click", async () => {
     const info = await request("api/storage", jsonOptions("POST", { path: $("#storage-path").value, copy: $storageCopy.checked }))
       .then(r => r.json());
     renderStorage(info);
-    // Everything now comes from the new folder: files, their list and the configuration.
+    // Tout vient maintenant du nouveau dossier : les fichiers, leur liste et la configuration.
     state.errors = {};
     state.config = await store.getConfig();
     state.draft = toDraft(state.config);
@@ -3181,7 +3215,7 @@ for (const tab of document.querySelectorAll("[data-config-tab]")) {
 showConfigTab((() => { try { return localStorage.getItem(CONFIG_TAB_KEY); } catch { return null; } })());
 
 // --------------------------------------------------------------------------
-// Tabs, settings and filters
+// Onglets, réglages et filtres
 // --------------------------------------------------------------------------
 for (const item of document.querySelectorAll(".nav-item")) {
   item.addEventListener("click", () => {
@@ -3199,16 +3233,16 @@ $("#export").addEventListener("click", exportReport);
 const $storeWarning = $("#store-warning");
 $("#backup-sql").addEventListener("click", () => location.assign("api/backup"));
 
-// The page needs the server: without it, it only says so.
+// La page a besoin du serveur : sans lui, elle ne fait que le dire.
 (async () => {
   try {
     state.config = await serverStore.getConfig();
-    // Show where the server actually stores the files.
+    // Montre où le serveur range réellement les fichiers.
     const info = await request("api/info").then(r => r.json());
     renderStorage(info);
     if (info.requirements) $("#requirements-path").textContent = info.requirements;
   } catch {
-    // Nothing can be used without the server: only the message stays.
+    // Rien n'est utilisable sans le serveur : seul le message reste.
     $storeWarning.hidden = false;
     document.querySelector("main").replaceChildren(document.querySelector(".brand"), $storeWarning);
     document.querySelector(".nav-item").parentElement.style.display = "none";
