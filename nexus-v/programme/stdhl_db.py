@@ -23,12 +23,13 @@ Pour la page (to_dict) :
                       "issues": [texte]}}}
 """
 import re
+from typing import Any
 
 from configuration import DEFAULT_CONFIG, fold, header_column, header_text, match_header, plural, table_left_out
 from file_database import FileDatabase, WordDocument
 
 
-def found(match):
+def found(match: re.Match) -> str:
     """Texte reconnu par une expression réglée : son groupe 1 s'il en a un, sinon toute la correspondance."""
     return (match[1] if match.re.groups else match[0]).strip()
 
@@ -63,7 +64,7 @@ class StdhlDatabase:
         return get("headers_stdhl"), re.compile(get("requirement_regex"))
 
     @staticmethod
-    def _find_header(grid, headers):
+    def _find_header(grid, headers) -> tuple[int, list[str]] | None:
         """(colonne des exigences, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
         ligne, ou None. Un tableau STDHL est reconnu à l'en-tête de sa colonne des exigences."""
         text = header_text(headers, "requirements")
@@ -76,7 +77,7 @@ class StdhlDatabase:
         return None
 
     @classmethod
-    def read_docx(cls, content, file_name, config=None):
+    def read_docx(cls, content, file_name, config=None) -> dict[str, Any]:
         """Lit un STDHL (octets .docx). Renvoie {"stdhl_name", "rows": [{fiche, requirements: [ID]}], "skipped" :
         tableaux laissés de côté, "issues" : anomalies du document}. Une ligne est la cellule d'un tableau sous
         l'en-tête des exigences ; sa fiche (le test) est la dernière fiche de test SYS_ avant le tableau. Les
@@ -128,7 +129,7 @@ class StdhlDatabase:
                 "skipped": skipped, "issues": issues, "format": FORMATS[1], "gaps": [], "refusals": []}
 
     @classmethod
-    def _readable(cls, content, file_name, config=None):
+    def _readable(cls, content, file_name, config=None) -> dict[str, Any]:
         """Contenu d'un STDHL chargeable : refusé (ValueError) quand aucun tableau n'a un en-tête correct et qu'aucun
         test du format 2 n'est trouvé, ou quand un test du format 2 est d'une autre release que la base. Des tableaux
         sans aucun numéro d'exigence reconnu sont une anomalie du document, pas un refus."""
@@ -345,7 +346,7 @@ class StdhlDatabase:
     # Accès
     # ------------------------------------------------------------------ #
 
-    def documents(self, with_deleted=False):
+    def documents(self, with_deleted=False) -> list[dict[str, Any]]:
         """Les documents STDHL avec leur tome (None : tous les tomes), leurs lignes et leurs anomalies. Les lignes
         supprimées par l'utilisateur sont laissées de côté, sauf avec `with_deleted` (page STDHL : montrées barrées,
         "deleted" vrai)."""
@@ -363,7 +364,7 @@ class StdhlDatabase:
                  "stdhl_name": h["stdhl_name"], "tome": h["tome"], "rows": rows.get(h["file_id"], []),
                  "issues": [i for i in h["issues"].split("\n") if i]} for h in heads]
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Les STDHL par numéro de fichier, pour la page."""
         return {"stdhl": {str(d["file_id"]): d for d in self.documents(with_deleted=True)}}
 
@@ -434,11 +435,11 @@ class StdhlDatabase:
                 db.execute("INSERT INTO stdhl_exi (file_id, requirement_id, test_id, deleted, manual) "
                            "VALUES (?, ?, ?, 0, 1)", (file_id, req[0], test_of(db, name) if name else None))
 
-            def remove(row):
-                if row[1]:   # ajoutée à la main : retirée pour de bon
-                    db.execute("DELETE FROM stdhl_exi WHERE id = ?", (row[0],))
+            def remove(line):
+                if line[1]:   # ajoutée à la main : retirée pour de bon
+                    db.execute("DELETE FROM stdhl_exi WHERE id = ?", (line[0],))
                 else:
-                    db.execute("UPDATE stdhl_exi SET deleted = 1 WHERE id = ?", (row[0],))
+                    db.execute("UPDATE stdhl_exi SET deleted = 1 WHERE id = ?", (line[0],))
 
             if action == "add":
                 add(requirement, test)

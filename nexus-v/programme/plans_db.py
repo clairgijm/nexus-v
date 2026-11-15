@@ -19,6 +19,7 @@ La comparaison (differences) sert à l'import (load_file) et à la vérification
 code, pour que les deux ne divergent pas.
 """
 import re
+from typing import Any
 
 from configuration import DEFAULT_CONFIG, fold, header_column, header_text, match_header, plural, table_left_out
 from file_database import FileDatabase, WordDocument
@@ -55,7 +56,7 @@ class PlansDatabase:
     # Accès
     # ------------------------------------------------------------------ #
 
-    def plans(self, tome=None, file_id=None, config=None, with_deleted=False):
+    def plans(self, tome=None, file_id=None, config=None, with_deleted=False) -> list[dict[str, Any]]:
         """Plans chargés, éventuellement ceux d'un tome ou d'un fichier : [{file_id, name, tome, releases, stale}] ;
         `stale` : les exigences du tome ont changé depuis le chargement (plan à recharger)."""
         conditions, params = ["f.source = 'plan'"], []
@@ -77,7 +78,7 @@ class PlansDatabase:
         found = self.plans(file_id=file_id)
         return found[0] if found else None
 
-    def to_dict(self, config=None):
+    def to_dict(self, config=None) -> dict[str, Any]:
         """Les plans par numéro de fichier, pour la page."""
         return {"plans": {str(p["file_id"]): p for p in self.plans()}}
 
@@ -111,7 +112,7 @@ class PlansDatabase:
                 "validation": cells["validation"].strip()}
 
     @staticmethod
-    def _find_header(grid, headers):
+    def _find_header(grid, headers) -> tuple[dict[str, int], list[str]] | None:
         """({champ: index de colonne}, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
         ligne, ou None. Un tableau de plan est reconnu à l'en-tête de sa colonne exigence et d'au moins une autre
         colonne lue (configuration headers_plan) ; chaque en-tête attendu doit alors être là."""
@@ -123,7 +124,7 @@ class PlansDatabase:
         return None
 
     @classmethod
-    def read_docx(cls, content, config=None):
+    def read_docx(cls, content, config=None) -> dict[str, Any]:
         """Lit un plan d'acceptation (octets .docx). Renvoie {"rows" : [lignes], "platforms" : plateformes nommées
         dans les délégations, "skipped" : tableaux de plan laissés de côté parce qu'il manque une colonne attendue à
         leur en-tête}. Un tel tableau n'arrête pas la lecture. Les numéros de tableau et de ligne commencent à 1, la
@@ -152,7 +153,7 @@ class PlansDatabase:
         return {"rows": rows, "platforms": unique([r["delegation"] for r in rows]), "skipped": skipped}
 
     @classmethod
-    def readable(cls, content, config=None):
+    def readable(cls, content, config=None) -> dict[str, Any]:
         """Contenu d'un plan lisible : refusé (ValueError) seulement quand aucun tableau de plan valide n'est trouvé ;
         les tableaux à l'en-tête incomplet sont sautés."""
         headers, _ = cls._settings(config)
@@ -197,7 +198,7 @@ class PlansDatabase:
         return next((state for state, name in VALIDATION_SETTINGS.items() if fold(get(name)) == fold(text)), None)
 
     @classmethod
-    def differences(cls, entries, requirements, config):
+    def differences(cls, entries, requirements: list[dict[str, Any]], config) -> list[dict[str, Any]]:
         """Différences entre les entrées d'un plan (entries) et les exigences de son tome ([{id, iadt, moc,
         delegation, validation}], celles supprimées à la main laissées de côté) : [{"kind", "requirement",
         "field", "plan", "expected", "places"}]. kind « unknown » : numéro qui n'est pas une exigence du tome ;
@@ -246,7 +247,7 @@ class PlansDatabase:
         label = dict(COMPARED)[d["field"]]
         return f"{d['requirement']} : {label} « {d['plan']} » dans le plan, « {d['expected']} » attendu"
 
-    def tome_requirements(self, tome):
+    def tome_requirements(self, tome) -> list[dict[str, Any]]:
         """Exigences (non supprimées) d'un tome, avec leur référence : [{id, iadt, moc, delegation, validation}]."""
         return [{"id": r["req_id"], "iadt": r["iadt"] or "", "moc": r["moc"] or "", "delegation": r["delegation"] or "",
                  "validation": r["validation"]} for r in self.sql.query(

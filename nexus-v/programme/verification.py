@@ -25,6 +25,7 @@ Règles :
 import io
 import re
 import time
+from typing import Any
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill
@@ -114,7 +115,7 @@ class Verification:
     # Vérification
     # ------------------------------------------------------------------ #
 
-    def run(self, releases=()):
+    def run(self, releases=()) -> dict[str, Any]:
         """Résultat de la vérification pour les releases sélectionnées (celles non déclarées sont laissées de côté),
         pour la page. Quand il n'y a rien à vérifier : {"message": pourquoi, vide sans aucune exigence}."""
         # Seules les releases déclarées peuvent être sélectionnées (une release pour la base : la sélection est cette
@@ -204,7 +205,7 @@ class Verification:
     @classmethod
     def late_text(cls, step, late, config):
         """Message du refus d'un fichier dont l'étape précédente n'est pas complète pour ses tomes."""
-        need = TOME_STATES[cls.needed_state(step, config)]
+        need = TOME_STATES[cls.needed_state(step, config) or ""]
         return (f"étape précédente non complète pour {plural(len(late), 'tome')} : "
                 + ", ".join(f"{t} ({TOME_STATES[s]})" for t, s in late)
                 + f" ; il faut d'abord « {need} » pour chaque tome concerné")
@@ -477,7 +478,8 @@ class Verification:
         if "rows" not in result:
             raise ValueError(result["message"] or "aucune exigence à vérifier")
         workbook = openpyxl.Workbook()
-        workbook.remove(workbook.active)
+        if (active := workbook.active) is not None:   # la feuille vide du classeur neuf
+            workbook.remove(active)
 
         # Une feuille du rapport : ligne d'en-tête en gras et figée, chaque colonne aussi large que sa plus longue
         # valeur (de 12 à 60).

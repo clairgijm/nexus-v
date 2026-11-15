@@ -27,9 +27,10 @@ Pour la page (to_dict) :
 """
 import re
 import xml.etree.ElementTree as ET
+from typing import Any
 
 from configuration import DEFAULT_CONFIG, plural
-from file_database import FileDatabase, WordDocument
+from file_database import WordDocument
 
 
 def local_name(el):
@@ -133,7 +134,7 @@ class FichesDatabase:
                 "format": FORMATS["campaign"]}
 
     @classmethod
-    def _readable(cls, content, config=None):
+    def _readable(cls, content, config=None) -> dict[str, Any]:
         """Contenu d'un fichier chargeable : ValueError quand aucun numéro d'exigence n'a été trouvé."""
         data = cls.read_xml(content, config)
         if not data["ids"]:
@@ -328,7 +329,7 @@ class FichesDatabase:
                 done.append(record["name"])
         return done
 
-    def documents(self, source="xml"):
+    def documents(self, source="xml") -> list[dict[str, Any]]:
         """Les fichiers de fiches d'un type (xml : Fiches d'essai XML ; traceability : fichiers Excel des autres
         plateformes) avec leur plateforme, leur tome (None : tous les tomes), leurs releases, leurs numéros
         d'exigence et leurs lignes (test, test case, exigences)."""
@@ -358,6 +359,6 @@ class FichesDatabase:
                  "ids": list(dict.fromkeys(i for c in rows.get(h["file_id"], []) for i in c["requirements"])),
                  "rows": rows.get(h["file_id"], [])} for h in heads]
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Les fichiers de fiches par numéro de fichier, pour la page."""
         return {"fiches": {str(d["file_id"]): d for d in self.documents()}}

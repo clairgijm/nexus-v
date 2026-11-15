@@ -62,18 +62,19 @@ INDEX_PAGE = "Verification_coherence.html"
 BASE_DIR = APP_DIR / BASE_FOLDER   # config.json, nexus-v-schema.sql, nexus-v.db : fixes, non choisis par l'utilisateur
 PIECE = 65536          # taille des morceaux d'une réponse, en octets
 
-base_dir = None        # dossier des fichiers de NEXUS-V (--base pour les tests)
-files_dir = None       # dossier des fichiers
-database = None        # FileDatabase du dossier des fichiers
-configuration = None   # Configuration du dossier des fichiers
-requirements = None    # RequirementsDatabase du dossier des fichiers
-plans = None           # PlansDatabase du dossier des fichiers
-stdhl = None           # StdhlDatabase du dossier des fichiers
-fiches = None          # FichesDatabase du dossier des fichiers
-traceability = None    # TraceabilityDatabase du dossier des fichiers
-verification = None    # Verification du dossier des fichiers
-file_check = None      # FileCheck : fichiers vérifiés avant leur import
-sql = None             # NexusDatabase du dossier des fichiers (fichier nexus-v.db)
+# Variables globales, toutes créées par open_storage avant le démarrage du serveur (déclarées ici avec leur type).
+base_dir: Path                        # dossier des fichiers de NEXUS-V (--base pour les tests)
+files_dir: Path                       # dossier des fichiers
+database: FileDatabase                # FileDatabase du dossier des fichiers
+configuration: Configuration          # Configuration du dossier des fichiers
+requirements: RequirementsDatabase    # RequirementsDatabase du dossier des fichiers
+plans: PlansDatabase                  # PlansDatabase du dossier des fichiers
+stdhl: StdhlDatabase                  # StdhlDatabase du dossier des fichiers
+fiches: FichesDatabase                # FichesDatabase du dossier des fichiers
+traceability: TraceabilityDatabase    # TraceabilityDatabase du dossier des fichiers
+verification: Verification            # Verification du dossier des fichiers
+file_check: FileCheck                 # FileCheck : fichiers vérifiés avant leur import
+sql: NexusDatabase                    # NexusDatabase du dossier des fichiers (fichier nexus-v.db)
 
 
 # --------------------------------------------------------------------------- #
@@ -89,7 +90,7 @@ def open_storage(base):
     global file_check
     base_dir = Path(base).resolve()
     # Une base précédente (dossier des fichiers changé) est fermée avant l'ouverture de la nouvelle.
-    if sql is not None:
+    if "sql" in globals():
         sql.close()
     sql = NexusDatabase(base_dir / DATABASE_NAME)
     # L'ordre compte : les référentiels, puis les fichiers, puis ce qui y renvoie.
@@ -238,33 +239,41 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/":
             self.path = "/" + INDEX_PAGE
         elif path == "/api/files":
-            return self.send_json(database.list())
+            self.send_json(database.list())
+            return
         elif path == "/api/config":
-            return self.send_json(configuration.to_dict())
+            self.send_json(configuration.to_dict())
+            return
         elif path == "/api/platform-color":   # couleur tirée pour une nouvelle plateforme, loin de taken
             # taken : les couleurs déjà utilisées par le brouillon de la page de configuration, pour que la nouvelle
             # couleur s'en distingue.
             taken = parse_qs(urlparse(self.path).query).get("taken", [""])[0].split(",")
-            return self.send_json({"color": random_platform_color(taken)})
+            self.send_json({"color": random_platform_color(taken)})
+            return
         elif path == "/api/requirements":   # avec la part de chaque tome et ses délégations
             colors = configuration.get("colors")
-            return self.send_json({**requirements.to_dict(),
-                                   "distribution": requirements.distribution(colors.get("tomes")),
-                                   "delegation_shares": requirements.delegation_shares(colors.get("platforms")),
-                                   "platform_shares": requirements.platform_shares(colors.get("tomes")),
-                                   "iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
-                                                                           colors.get("iadt")),
-                                   "tome_iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
-                                                                                colors.get("iadt"), "tome")})
+            self.send_json({**requirements.to_dict(),
+                            "distribution": requirements.distribution(colors.get("tomes")),
+                            "delegation_shares": requirements.delegation_shares(colors.get("platforms")),
+                            "platform_shares": requirements.platform_shares(colors.get("tomes")),
+                            "iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
+                                                                    colors.get("iadt")),
+                            "tome_iadt_shares": requirements.iadt_shares(list(configuration.get("iadt")),
+                                                                         colors.get("iadt"), "tome")})
+            return
         elif path == "/api/plans":
             # Lignes vérifiées par rapport à la configuration actuelle (plateformes, IADT, MOC, délégation).
-            return self.send_json(plans.to_dict(configuration))
+            self.send_json(plans.to_dict(configuration))
+            return
         elif path == "/api/stdhl":
-            return self.send_json(stdhl.to_dict())
+            self.send_json(stdhl.to_dict())
+            return
         elif path == "/api/fiches":
-            return self.send_json(fiches.to_dict())
+            self.send_json(fiches.to_dict())
+            return
         elif path == "/api/traceability":
-            return self.send_json(traceability.to_dict())
+            self.send_json(traceability.to_dict())
+            return
         elif path in ("/api/verification", "/api/verification/report"):
             selected = []   # une release pour la base : tout est vérifié
             if path == "/api/verification":
@@ -277,50 +286,66 @@ class Handler(SimpleHTTPRequestHandler):
                 # Légende des couleurs, dans l'ordre d'avancement : seulement les étapes du processus retenu.
                 skipped = {"plan": not configuration.get("process_plan"), "stdhl": not configuration.get("process_stdhl")}
                 result["tome_state_labels"] = {k: v for k, v in TOME_STATES.items() if not skipped.get(k)}
-                return self.send_json(result)
+                self.send_json(result)
+                return
             try:
                 name, content = verification.report(selected)
             except ValueError as e:
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
-            return self.send_body(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                  file_name=name)
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
+            self.send_body(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           file_name=name)
+            return
         elif path == "/api/backup":
             # Toute la base en SQL, enregistrée par le navigateur.
-            return self.send_body(sql.dump().encode("utf-8"), "application/sql; charset=utf-8",
-                                  file_name=time.strftime("nexus-v_%Y-%m-%d_%H-%M.sql"))
+            self.send_body(sql.dump().encode("utf-8"), "application/sql; charset=utf-8",
+                           file_name=time.strftime("nexus-v_%Y-%m-%d_%H-%M.sql"))
+            return
         elif path == "/api/tables":
-            return self.send_json(sql.table_list())
+            self.send_json(sql.table_list())
+            return
         elif m := re.fullmatch(r"/api/tables/(\w+)", path):
             try:
-                return self.send_json(sql.table(m[1]))
+                self.send_json(sql.table(m[1]))
+                return
             except KeyError:
-                return self.send_text_error(HTTPStatus.NOT_FOUND, "table inconnue")
+                self.send_text_error(HTTPStatus.NOT_FOUND, "table inconnue")
+                return
         elif path == "/api/info":
-            return self.send_json(storage_info())
+            self.send_json(storage_info())
+            return
         # Rejets gardés par tome : la page met leurs chevrons au rouge.
         elif path == "/api/rejects":
-            return self.send_json(database.rejects())
+            self.send_json(database.rejects())
+            return
         # Rapport du dernier rejet d'un type (?tome= : pour ce tome), ouvert depuis sa boîte ou son chevron.
         elif m := re.fullmatch(r"/api/rejects/(requirements|plans|stdhl|fiches|traceability)", path):
             tome = (parse_qs(urlparse(self.path).query).get("tome") or [""])[0]
             report = database.reject(m[1], tome or None)
             if report is None:
-                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport de rejet")
-            return self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
+                self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport de rejet")
+                return
+            self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
+            return
         # Rapport de l'import d'un fichier, ouvert par la page Gestion des fichiers dans une nouvelle fenêtre.
         elif (file_id := self.file_id("/rapport")) is not None:
             report = database.report(file_id)
             if report is None:
-                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport pour ce fichier")
-            return self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
+                self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport pour ce fichier")
+                return
+            self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
+            return
         # Octets bruts d'un fichier enregistré (la page y relit un fichier d'exigences).
         elif (file_id := self.file_id("/content")) is not None:
             content = database.content(file_id)
             if content is None:
-                return self.send_text_error(HTTPStatus.NOT_FOUND, "fichier introuvable")
-            return self.send_body(content, "application/octet-stream")
+                self.send_text_error(HTTPStatus.NOT_FOUND, "fichier introuvable")
+                return
+            self.send_body(content, "application/octet-stream")
+            return
         super().do_GET()
 
+    # noinspection PyPep8Naming
     def do_POST(self):
         """Routes qui chargent, importent ou modifient des données."""
         url = urlparse(self.path)
@@ -330,35 +355,45 @@ class Handler(SimpleHTTPRequestHandler):
                 # {path, copy} : le nouveau dossier des fichiers et si les fichiers y sont copiés.
                 change_storage(data.get("path"), bool(data.get("copy")))
             except ValueError as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
-            return self.send_json(storage_info())
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
+            self.send_json(storage_info())
+            return
         if m := re.fullmatch(r"/api/tables/(\w+)", url.path):
-            return self.change_table(lambda values: sql.insert_row(m[1], values))
+            table = m[1]
+            self.change_table(lambda values: sql.insert_row(table, values))
+            return
         if url.path == "/api/files/delete":
             # Plusieurs fichiers à la fois : {ids: [numéros de fichier]} ; les numéros déjà partis sont laissés de côté.
             try:
                 ids = [int(i) for i in json.loads(self.read_body() or b"{}").get("ids", [])]
             except (ValueError, TypeError) as e:
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
             # Une réponse par fichier retiré, dans l'ordre demandé.
-            return self.send_json([self.remove_file(i) for i in ids if database.get(i)])
+            self.send_json([self.remove_file(i) for i in ids if database.get(i)])
+            return
         if url.path == "/api/stdhl/edit":
             # Ligne d'un STDHL modifiée à la main : {file_id, action: add|update|delete|restore, requirement, test,
             # new_requirement, new_test}.
             try:
                 data = json.loads(self.read_body() or b"{}")
-                return self.send_json(stdhl.edit(int(data.get("file_id") or 0), data.get("action"),
-                                                 data.get("requirement"), data.get("test"),
-                                                 data.get("new_requirement"), data.get("new_test")))
+                self.send_json(stdhl.edit(int(data.get("file_id") or 0), data.get("action"),
+                                          data.get("requirement"), data.get("test"),
+                                          data.get("new_requirement"), data.get("new_test")))
+                return
             except (ValueError, TypeError) as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
         if url.path == "/api/tests/rename":
             # Nom d'un test changé dans la page STDHL : {old, new} ; chaque STDHL et chaque fiche qui le cite suit.
             try:
                 data = json.loads(self.read_body() or b"{}")
-                return self.send_json({"name": sql.rename_test(data.get("old"), data.get("new"))})
+                self.send_json({"name": sql.rename_test(data.get("old"), data.get("new"))})
+                return
             except ValueError as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
         if url.path == "/api/requirements/edit":
             # Modification à la main d'une exigence : {tome, action: add|update|delete, id, requirement}.
             try:
@@ -372,14 +407,17 @@ class Handler(SimpleHTTPRequestHandler):
                     fiches.read_missing(database, configuration, again=True)
                     traceability.read_missing(database, configuration, again=True)
             except ValueError as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
-            return self.send_json({"requirement": req})
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
+            self.send_json({"requirement": req})
+            return
         # Rien ne peut être chargé avant que la release de la base soit fixée : chaque exigence et chaque fichier lui
         # appartient.
         if url.path.startswith("/api/") and url.path.endswith(("/analyse", "/import", "/load")) \
                 and not configuration.get("release"):
-            return self.send_text_error(HTTPStatus.BAD_REQUEST, "définir d'abord la release dans la configuration "
-                                                                "(Paramètres généraux)")
+            self.send_text_error(HTTPStatus.BAD_REQUEST, "définir d'abord la release dans la configuration "
+                                                         "(Paramètres généraux)")
+            return
         if url.path in ("/api/requirements/analyse", "/api/requirements/import"):
             # Fichier d'exigences envoyé tel quel (corps) ; sa lecture et l'import sont faits par RequirementsDatabase.
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
@@ -396,11 +434,12 @@ class Handler(SimpleHTTPRequestHandler):
                 content = content[size:]
                 if url.path.endswith("/analyse"):
                     # Avec le nom du fichier : le tome qu'il nomme, proposé dans la fenêtre d'import.
-                    return self.send_json({**requirements.analyse(content, query.get("sheet") or None,
-                                                                  (query.get("tome") or "").strip() or None,
-                                                                  query.get("mode", "replace"),
-                                                                  configuration, selected, choices),
-                                           "tome_name": requirements.tome_from_name(query.get("name"), configuration)})
+                    self.send_json({**requirements.analyse(content, query.get("sheet") or None,
+                                                           (query.get("tome") or "").strip() or None,
+                                                           query.get("mode", "replace"),
+                                                           configuration, selected, choices),
+                                    "tome_name": requirements.tome_from_name(query.get("name"), configuration)})
+                    return
                 # Import : le fichier est enregistré et ses exigences écrites, les conflits étant réglés par les choix.
                 if not query.get("name") or not (query.get("tome") or "").strip():
                     raise ValueError("paramètres name / tome manquants")
@@ -425,8 +464,10 @@ class Handler(SimpleHTTPRequestHandler):
                 traceability.read_missing(database, configuration, again=True)
             except ValueError as e:
                 # Rejeté (analyse ou import) : son rapport de rejet est gardé.
-                return self.reject("requirements", query, content, str(e))
-            return self.send_json(summary)
+                self.reject("requirements", query, content, str(e))
+                return
+            self.send_json(summary)
+            return
         if m := re.fullmatch(r"/api/(plans|stdhl|fiches|traceability)/(analyse|load)", url.path):
             # Fichier de plan, STDHL, fiches ou traçabilité envoyé tel quel (corps) : la classe du sujet le lit et
             # l'enregistre.
@@ -457,16 +498,20 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError(Verification.late_text(kind, late, configuration))
                 if m[2] == "analyse":
                     if base is plans:   # avec tome et releases : inconnues et exigences d'un autre plan
-                        return self.send_json(plans.analyse(content, configuration, (query.get("tome") or "").strip(),
-                                                            [configuration.get("release")], query["name"]))
+                        self.send_json(plans.analyse(content, configuration, (query.get("tome") or "").strip(),
+                                                     [configuration.get("release")], query["name"]))
+                        return
                     if base is traceability:   # avec le tome et la release : les numéros à ignorer
-                        return self.send_json(base.analyse(content, configuration, (query.get("tome") or "").strip(),
-                                                           [configuration.get("release")]))
+                        self.send_json(base.analyse(content, configuration, (query.get("tome") or "").strip(),
+                                                    [configuration.get("release")]))
+                        return
                     if base is fiches:   # avec le tome (aucun : tous les tomes) : les numéros à ignorer
-                        return self.send_json(fiches.analyse(content, configuration, [configuration.get("release")],
-                                                             (query.get("tome") or "").strip()))
+                        self.send_json(fiches.analyse(content, configuration, [configuration.get("release")],
+                                                      (query.get("tome") or "").strip()))
+                        return
                     args = (content, query["name"], configuration) if base is stdhl else (content, configuration)
-                    return self.send_json(base.analyse(*args))
+                    self.send_json(base.analyse(*args))
+                    return
                 # Chargement : le tome choisi (aucun pour un fichier STDHL ou de fiches qui s'applique à tous les
                 # tomes), les décisions sur les lignes à régler, et pour un fichier de fiches la plateforme d'où il
                 # vient.
@@ -477,7 +522,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if base in (traceability, fiches):   # la plateforme d'où vient le fichier de fiches
                     extra["platform"] = (query.get("platform") or "").strip()
                 # Le rapport du chargement : celui de la vérification avant import, sur la base d'avant le chargement.
-                report = self.import_report(m[1], query["name"], content, extra.get("platform", ""))
+                report = self.import_report(m[1], query["name"], content, str(extra.get("platform") or ""))
                 result = base.load_file(database, requirements, content, query["name"], (query.get("tome") or "").strip(),
                                         [configuration.get("release")], configuration, **extra)
                 if report:
@@ -486,15 +531,18 @@ class Handler(SimpleHTTPRequestHandler):
                 database.remove_reject(m[1], (query.get("tome") or "").strip())
             except ValueError as e:
                 # Rejeté (analyse ou chargement) : son rapport de rejet est gardé.
-                return self.reject(m[1], query, content, str(e))
-            return self.send_json(result)
+                self.reject(m[1], query, content, str(e))
+                return
+            self.send_json(result)
+            return
         if m := re.fullmatch(r"/api/check/(requirements|plans|stdhl|fiches)", url.path):
             # Fichiers d'une étape vérifiés avant leur import, rien n'est enregistré : le corps est la liste JSON des
             # fichiers [{name, size}] (manifest_size octets), puis les octets de chaque fichier dans cet ordre. La
             # réponse porte le rapport HTML écrit par FileCheck.
             if not configuration.get("release"):
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, "définir d'abord la release dans la configuration "
-                                                                    "(Paramètres généraux)")
+                self.send_text_error(HTTPStatus.BAD_REQUEST, "définir d'abord la release dans la configuration "
+                                                             "(Paramètres généraux)")
+                return
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
             try:
                 body = self.read_body()
@@ -511,15 +559,19 @@ class Handler(SimpleHTTPRequestHandler):
                 # Chaque étape vérifiée pour les deux imports : remplacement et complément.
                 check = {"requirements": file_check.check_requirements, "plans": file_check.check_plans,
                          "stdhl": file_check.check_stdhl, "fiches": file_check.check_fiches}[m[1]]
-                return self.send_json(check(files))
+                self.send_json(check(files))
+                return
             except (ValueError, KeyError, TypeError) as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+                return
         if url.path == "/api/storage/choose":
             try:
-                return self.send_json({"path": choose_directory(str(files_dir))})
+                self.send_json({"path": choose_directory(str(files_dir))})
+                return
             except ImportError:
-                return self.send_text_error(HTTPStatus.NOT_IMPLEMENTED,
-                                            "sélecteur de dossier indisponible (tkinter absent) : saisir le chemin")
+                self.send_text_error(HTTPStatus.NOT_IMPLEMENTED,
+                                     "sélecteur de dossier indisponible (tkinter absent) : saisir le chemin")
+                return
         self.send_text_error(HTTPStatus.NOT_FOUND, "adresse inconnue")
 
     def change_table(self, change):
@@ -528,16 +580,19 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             change(json.loads(self.read_body() or b"{}"))
         except KeyError:
-            return self.send_text_error(HTTPStatus.NOT_FOUND, "table inconnue")
+            self.send_text_error(HTTPStatus.NOT_FOUND, "table inconnue")
+            return
         except ValueError as e:   # couvre aussi un JSON invalide
-            return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+            self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
+            return
         self.send_json({"ok": True})
 
     @staticmethod
-    def import_report(kind, name, content, platform=""):
+    def import_report(kind, name, content, platform="") -> str | None:
         """Rapport HTML de l'import d'un fichier, le même que la vérification avant import, calculé sur la base telle
         qu'elle est avant l'import ; None pour un fichier sans vérification (traçabilité Excel) ou quand le calcul
         échoue (l'import, lui, se fait quand même)."""
+        # noinspection PyBroadException
         try:
             if kind == "requirements":
                 result = file_check.check_requirements([(name, content)])
@@ -549,6 +604,7 @@ class Handler(SimpleHTTPRequestHandler):
                 result = file_check.check_fiches([(name, content, platform)])
             else:
                 return None
+        # Le rapport n'est qu'un complément : quelle que soit l'erreur, le chargement continue sans lui.
         except Exception:
             return None
         return result["html"]
@@ -579,9 +635,11 @@ class Handler(SimpleHTTPRequestHandler):
             found = [t for t in requirements.tomes() if re.search(rf"(?<![a-z0-9]){re.escape(fold(t))}(?![a-z0-9])", folded)]
             tome = found[0] if len(found) == 1 else ""
         database.save_reject(kind, tome, report)
-        return self.send_text_error(HTTPStatus.BAD_REQUEST, message)
+        self.send_text_error(HTTPStatus.BAD_REQUEST, message)
+        return
 
-    def remove_file(self, file_id):
+    @staticmethod
+    def remove_file(file_id):
         """Retire un fichier et ce qui en vient, avec les fichiers de son groupe (un fichier d'exigences part avec
         les autres fichiers d'exigences de son tome : le premier import et ses compléments). Renvoie ce qui a été
         retiré."""
@@ -608,13 +666,17 @@ class Handler(SimpleHTTPRequestHandler):
         database.prune_reports(requirements.tomes())
         return removed
 
+    # noinspection PyPep8Naming
     def do_PUT(self):
         """Enregistre la configuration ou une ligne d'une table."""
         if m := re.fullmatch(r"/api/tables/(\w+)/(-?\d+)", urlparse(self.path).path):
             # PUT /api/tables/<table>/<id> : une ligne modifiée dans la page Tables de la base.
-            return self.change_table(lambda values: sql.update_row(m[1], int(m[2]), values))
+            table, row_id = m[1], int(m[2])
+            self.change_table(lambda values: sql.update_row(table, row_id, values))
+            return
         if urlparse(self.path).path != "/api/config":
-            return self.send_text_error(HTTPStatus.NOT_FOUND, "adresse inconnue")
+            self.send_text_error(HTTPStatus.NOT_FOUND, "adresse inconnue")
+            return
         try:
             # Le contenu des STDHL dépend de ces réglages : quand ils changent, les fichiers enregistrés sont relus.
             # Les valeurs avant la mise à jour, pour savoir ensuite ce qui a changé.
@@ -640,18 +702,25 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError as e:   # couvre aussi un JSON invalide
             self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
 
+    # noinspection PyPep8Naming
     def do_DELETE(self):
         """Retire une ligne d'une table ou un fichier."""
         if m := re.fullmatch(r"/api/tables/(\w+)/(-?\d+)", urlparse(self.path).path):
             # Une ligne de fichier est retirée comme depuis la page Gestion des fichiers : sa copie et son contenu
             # partent avec elle.
             if m[1] == "files":   # avec sa copie enregistrée
-                return self.send_json(self.remove_file(int(m[2]))) if database.get(int(m[2])) else \
+                if database.get(int(m[2])):
+                    self.send_json(self.remove_file(int(m[2])))
+                else:
                     self.send_text_error(HTTPStatus.NOT_FOUND, "fichier introuvable")
-            return self.change_table(lambda values: sql.delete_row(m[1], int(m[2])))
+                return
+            table, row_id = m[1], int(m[2])
+            self.change_table(lambda values: sql.delete_row(table, row_id))
+            return
         file_id = self.file_id()
         if file_id is None or database.get(file_id) is None:
-            return self.send_text_error(HTTPStatus.NOT_FOUND, "fichier introuvable")
+            self.send_text_error(HTTPStatus.NOT_FOUND, "fichier introuvable")
+            return
         self.send_json(self.remove_file(file_id))
 
 

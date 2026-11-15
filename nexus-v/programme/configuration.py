@@ -84,6 +84,7 @@ import re
 import threading
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 DEFAULT_CONFIG = {
     "slogan": "Le fil d’Ariane de la traçabilité, de la spécification à l'essai",
@@ -234,7 +235,7 @@ def storage_path(config, base):
     return (folder if folder.is_absolute() else Path(base) / folder).resolve()
 
 
-def plural(n, singular, several=None):
+def plural(n: int, singular: str, several: str | None = None) -> str:
     """« 1 ligne », « 3 lignes » (singulier jusqu'à 1, comme en français)."""
     return f"{n} {(several or singular + 's') if n > 1 else singular}"
 
@@ -255,7 +256,7 @@ def header_column(cells, expected, taken=()):
     return min(found, key=lambda i: len(folded[i])) if found else None
 
 
-def match_header(cells, headers):
+def match_header(cells, headers) -> tuple[dict[str, int], list[str]]:
     """Colonnes d'une ligne d'en-tête pour un réglage d'en-têtes (texte → champ) : ({champ: index de
     colonne} pour les colonnes trouvées qui portent un champ lu, [textes attendus non trouvés]). L'ordre des
     colonnes n'importe pas : les
@@ -304,6 +305,24 @@ def type_name(value):
     raise ValueError(f"type non géré : {type(value).__name__}")
 
 
+def cleaned(name, kind, value) -> Any:
+    """Valeur de la variable `name` nettoyée selon son type `kind` (type_name) : un int devient float si besoin, les
+    listes et dictionnaires ne gardent que des textes non vides, un texte perd ses espaces de bord."""
+    if kind == "float":
+        return float(value)
+    if kind in ("list", "dict"):
+        items = value.values() if kind == "dict" else value
+        if any(isinstance(v, (list, dict)) for v in items):
+            raise ValueError(f"{name} : une liste ou un dictionnaire ne peut contenir que des valeurs simples")
+    if kind == "list":
+        return [str(v).strip() for v in value if str(v).strip()]
+    if kind == "dict":
+        return {str(k).strip(): str(v or "").strip() for k, v in value.items() if str(k).strip()}
+    if kind == "str":
+        return value.strip()
+    return value
+
+
 class Configuration:
     """Lit, écrit, donne et fixe les variables de configuration gardées dans un fichier JSON."""
 
@@ -313,8 +332,8 @@ class Configuration:
         path = Path(path)
         self.database = database
         self.path = path.with_suffix(".json")
-        self.defaults = copy.deepcopy(DEFAULT_CONFIG if defaults is None else defaults)
-        self._values = {}             # variables lues dans le fichier ou fixées dedans
+        self.defaults: dict[str, Any] = copy.deepcopy(DEFAULT_CONFIG if defaults is None else defaults)
+        self._values: dict[str, Any] = {}   # variables lues dans le fichier ou fixées dedans
         self._lock = threading.RLock()
         self.read()
 
@@ -391,7 +410,7 @@ class Configuration:
     # Accès
     # ------------------------------------------------------------------ #
 
-    def names(self):
+    def names(self) -> list[str]:
         """Chaque nom de variable : celles par défaut d'abord, puis celles en plus fixées dans le fichier."""
         with self._lock:
             return list(dict.fromkeys([*self.defaults, *self._values]))
@@ -400,7 +419,7 @@ class Configuration:
         """True pour une variable fixée ou qui a une valeur par défaut."""
         return name in self._values or name in self.defaults
 
-    def get(self, name, default=_MISSING):
+    def get(self, name, default=_MISSING) -> Any:
         """Valeur d'une variable (copie) : valeur fixée, sinon valeur par défaut, sinon `default`, sinon KeyError.
         Les référentiels sont lus dans la base quand il y en a une."""
         # Valeurs gardées dans la base plutôt que dans le fichier JSON.
@@ -422,7 +441,7 @@ class Configuration:
             raise KeyError(name)
         return default
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Chaque variable avec sa valeur actuelle, référentiels et leurs couleurs compris."""
         return {**{name: self.get(name) for name in self.names()}, "colors": self.get("colors"),
                 "tome_descriptions": self.get("tome_descriptions"), "system_platforms": self.system_platforms(),
@@ -443,7 +462,7 @@ class Configuration:
         Une variable fixée à sa valeur par défaut n'est pas écrite dans le fichier, pour qu'un changement ultérieur
         de la valeur par défaut s'applique encore à elle.
         """
-        values = dict(values)
+        values: dict[str, Any] = dict(values)
         # Valeurs que la page envoie en plus des variables : les renommages, les couleurs et les descriptions vont dans
         # la base.
         renames = values.pop("renames", None) or {}   # {type: {ancien nom: nouveau nom}}, voir NexusDatabase.rename
@@ -460,7 +479,7 @@ class Configuration:
         if bad:
             raise ValueError(f"couleur invalide : {bad[0]}")
         # Chaque valeur est validée avant toute écriture : une valeur invalide refuse toute la mise à jour.
-        clean = {name: self._check(name, value) for name, value in values.items()}
+        clean: dict[str, Any] = {name: self._check(name, value) for name, value in values.items()}
         if "release" in clean and clean["release"] != self.get("release") and self.database is not None \
                 and self.database.scalar("SELECT COUNT(*) FROM files"):
             raise ValueError("la release ne peut changer que si aucun fichier n'est chargé : supprimer d'abord les fichiers")
@@ -488,7 +507,7 @@ class Configuration:
                                  "exigence importée (choisir parmi " + (", ".join(delegated) or "aucune") + ")")
         clean["system_platform"] = system_platform
         # Deux types de fichiers dans le même sous-dossier mélangeraient leurs copies.
-        folders = [clean.get(name, self.get(name)) for name in FOLDER_VARIABLES]
+        folders: list[str] = [clean.get(name, self.get(name)) for name in FOLDER_VARIABLES]
         same = sorted({f for f in folders if [x.casefold() for x in folders].count(f.casefold()) > 1})
         if same:
             raise ValueError("chaque type de fichier doit avoir son propre sous-dossier : « " + "», « ".join(same)
@@ -543,7 +562,7 @@ class Configuration:
             rules[code] = expected
         return rules
 
-    def _check(self, name, value):
+    def _check(self, name, value) -> Any:
         """Copie validée d'une valeur : même type que la valeur par défaut, listes de plateformes et de codes
         nettoyées."""
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -553,21 +572,12 @@ class Configuration:
         if name in self.defaults:
             expected = type_name(self.defaults[name])
             if expected == "float" and kind == "int":
-                value, kind = float(value), "float"
+                kind = "float"
             if kind != expected:
                 raise ValueError(f"{name} doit être de type {expected}, pas {kind}")
         if name == "iadt_moc_rules":
             return self._check_rules(value)
-        if kind in ("list", "dict"):
-            items = value.mvalues() if kind == "dict" else value
-            if any(isinstance(v, (list, dict)) for v in items):
-                raise ValueError(f"{name} : une liste ou un dictionnaire ne peut contenir que des valeurs simples")
-        if kind == "list":
-            value = [str(v).strip() for v in value if str(v).strip()]
-        elif kind == "dict":
-            value = {str(k).strip(): str(v or "").strip() for k, v in value.items() if str(k).strip()}
-        elif kind == "str":
-            value = value.strip()
+        value = cleaned(name, kind, value)
 
         # Vérifications propres à certaines variables : doublons dans les référentiels, rôles d'en-tête présents une
         # fois chacun, noms de dossier et de balise valides, expressions régulières compilables, plages de nombres.
@@ -653,7 +663,3 @@ class Configuration:
     def is_platform(self, name):
         """True pour une plateforme de la configuration (casse et accents ignorés)."""
         return any(fold(name) == fold(p) for p in self.get("platforms"))
-
-    def delegation(self, value):
-        """Délégation écrite dans une cellule (vide quand la cellule l'est : il n'y a pas de plateforme par défaut)."""
-        return (value or "").strip()

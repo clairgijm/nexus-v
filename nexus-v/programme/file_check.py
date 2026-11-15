@@ -9,7 +9,7 @@ la Verification sur les exigences, plans et STDHL de la base avec, en mémoire, 
 Le résultat est un rapport HTML autonome.
 """
 import html
-import re
+from typing import Any
 from datetime import datetime
 
 from configuration import fold, plural
@@ -62,7 +62,7 @@ class RequirementsInMemory:
         """requirements : RequirementsDatabase ; replaced : {tome: [exigences du fichier]}."""
         self.requirements, self.replaced = requirements, replaced
 
-    def to_dict(self, only=None):
+    def to_dict(self, only=None) -> dict[str, Any]:
         data = self.requirements.to_dict(only)
         tomes = dict(data["tomes"])
         for tome, reqs in self.replaced.items():
@@ -78,7 +78,7 @@ class PlansInMemory:
         """plans : sous la forme de PlansDatabase.plans."""
         self.list = plans
 
-    def plans(self, tome=None, file_id=None, config=None, with_deleted=False):
+    def plans(self, tome=None, file_id=None, config=None, with_deleted=False) -> list[dict[str, Any]]:
         return [p for p in self.list if tome is None or p["tome"] == tome]
 
 
@@ -89,7 +89,7 @@ class StdhlInMemory:
         """documents : sous la forme de StdhlDatabase.documents."""
         self.list = documents
 
-    def documents(self):
+    def documents(self) -> list[dict[str, Any]]:
         return self.list
 
 
@@ -100,7 +100,7 @@ class FichesInMemory:
         """documents : sous la forme de FichesDatabase.documents."""
         self.list = documents
 
-    def documents(self, source="xml"):
+    def documents(self, source="xml") -> list[dict[str, Any]]:
         return self.list
 
 
@@ -278,7 +278,7 @@ class FileCheck:
             for field, label in FIELD_LABELS.items():
                 changed = [i for i, fields in changes.items() if field in fields]
                 if changed:
-                    where = sorted({before[i]["tome"] for i in changed})
+                    where: list[str] = sorted({before[i]["tome"] for i in changed})
                     what = {"delegation": "à la délégation modifiée",
                             "validation": "à la validation modifiée (à qualifier, qualifiée, hors scope)"}.get(
                         field, f"au {label} modifié")
@@ -422,7 +422,7 @@ class FileCheck:
                 p.append(problem(BLOCKING, text, fix, places))
             if not [d for d in diffs if not (skip and d["kind"] == "unknown")]:
                 found["facts"].append(f"identique aux exigences du tome {tome} : le plan est accepté")
-                replaced = [q["name"] for q in plans if q["tome"] == tome]
+                replaced: list[str] = [q["name"] for q in plans if q["tome"] == tome]
                 if replaced:
                     p.append(problem(INFO, f"remplace le plan du tome {tome} déjà chargé : {', '.join(replaced)}"))
                 plans = [q for q in plans if q["tome"] != tome] + [
@@ -490,7 +490,7 @@ class FileCheck:
             try:
                 data = StdhlDatabase.read_docx(content, name, self.config)
             except ValueError as e:
-                data = {"tables": 0, "error": str(e)}
+                data: dict[str, Any] = {"tables": 0, "error": str(e)}
             if not data["tables"]:
                 p.append(problem(BLOCKING, "fichier illisible ou refusé : " + data.get("error", "aucun tableau STDHL "
                                            "valide (format par tome) ni test du format unique"),
@@ -614,15 +614,19 @@ class FileCheck:
                                             f"remplace celui qui les citait) : " + listed(lost),
                                      "les ajouter à ce fichier si elles doivent rester spécifiées"))
         between = self._between_stdhl(results, contents, mode)
+        skip = FileDatabase.skip_unknown(self.config)
         return {"results": results, "between": between, "requirements": self.requirements, "plans": self.plans,
                 "stdhl": StdhlInMemory(docs),
                 "hypothesis": ("les STDHL des tomes concernés sont remplacés par le fichier" if mode == "replace" else
                                "les lignes du fichier remplacent celles des mêmes exigences dans les STDHL de la base, "
                                "ou s'ajoutent ; les autres lignes restent")
-                + " ; les exigences inconnues de la base sont ignorées ; format unique : la "
+                + (" ; les exigences inconnues de la base sont ignorées" if skip else
+                   " ; une exigence inconnue de la base refuse le fichier")
+                + " ; format unique : la "
                   "couverture d'un test est l'ensemble des exigences de ses test cases ; le nom du fichier n'est pas utilisé"}
 
-    def _between_stdhl(self, results, contents, mode):
+    @staticmethod
+    def _between_stdhl(results, contents, mode):
         """Problèmes entre fichiers STDHL : même fichier ou même nom de STDHL deux fois, une exigence dans plusieurs
         fichiers, et quand ils écrasent la base, un tome concerné par plusieurs fichiers."""
         found = []
@@ -736,7 +740,7 @@ class FileCheck:
                                            f"{'s' if len(not_run) > 1 else ''} : " + listed(not_run)))
             kept = unique(i for _, _, ids, _ in found["rows"] for i in ids
                           if i not in found["not_specified"])
-            touched = sorted({tome_of[i] for i in kept if i in tome_of})
+            touched: list[str] = sorted({tome_of[i] for i in kept if i in tome_of})
             new = [i for i in kept if i not in covered_before]
             if new:
                 p.append(problem(INFO, f"{plural(len(new), 'exigence')} sans fiche dans la base, couverte"
@@ -825,7 +829,7 @@ class FileCheck:
         tiles = []
         for k, label in enumerate(labels):
             b = before.get("tiles", [])
-            row = {"label": label, "before": self._tile_text(b[k]) if k < len(b) else "—",
+            row: dict[str, Any] = {"label": label, "before": self._tile_text(b[k]) if k < len(b) else "—",
                    "after": {m: self._tile_text(a["tiles"][k]) if k < len(a.get("tiles", [])) else "—"
                              for m, a in afters.items()}}
             row["changed"] = any(v != row["before"] for v in row["after"].values())
@@ -835,20 +839,20 @@ class FileCheck:
             tiles.append(row)
         if step == "requirements":
             # La référence des exigences avant et après import : leur répartition par IADT, MOC et validation.
-            def spread(source, field):
-                reqs = [r for t in source.to_dict()["tomes"].values() for r in t["requirements"] if not r.get("deleted")]
-                if field == "validation":
-                    counts = {VALIDATION_STATES[s]: sum(r.get("validation") == s for r in reqs) for s in VALIDATION_STATES}
+            def spread(source, name):
+                reqs = [q for t in source.to_dict()["tomes"].values() for q in t["requirements"] if not q.get("deleted")]
+                if name == "validation":
+                    counts = {VALIDATION_STATES[s]: sum(q.get("validation") == s for q in reqs) for s in VALIDATION_STATES}
                 else:
                     counts = {}
-                    for r in reqs:
-                        counts[r.get(field) or "vide"] = counts.get(r.get(field) or "vide", 0) + 1
+                    for q in reqs:
+                        counts[q.get(name) or "vide"] = counts.get(q.get(name) or "vide", 0) + 1
                     counts = dict(sorted(counts.items(), key=lambda c: -c[1]))
-                return " · ".join(f"{k} {v}" for k, v in counts.items() if v) or "—"
+                return " · ".join(f"{key} {v}" for key, v in counts.items() if v) or "—"
             sources = {m: q for m, (q, _, _) in (modes or {None: (requirements, plans, self.stdhl)}).items()}
             for field, label in (("iadt", "Exigences par IADT"), ("moc", "Exigences par MOC"),
                                  ("validation", "Exigences par validation")):
-                row = {"label": label, "before": spread(self.requirements, field),
+                row: dict[str, Any] = {"label": label, "before": spread(self.requirements, field),
                        "after": {m: spread(q, field) for m, q in sources.items()}}
                 row["changed"] = any(v != row["before"] for v in row["after"].values())
                 tiles.append(row)

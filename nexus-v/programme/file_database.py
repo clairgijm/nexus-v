@@ -20,6 +20,7 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from configuration import DEFAULT_CONFIG, plural
 
@@ -265,7 +266,7 @@ class FileDatabase:
                 gone += 1
         return gone
 
-    def list(self, slot=None):
+    def list(self, slot=None) -> list[dict[str, Any]]:
         """Enregistrements, éventuellement ceux d'un seul slot."""
         conditions, params = [], []
         if slot is not None:
@@ -273,7 +274,7 @@ class FileDatabase:
             params.append(slot)
         return self._records(("WHERE " + " AND ".join(conditions)) if conditions else "", params)
 
-    def get(self, file_id):
+    def get(self, file_id) -> dict[str, Any] | None:
         """Enregistrement de ce numéro, ou None."""
         found = self._records("WHERE id = ?", (file_id,))
         return found[0] if found else None

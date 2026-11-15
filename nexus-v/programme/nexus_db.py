@@ -24,6 +24,7 @@ import re
 import sqlite3
 import threading
 from pathlib import Path
+from typing import Any
 
 # Fichiers propres à NEXUS-V, dans un dossier de nom fixe, relatif au dossier de NEXUS-V : réglages, définition des
 # tables, base. Il se trouve dans le dossier des fichiers importés, à côté de leurs sous-dossiers.
@@ -75,7 +76,7 @@ def random_platform_color(taken=()):
         return min(abs(h1 - h2), 360 - abs(h1 - h2))
 
     used = [hue_of(c) for c in taken if re.fullmatch(r"#[0-9a-fA-F]{6}", c or "")]
-    best, best_gap = None, -1
+    best, best_gap = 0.0, -1.0
     for _ in range(40):   # la plus éloignée de 40 tirages des teintes déjà utilisées
         hue = random.uniform(0, 360)
         if any(low <= hue < high for low, high in RESERVED_HUES):
@@ -211,12 +212,12 @@ class NexusDatabase:
             finally:
                 self._depth -= 1
 
-    def query(self, sql, params=()):
+    def query(self, sql, params=()) -> list[dict[str, Any]]:
         """Lignes d'un SELECT, sous forme de dicts."""
         with self.lock:
             return [dict(r) for r in self.db.execute(sql, params)]
 
-    def scalar(self, sql, params=()):
+    def scalar(self, sql, params=()) -> Any:
         """Première valeur de la première ligne d'une requête, ou None."""
         with self.lock:
             row = self.db.execute(sql, params).fetchone()
@@ -265,7 +266,7 @@ class NexusDatabase:
             raise KeyError(kind)
         return REFERENTIALS[kind]
 
-    def get(self, kind):
+    def get(self, kind) -> Any:
         """Contenu d'un référentiel sous la forme de la configuration : une liste de noms, ou un dict code ->
         libellé."""
         table, key, label = self._table(kind)

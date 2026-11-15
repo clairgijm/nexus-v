@@ -158,7 +158,7 @@
   .tome-state .label { font-size: .78rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chevrons { display: flex; }
   .chev { flex: 1 1 0; min-width: 0; height: 20px; margin: 0 0 0 -4px; padding: 0 4px 0 9px; border: none;
-          border-radius: 0; background: var(--chev, var(--chev-todo)); color: #fff; font-size: .65rem; font-weight: 700;
+          border-radius: 0; --chev: var(--chev-todo); background: var(--chev); color: #fff; font-size: .65rem; font-weight: 700;
           letter-spacing: .03em; display: flex; align-items: center; justify-content: center; cursor: default;
           clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%, 7px 50%); }
   .chev:first-child { margin-left: 0; }   /* même forme que les autres, encoche comprise */
@@ -696,7 +696,7 @@
         <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
           <input type="checkbox" data-var="skip_unknown_req"> Ignorer les exigences inconnues : lors de l'import,
           un fichier qui cite une exigence inconnue n'est plus refusé ;
-          les données liées à cette exigence est ignorée, avec un avertissement dans le rapport de vérification</label>
+          les données liées à cette exigence sont ignorées, avec un avertissement dans le rapport de vérification</label>
       </div>
 
       <h3>Autres paramètres</h3>
@@ -708,8 +708,7 @@
           <input type="text" class="mono" data-var="release" id="cfg-release" spellcheck="false" placeholder="Nom de la release"></label>
         <label class="wide">Plateforme de niveau système : le STDHL s'applique à elle ; seules les exigences qui lui sont
           déléguées sont attendues dans un STDHL, et seules ses fiches d'essai sont vérifiées par rapport aux tests du STDHL.
-          À choisir parmi les plateformes des délégations des exigences importées ; non définie, aucune exigence n'est
-          attendue dans un STDHL
+          À choisir parmi les plateformes des délégations des exigences importées ; non définie.
           <select data-var="system_platform" id="cfg-system-platform"></select></label>
         <label class="wide">Slogan (affiché à droite du nom NEXUS-V)
           <input type="text" data-var="slogan"></label>
@@ -806,11 +805,11 @@
         <label class="wide">Nom du STDHL (dans le nom du fichier)
           <input type="text" class="mono" data-var="stdhl_name_regex" spellcheck="false"></label>
       </div>
-      <h3>Format 2 : un document pour tous les STDHL, sans tableau STDHL</h3>
-      <p class="hint">Lu à l'import et par la vérification avant import quand le document n'a aucun tableau STDHL
-        valide (format « unique »). Chaque test est un titre « nom : titre » ; ses exigences associées sont la liste
-        qui suit leur libellé (la fin de la liste termine les exigences) ; sa couverture est l'ensemble des exigences citées dans les phases de ses
-        test cases, et les deux doivent être identiques (sinon, le fichier est refusé). Les libellés sont reconnus sans tenir compte des majuscules ni des accents.</p>
+      <h3>Format 2 : un document pour tous les STDHL</h3>
+      <p class="hint">Lu à l'import et par la vérification avant import. Chaque test est un titre « nom : titre » ;
+        ses exigences associées sont la liste qui suit leur libellé (la fin de la liste termine les exigences) ;
+        sa couverture est l'ensemble des exigences citées dans les phases de ses testcases, et les deux doivent être identiques (sinon, le fichier est refusé).
+        Les libellés sont reconnus sans tenir compte des majuscules ni des accents.</p>
       <div class="params">
         <label class="wide">Titre d'un test (groupe 1 = nom du test, par exemple TEST-001)
           <input type="text" class="mono" data-var="stdhl2_test_regex" spellcheck="false"></label>

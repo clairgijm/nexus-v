@@ -40,6 +40,7 @@ import io
 import re
 
 import openpyxl
+from typing import Any
 
 from configuration import DEFAULT_CONFIG, fold, match_header, plural
 
@@ -75,7 +76,7 @@ class RequirementsDatabase:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _clean(req, file_id=None):
+    def _clean(req, file_id=None) -> dict[str, Any]:
         """Copie validée d'une exigence."""
         req_id = str(req.get("id") or "").strip()
         if not req_id:
@@ -135,7 +136,7 @@ class RequirementsDatabase:
             ids.append(row[0] if row else None)
         return ids
 
-    def _requirements(self, where="", params=()):
+    def _requirements(self, where="", params=()) -> list[dict[str, Any]]:
         """Exigences (avec leur tome), dans l'ordre des tomes puis des fichiers."""
         # Chaque exigence reçoit la release de la base : elle n'est pas enregistrée, toute la base travaille sur une
         # release.
@@ -163,12 +164,12 @@ class RequirementsDatabase:
         return [r["name"] for r in self.sql.query(
             "SELECT name FROM list_tomes t WHERE EXISTS (SELECT 1 FROM requirements r WHERE r.tome_id = t.id) ORDER BY t.id")]
 
-    def get(self, tome):
+    def get(self, tome) -> dict[str, Any] | None:
         """Un tome : {"description", "files", "requirements"}, ou None s'il n'a pas d'exigence."""
         found = self.to_dict(tome)["tomes"]
         return next(iter(found.values()), None)
 
-    def to_dict(self, only=None):
+    def to_dict(self, only=None) -> dict[str, Any]:
         """Les exigences par tome (les tomes sans exigence sont laissés de côté)."""
         result = {}
         where, params = ("WHERE t.name = ?", (only,)) if only is not None else ("", ())
@@ -253,7 +254,7 @@ class RequirementsDatabase:
                             {**(colors or {}), qualified: "var(--ok)", out: "var(--muted)"},
                             order=codes + [qualified, out])
 
-    def requirements(self, tomes=None):
+    def requirements(self, tomes=None) -> list[dict[str, Any]]:
         """Exigences des tomes donnés (tous par défaut), chacune avec sa clé « tome »."""
         return [r for r in self._requirements() if tomes is None or r["tome"] in tomes]
 
@@ -262,7 +263,7 @@ class RequirementsDatabase:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _cell_text(value):
+    def _cell_text(value: Any):
         """Texte d'une cellule Excel (un nombre entier est écrit sans décimales)."""
         if value is None:
             return ""
@@ -289,7 +290,7 @@ class RequirementsDatabase:
             workbook.close()
 
     @classmethod
-    def read_excel(cls, content, sheet=None, config=None, rows=None):
+    def read_excel(cls, content, sheet=None, config=None, rows=None) -> dict[str, Any]:
         """Lit un classeur d'exigences (octets). Renvoie {"sheets" : noms, "sheet" : feuille lue, "requirements" :
         [{id, title, releases, iadt, moc, delegation, row}], "releases" : releases nommées dans le fichier,
         "repeated" : [{id, rows: [{row, title, releases}], chosen}] numéros trouvés sur plusieurs lignes,
@@ -354,7 +355,7 @@ class RequirementsDatabase:
                 chosen = next((v for v in versions if v["row"] == rows.get(req_id)), None)
                 requirements.append(chosen or versions[0])
                 if len(versions) > 1:
-                    repeated.append({"id": req_id, "chosen": chosen and chosen["row"],
+                    repeated.append({"id": req_id, "chosen": chosen["row"] if chosen else None,
                                      "rows": [{f: v[f] for f in ("row", "title", "releases")} for v in versions]})
             return {"sheets": names, "sheet": name, "requirements": requirements, "releases": list(releases),
                     "rejected_numbers": list(dict.fromkeys(rejected)),
@@ -398,7 +399,7 @@ class RequirementsDatabase:
                 else:
                     problems.append(f"ligne {r['row']} ({r['id']}) : {names[field]} « {value} » absent de la configuration")
             # Les règles IADT / MOC de la configuration : le MOC doit être l'un de ceux attendus pour l'IADT.
-            expected = (get("iadt_moc_rules") or {}).get(r["iadt"])
+            expected: list[str] = (get("iadt_moc_rules") or {}).get(r["iadt"]) or []
             if expected and r["moc"] and r["moc"] in known["moc"] and r["moc"] not in expected:
                 problems.append(f"ligne {r['row']} ({r['id']}) : MOC « {r['moc']} » non attendu pour l'IADT "
                                 f"« {r['iadt']} » (attendu : {' ou '.join(expected)})")
@@ -451,7 +452,7 @@ class RequirementsDatabase:
         removed = [r for i, r in old.items() if i not in fresh] if mode == "replace" else []
         return {"added": added, "updated": updated, "removed": removed}
 
-    def conflicts(self, requirements, tome, mode, existing=None):
+    def conflicts(self, requirements, tome, mode, existing=None) -> dict[str, Any]:
         """Ce que l'utilisateur doit régler avant l'import : {"duplicates" : exigences du fichier déjà dans un autre
         tome de la base, quel que soit le mode (un numéro, un tome : garder la base ou prendre le fichier)}. Une
         exigence déjà dans le tome importé n'est
@@ -574,7 +575,7 @@ class RequirementsDatabase:
     # Enregistrement des exigences
     # ------------------------------------------------------------------ #
 
-    def import_requirements(self, tome, requirements, mode="replace", file_id=None, moved=()):
+    def import_requirements(self, tome, requirements, mode="replace", file_id=None, moved=()) -> dict[str, Any]:
         """Enregistre dans un tome les exigences lues dans un fichier. Renvoie un résumé des changements.
 
         mode « replace » : le tome reçoit exactement ces exigences ;
@@ -653,26 +654,26 @@ class RequirementsDatabase:
             tome_id = self.sql.tome_id(tome)
             if tome_id is None:
                 raise ValueError(f"tome inconnu : « {tome} »")
-            existing = None
+            existing: dict[str, Any] | None = None
             if action != "add":
-                existing = self.sql.query("SELECT id, file_id, manual, deleted FROM requirements "
-                                          "WHERE tome_id = ? AND req_id = ?", (tome_id, old_id))
-                if not existing:
+                found = self.sql.query("SELECT id, file_id, manual, deleted FROM requirements "
+                                       "WHERE tome_id = ? AND req_id = ?", (tome_id, old_id))
+                if not found:
                     raise ValueError(f"exigence introuvable dans le tome « {tome} » : {old_id}")
-                existing = existing[0]
-            if action == "delete":
-                with self.sql.transaction() as db:
-                    # Une exigence ajoutée à la main disparaît ; une exigence venue d'un fichier est seulement marquée
-                    # supprimée, et peut être rétablie.
-                    if existing["manual"] == "added":
-                        db.execute("DELETE FROM requirements WHERE id = ?", (existing["id"],))
-                    else:
-                        db.execute("UPDATE requirements SET deleted = 1 WHERE id = ?", (existing["id"],))
-                return None
-            if action == "restore":
-                with self.sql.transaction() as db:
-                    db.execute("UPDATE requirements SET deleted = 0 WHERE id = ?", (existing["id"],))
-                return None
+                existing = found[0]
+                if action == "delete":
+                    with self.sql.transaction() as db:
+                        # Une exigence ajoutée à la main disparaît ; une exigence venue d'un fichier est seulement
+                        # marquée supprimée, et peut être rétablie.
+                        if existing["manual"] == "added":
+                            db.execute("DELETE FROM requirements WHERE id = ?", (existing["id"],))
+                        else:
+                            db.execute("UPDATE requirements SET deleted = 1 WHERE id = ?", (existing["id"],))
+                    return None
+                if action == "restore":
+                    with self.sql.transaction() as db:
+                        db.execute("UPDATE requirements SET deleted = 0 WHERE id = ?", (existing["id"],))
+                    return None
             if existing and existing["deleted"]:
                 raise ValueError(f"l'exigence {old_id} est supprimée : la rétablir avant de la modifier")
             req = self._clean(requirement or {}, existing["file_id"] if existing else None)
@@ -712,7 +713,7 @@ class RequirementsDatabase:
                     raise ValueError(f"l'exigence {req['id']} existe déjà dans le tome « {other} »")
             with self.sql.transaction() as db:
                 reference = self._reference_ids(db, req)
-                if action == "add":
+                if existing is None:   # action « add »
                     db.execute(
                         "INSERT INTO requirements (req_id, tome_id, title, iadt_id, moc_id, delegation_id, "
                         "validation, manual) VALUES (?, ?, ?, ?, ?, ?, ?, 'added')",

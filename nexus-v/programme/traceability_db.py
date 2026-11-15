@@ -18,6 +18,7 @@ import io
 import re
 
 import openpyxl
+from typing import Any
 
 from configuration import DEFAULT_CONFIG
 from file_database import FileDatabase
@@ -32,7 +33,7 @@ class TraceabilityDatabase:
         self.path = sql.path
 
     @staticmethod
-    def read_excel(content, config=None):
+    def read_excel(content, config=None) -> dict[str, Any]:
         """Lit un classeur de traçabilité (octets). Renvoie {"ids": numéros d'exigence cités dans une cellule
         quelconque}."""
         get = config.get if config is not None else DEFAULT_CONFIG.get
@@ -56,7 +57,7 @@ class TraceabilityDatabase:
             workbook.close()
 
     @classmethod
-    def _readable(cls, content, config=None):
+    def _readable(cls, content, config=None) -> dict[str, Any]:
         """Contenu d'un fichier chargeable : ValueError quand aucun numéro d'exigence n'a été trouvé."""
         data = cls.read_excel(content, config)
         if not data["ids"]:
@@ -143,11 +144,11 @@ class TraceabilityDatabase:
                 done.append(record["name"])
         return done
 
-    def documents(self):
+    def documents(self) -> list[dict[str, Any]]:
         """Les fichiers de fiches des autres plateformes, sous la même forme que les Fiches d'essai (FichesDatabase)."""
         from fiches_db import FichesDatabase
         return FichesDatabase(self.sql).documents("traceability")
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Les fichiers de traçabilité par numéro de fichier, pour la page."""
         return {"traceability": {str(d["file_id"]): d for d in self.documents()}}
