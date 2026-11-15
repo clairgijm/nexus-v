@@ -124,7 +124,7 @@ DEFAULT_CONFIG = {
     "plan_validation_out_of_scope": "hors scope",
     # Règles IADT / MOC : pour chaque code IADT, les codes MOC attendus (au moins l'un d'eux, et aucun autre).
     "iadt_moc_rules": {"D": ["MOC4"], "T": ["MOC4"], "I": ["MOC7"], "A": ["MOC2", "MOC3"]},
-    # Fiches d'Essai (XML) : un test contient des test cases, qui contiennent les exigences testées.
+    # Fiches d'Essai (XML) : un test contient des testcases, qui contiennent les exigences testées.
     "test_tag": "test",
     "test_case_tag": "test_case",
     "requirement_tag": "requirements",
@@ -143,7 +143,7 @@ DEFAULT_CONFIG = {
     "platforms": ["TOP"],
     "iadt": {"I": "Inspection", "A": "Analyse", "D": "Démonstration", "T": "Test"},
     "mocs": {f"MOC{i}": "" for i in range(10)},
-    # En-têtes attendus des tableaux, dans l'ordre : texte d'en-tête -> champ lu (« check » = colonne seulement
+    # En-têtes attendus des tableaux, dans l'ordre : texte d'en-tête → champ lu (« check » = colonne seulement
     # vérifiée).
     # Une cellule d'en-tête doit contenir le texte (casse et accents ignorés).
     "headers_requirements": {"ID": "id", "Titre": "title", "Specification releases": "releases",
@@ -256,7 +256,7 @@ def header_column(cells, expected, taken=()):
 
 
 def match_header(cells, headers):
-    """Colonnes d'une ligne d'en-tête pour un réglage d'en-têtes (texte -> champ) : ({champ: index de
+    """Colonnes d'une ligne d'en-tête pour un réglage d'en-têtes (texte → champ) : ({champ: index de
     colonne} pour les colonnes trouvées qui portent un champ lu, [textes attendus non trouvés]). L'ordre des
     colonnes n'importe pas : les
     cellules égales à un texte attendu sont prises d'abord, puis les autres, chaque cellule pour une seule colonne."""
@@ -406,7 +406,7 @@ class Configuration:
         # Valeurs gardées dans la base plutôt que dans le fichier JSON.
         if name == "tome_descriptions":   # ce que contient chaque tome, dans la base : {tome: texte}
             return self.database.tome_descriptions() if self.database is not None else {}
-        if name == "colors":   # couleur de chaque valeur des référentiels, dans la base : {type: {nom: couleur}}
+        if name == "colors":   # couleur de chaque valeur des référentiels, dans la base : {type: {nom : couleur}}
             return {kind: self.database.colors(kind) for kind in REFERENTIALS} if self.database is not None else {}
         if name == "releases":   # les releases déclarées : celle de la base
             release = self.get("release")
@@ -470,7 +470,7 @@ class Configuration:
                 and self.database.scalar("SELECT COUNT(*) FROM files WHERE source IN ('xml', 'traceability')"):
             raise ValueError("le STDHL ne peut plus être retenu : des fiches d'essai sont déjà chargées")
         # Un code IADT ou MOC renommé garde ses règles.
-        # Les règles IADT -> MOC sont écrites avec des codes : un code renommé l'est aussi dans les règles.
+        # Les règles IADT → MOC sont écrites avec des codes : un code renommé l'est aussi dans les règles.
         moved = {kind: {o.upper(): n.upper() for o, n in (renames.get(kind) or {}).items()} for kind in ("iadt", "mocs")}
         if any(moved.values()):
             rules = clean.get("iadt_moc_rules", self.get("iadt_moc_rules"))
