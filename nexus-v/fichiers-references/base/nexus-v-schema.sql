@@ -8,12 +8,15 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 
--- Référentiel : tomes auxquels sont rattachés exigences et plans
+-- Référentiel : tomes auxquels sont rattachés exigences et plans d'acceptation
 CREATE TABLE IF NOT EXISTS list_tomes (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
     description TEXT NOT NULL DEFAULT '',     -- Contenu du tome, précisé par l'utilisateur (Configuration > Tomes)
-    color TEXT NOT NULL DEFAULT ''            -- couleur dans les camemberts (#rrggbb) ; vide : tirée à la lecture
+    color TEXT NOT NULL DEFAULT '',           -- couleur dans les camemberts (#rrggbb) ; vide : tirée à la lecture
+    state TEXT NOT NULL DEFAULT ''            -- avancement, calculé à chaque vérification : vide (rien de chargé),
+        CHECK (state IN ('', 'requirements', 'plan', 'stdhl', 'fiches', 'done'))
+        -- exigences chargées, plan d'acceptation vérifié, STDHL vérifié, couverture partielle par les fiches, fini
 );
 
 -- Référentiel : plateformes de test
@@ -49,13 +52,8 @@ CREATE TABLE IF NOT EXISTS files (
     stdhl_name TEXT NOT NULL DEFAULT '',                                                             -- STDHL : nom tiré du nom du fichier
     issues TEXT NOT NULL DEFAULT '',                                                                 -- STDHL : anomalies du document, une par ligne
     platform_id INTEGER REFERENCES list_plateformes (id),                                            -- Fiches d'essai : plateforme d'où vient le fichier
-    format TEXT NOT NULL DEFAULT ''                                                                  -- Format reconnu à l'import (STDHL : par tome, unique)
-);
-
--- Valeurs de la colonne STDHL des fichiers d'exigences
-CREATE TABLE IF NOT EXISTS list_stdhl (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE COLLATE NOCASE  -- Valeur trouvée dans la colonne STDHL
+    format TEXT NOT NULL DEFAULT '',                                                                 -- Format reconnu à l'import (STDHL : par tome, unique)
+    stale INTEGER NOT NULL DEFAULT 0                                                                 -- Plan : les exigences du tome ont changé depuis, à recharger
 );
 
 -- Exigences
@@ -63,7 +61,6 @@ CREATE TABLE IF NOT EXISTS requirements (
     id INTEGER PRIMARY KEY,
     req_id TEXT NOT NULL,                                    -- Numéro de l'exigence
     file_id INTEGER REFERENCES files (id) ON DELETE CASCADE,
-    stdhl_id INTEGER REFERENCES list_stdhl (id),
     tome_id INTEGER NOT NULL REFERENCES list_tomes (id),
     title TEXT NOT NULL DEFAULT '',
     iadt_id INTEGER REFERENCES list_iadt (id),               -- Méthode de vérification (référence)
@@ -77,19 +74,6 @@ CREATE TABLE IF NOT EXISTS requirements (
 );
 CREATE INDEX IF NOT EXISTS requirements_file ON requirements (file_id);
 
--- Plans d'acceptation, une ligne par exigence du tome du plan (et par code IADT et MOC)
-CREATE TABLE IF NOT EXISTS plan_acceptation (
-    id INTEGER PRIMARY KEY,
-    requirement_id INTEGER NOT NULL REFERENCES requirements (id) ON DELETE CASCADE,
-    iadt_id INTEGER REFERENCES list_iadt (id),                                           -- Cellule vide : pas de valeur
-    moc_id INTEGER REFERENCES list_moc (id),
-    delegation_id INTEGER REFERENCES list_plateformes (id),                                -- Cellule vide : délégation par défaut
-    file_id INTEGER NOT NULL REFERENCES files (id) ON DELETE CASCADE,
-    manual TEXT,                                -- added, modified (à la main ou corrigée à l'import), deleted ; vide : lue dans le document
-    deleted INTEGER NOT NULL DEFAULT 0          -- 1 : supprimée à la main ou ignorée à l'import (barrée, sans effet)
-);
-
-
 -- Couverture des exigences par les STDHL : une ligne par exigence citée dans un STDHL (numéros absents de la base
 -- non enregistrés : anomalie du document)
 CREATE TABLE IF NOT EXISTS stdhl_exi (
@@ -98,6 +82,7 @@ CREATE TABLE IF NOT EXISTS stdhl_exi (
     requirement_id INTEGER NOT NULL REFERENCES requirements (id) ON DELETE CASCADE,
     test_id INTEGER REFERENCES fe_tests (id) ON DELETE CASCADE,          -- Test (fiche SYS_) demandé ; vide hors fiche
     deleted INTEGER NOT NULL DEFAULT 0,   -- 1 : supprimée par l'utilisateur dans la page STDHL (barrée, non vérifiée)
+    manual INTEGER NOT NULL DEFAULT 0,    -- 1 : ajoutée à la main dans la page STDHL (gardée quand le fichier est relu)
     UNIQUE (file_id, requirement_id, test_id)
 );
 

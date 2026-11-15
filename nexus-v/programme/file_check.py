@@ -1,7 +1,7 @@
 """NEXUS-V — vérification de fichiers avant leur import, sans les importer.
 
 Plusieurs fichiers d'une étape (classeurs d'exigences, plans d'acceptation, STDHL, fiches d'essai) sont lus avec les
-mêmes fonctions que l'import (RequirementsDatabase.analyse et ses calculs, PlansDatabase.analyse, StdhlDatabase,
+mêmes fonctions que l'import (RequirementsDatabase.analyse et ses calculs, PlansDatabase.differences, StdhlDatabase,
 FichesDatabase.screen) : chaque problème qui refuserait un fichier, demanderait un choix à l'utilisateur, rejetterait
 des lignes ou laisserait une exigence non couverte est listé avec la correction à faire. Les fichiers sont aussi
 comparés. Rien n'est écrit : la base est seulement lue, et l'effet sur la couverture est calculé en lançant
@@ -12,8 +12,9 @@ import html
 import re
 from datetime import datetime
 
-from configuration import plural
-from plans_db import PlansDatabase
+from configuration import fold, plural
+from file_database import FileDatabase
+from plans_db import COMPARED, PlansDatabase
 from requirements_db import VALIDATION_STATES, RequirementsDatabase
 from stdhl_db import StdhlDatabase, unique
 from verification import Verification
@@ -31,8 +32,8 @@ FILE_NAMES = {"requirements": "exigences", "plans": "plans", "stdhl": "stdhl", "
 MODE_LABELS = {"replace": "Si le fichier écrase la base (import en remplacement)",
                "complement": "Si le fichier modifie la base (import en complément)"}
 MODE_SHORT = {"replace": "écrase la base", "complement": "modifie la base"}
-FIELD_LABELS = {"title": "titre", "releases": "release", "validation": "validation", "stdhl": "STDHL",
-                "iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
+FIELD_LABELS = {"title": "titre", "releases": "release", "validation": "validation", "iadt": "IADT", "moc": "MOC",
+                "delegation": "délégation"}
 LIMIT = 30   # numéros listés dans un problème, au-delà : « … et N autres »
 # Champs de la référence d'une exigence, comptés dans le résumé du rapport des exigences.
 REFERENCE_FIELDS = (("iadt", "IADT"), ("moc", "MOC"), ("delegation", "Délégation"), ("validation", "Validation"))
@@ -70,11 +71,11 @@ class RequirementsInMemory:
 
 
 class PlansInMemory:
-    """Les plans de la base tels que les laissent des fichiers de plan vérifiés (lignes remplacées, retirées ou
-    ajoutées) : ce que lit Verification."""
+    """Les plans de la base tels que les laissent des fichiers de plan vérifiés (un plan accepté remplace ceux de son
+    tome) : ce que lit Verification."""
 
     def __init__(self, plans):
-        """plans : sous la forme de PlansDatabase.plans, lignes vérifiées."""
+        """plans : sous la forme de PlansDatabase.plans."""
         self.list = plans
 
     def plans(self, tome=None, file_id=None, config=None, with_deleted=False):
@@ -158,7 +159,7 @@ class FileCheck:
                 tomes.setdefault(r["tome"], {})[r["id"]] = {k: v for k, v in r.items() if k != "tome"}
         results, touched_all = [], set()
         for name, content in files:
-            found = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
+            found: dict = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
             results.append(found)
             try:
                 sheets = RequirementsDatabase.sheet_names(content)
@@ -200,10 +201,6 @@ class FileCheck:
                 p.append(problem(SETTLE, f"{r['id']} présente sur plusieurs lignes ({rows})",
                                  "ne garder qu'une ligne dans le fichier (sinon, la choisir à l'import)",
                                  f"lignes {rows}"))
-            for r in reqs:
-                if len(r["stdhl_values"]) > 1:
-                    p.append(problem(SETTLE, f"{r['id']} : plusieurs valeurs STDHL ({', '.join(r['stdhl_values'])})",
-                                     "n'en garder qu'une dans la cellule (sinon, la choisir à l'import)"))
             bad = data.get("rejected_numbers") or []
             if bad:
                 p.append(problem(REJECTED, f"{plural(len(bad), 'numéro')} hors du format des exigences, rejeté"
@@ -221,7 +218,7 @@ class FileCheck:
             # Ce que fait l'import, calculé par les fonctions de l'import sur la base en mémoire (rien n'est écrit). Le
             # fichier va dans un tome : celui de la base qui contient le plus de ses exigences (un nouveau tome quand il
             # n'y en a aucun). Les choix sont faits comme l'utilisateur peut les faire : la première ligne d'un numéro
-            # répété, la première valeur STDHL, la version du fichier pour un numéro d'un autre tome.
+            # répété, la version du fichier pour un numéro d'un autre tome.
             existing = [{**r, "tome": t} for t, rs in tomes.items() for r in rs.values()]
             before = {r["id"]: r for r in existing}
             fresh = list(dict.fromkeys(r["id"] for r in reqs))
@@ -232,8 +229,7 @@ class FileCheck:
             target = max(touched, key=lambda t: len(touched[t])) if touched else (
                 self.requirements.tome_from_name(name, self.config) or f"(nouveau : {name})")
             conflicts = self.requirements.conflicts(reqs, target, mode, existing)
-            choices = {"keep": {d["id"]: "new" for d in conflicts["duplicates"]},
-                       "stdhl": {m["id"]: m["values"][0] for m in conflicts["multi_stdhl"]}}
+            choices = {"keep": {d["id"]: "new" for d in conflicts["duplicates"]}}
             # Les lignes d'un numéro répété : la première, telle qu'elle est lue.
             repeated = [{**r, "chosen": r["rows"][0]["row"]} for r in data["repeated"]]
             resolved, moved = RequirementsDatabase._resolve(reqs, {**conflicts, "repeated": repeated}, choices, True)
@@ -350,144 +346,90 @@ class FileCheck:
     # ------------------------------------------------------------------ #
 
     def check_plans(self, files):
-        """Vérifie des fichiers de plan d'acceptation [(nom, octets)] pour les deux imports : ce qui se passe si
-        chaque fichier écrase la base (il remplace les plans des tomes qu'il concerne) et s'il la modifie (ses lignes
-        remplacent celles des mêmes exigences, les autres restent). Le tome nommé dans le nom du fichier n'est pas
-        utilisé : chaque exigence du plan est cherchée dans toute la base, et sa ligne comparée à celle des plans de
-        la base."""
-        runs = {mode: self._plans_mode(files, mode) for mode in MODE_LABELS}
-        return self._both_modes("plans", runs)
-
-    def _plans_mode(self, files, mode):
-        """Vérification de fichiers de plan pour un import en `mode` (voir check_plans) : résultats, problèmes entre
-        fichiers, et les plans de la base tels que chaque fichier à son tour les laisserait."""
-        release = self.config.get("release")
-        tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
-        # Les plans de la base, copiés : chaque fichier à son tour y remplace ou y retire des lignes.
-        plans = [{**q, "rows": list(q["rows"])} for q in self.plans.plans(config=self.config)]
-        codes = lambda v: sorted(PlansDatabase.split_codes(v or ""))
-        same = {"iadt": lambda a, b: codes(a) == codes(b), "moc": lambda a, b: codes(a) == codes(b),
-                "delegation": lambda a, b: self.config.delegation(a or "") == self.config.delegation(b or "")}
-        labels = {"iadt": "IADT", "moc": "MOC", "delegation": "délégation"}
+        """Vérifie des fichiers de plan d'acceptation [(nom, octets)] avec les règles de l'import : chaque plan est
+        comparé aux exigences de son tome (PlansDatabase.differences), toute différence est Bloquant. Le tome est
+        celui des exigences de la base que le plan cite (le nom du fichier n'est pas utilisé). Un plan accepté
+        remplace les plans de son tome : la couverture après import est calculée ainsi."""
+        reqs = [r for r in self.requirements.requirements() if not r["deleted"]]
+        tome_of = {r["id"]: r["tome"] for r in reqs}
+        # Les plans de la base ; chaque plan accepté à son tour y remplace ceux de son tome.
+        plans = [dict(q) for q in self.plans.plans(config=self.config)]
         results, contents = [], []
         for k, (name, content) in enumerate(files, 1):
-            found = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
+            found: dict = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
             results.append(found)
             p = found["problems"]
             try:
-                data = self.plans.analyse(content, self.config, "", [release], name)
+                data = PlansDatabase.readable(content, self.config)
             except ValueError as e:
                 p.append(problem(BLOCKING, f"fichier illisible ou refusé : {e}",
                                  "le plan doit avoir au moins un tableau dont la première ligne porte les en-têtes "
-                                 "Exigence, IADT, MOC et Délégation (textes réglés dans Configuration > Plan "
+                                 "Exigence, IADT, MOC, Délégation et Validation (textes réglés dans Configuration > Plan "
                                  "d'acceptation)"))
                 continue
-            entries = self._entries(content)
+            entries = PlansDatabase.entries(data["rows"])
             contents.append((name, entries))
             found["facts"].append(f"{plural(len(entries), 'exigence')} lue{'s' if len(entries) > 1 else ''} dans le plan")
             for skipped in data["skipped"]:
                 p.append(problem(CHECK, f"tableau mis de côté : {skipped}",
                                  "compléter les en-têtes du tableau s'il fait partie du plan"))
-            # Lignes par rapport à la configuration (IADT, MOC, délégation) : un problème par anomalie, les exigences
-            # qui l'ont listées ensemble, avec les emplacements de leurs lignes.
-            settle = {c["key"]: c for c in data["to_confirm"]}
-            unknown = [e for e in entries if e["requirement"] not in tome_of]
-            grouped = {}
-            for c in data["to_confirm"]:
-                for issue in c["issues"]:
-                    entry = grouped.setdefault((issue, self._plan_correction(c, issue)), {"ids": [], "places": []})
-                    entry["ids"].append(c["key"])
-                    entry["places"] += c["places"]
-            if unknown:
-                grouped[("exigence inconnue de la base : la ligne sera ignorée",
-                         "corriger le numéro, ou importer d'abord l'exigence")] = {
-                    "ids": [e["requirement"] for e in unknown], "places": [x for e in unknown for x in e["places"]]}
-            for (issue, correction), entry in grouped.items():
-                ids = entry["ids"]
-                text = f"{ids[0]} : {issue}" if len(ids) == 1 else f"{plural(len(ids), 'exigence')} : {issue} — {listed(ids)}"
-                p.append(problem(SETTLE, text, correction, self._places(entry["places"])))
-
-            # Chaque exigence connue par rapport aux plans de la base, quel que soit le plan : une nouvelle ligne, une
-            # ligne modifiée (IADT, MOC, délégation) ou inchangée. Les tomes concernés sont ceux de ces exigences dans
-            # la base.
-            known = [e for e in entries if e["requirement"] in tome_of]
-            if entries and not known:
-                p.append(problem(BLOCKING, "aucune exigence du plan n'est dans la base : rien ne serait chargé",
-                                 "importer d'abord les exigences du plan, ou corriger les numéros"))
+            # Le tome du plan : celui de ses exigences dans la base (le plus cité quand il y en a plusieurs).
             touched = {}
-            for e in known:
-                touched.setdefault(tome_of[e["requirement"]], []).append(e["requirement"])
+            for e in entries:
+                if e["requirement"] in tome_of:
+                    touched.setdefault(tome_of[e["requirement"]], []).append(e["requirement"])
             found["tomes"] = sorted(touched)
-            found["tome"] = ", ".join(found["tomes"]) or "aucun"
-            rows_of = {}
-            for q in plans:
-                for row in q["rows"]:
-                    rows_of.setdefault(row["key"], []).append(row)
-            added, changes = [], {}
-            for e in known:
-                old = rows_of.get(e["requirement"])
-                if not old:
-                    added.append(e["requirement"])
+            if not touched:
+                found["tome"] = "aucun"
+                p.append(problem(BLOCKING, "aucune exigence du plan n'est dans la base",
+                                 "importer d'abord les exigences du tome, ou corriger les numéros"))
+                continue
+            tome = max(touched, key=lambda t: len(touched[t]))
+            found["tome"] = tome
+            found["facts"].append("tomes de la base concernés : "
+                                  + ", ".join(f"{t} ({len(ids)})" for t, ids in sorted(touched.items())))
+            # Les différences avec les exigences du tome, comme à l'import : chacune refuse le plan. Elles sont
+            # regroupées par sorte (et par champ), avec les exigences et les emplacements de leurs lignes.
+            diffs = PlansDatabase.differences(entries, self.plans.tome_requirements(tome), self.config)
+            # Avec skip_unknown_req, un numéro inconnu du tome est seulement à vérifier : il ne refuse pas le plan.
+            skip = FileDatabase.skip_unknown(self.config)
+            groups = {}
+            for d in diffs:
+                groups.setdefault((d["kind"], d["field"]), []).append(d)
+            labels = dict(COMPARED)
+            for (kind, field), items in groups.items():
+                ids = [d["requirement"] for d in items]
+                places = self._places([x for d in items for x in d["places"]])
+                if kind == "unknown" and skip:
+                    p.append(problem(CHECK, f"{plural(len(ids), 'numéro')} qui ne sont pas des exigences du tome {tome}, "
+                                            f"leurs lignes seront ignorées : {listed(ids)}",
+                                     "corriger les numéros, ou importer d'abord ces exigences", places))
                     continue
-                fields = [f for f in labels if not same[f](old[0][f], e[f])]
-                if fields:
-                    changes[e["requirement"]] = fields
-            found["facts"].append(f"par rapport aux plans de la base : {len(added)} ligne(s) nouvelle(s), "
-                                  f"{len(changes)} modifiée(s), {len(known) - len(added) - len(changes)} inchangée(s)")
-            if touched:
-                found["facts"].append("tomes de la base concernés : "
-                                      + ", ".join(f"{t} ({len(ids)})" for t, ids in sorted(touched.items())))
-            if len(touched) > 1:
-                p.append(problem(CHECK, f"le plan contient des exigences de {len(touched)} tomes de la base : "
-                                        + ", ".join(sorted(touched)),
-                                 "un plan ne porte qu'un tome : le scinder par tome"))
-            if added:
-                p.append(problem(INFO, f"{plural(len(added), 'exigence')} sans ligne de plan dans la base, couverte"
-                                       f"{'s' if len(added) > 1 else ''} par ce plan : " + listed(added)))
-            for field, label in labels.items():
-                changed = [i for i, fields in changes.items() if field in fields]
-                if changed:
-                    p.append(problem(INFO, f"{plural(len(changed), 'ligne')} de plan de la base à la {label} modifiée : "
-                                           + listed(changed)) if field == "delegation" else
-                             problem(INFO, f"{plural(len(changed), 'ligne')} de plan de la base "
-                                           f"{'à l' + chr(39) if label == 'IADT' else 'au '}{label} modifié : "
-                                           + listed(changed)))
-
-            # Les plans après ce fichier. Écraser : les plans des tomes concernés laissent la place au fichier. Modifier
-            # : les lignes des exigences du fichier laissent la place à ses lignes, les autres restent.
-            keys = {e["requirement"] for e in known}
-            if mode == "replace":
-                plans = [q for q in plans if q["tome"] not in touched]
-            else:
-                plans = [{**q, "rows": [row for row in q["rows"] if row["key"] not in keys]} for q in plans]
-            for t, ids in sorted(touched.items()):
-                rows = []
-                for e in known:
-                    if tome_of[e["requirement"]] != t:
-                        continue
-                    row = PlansDatabase.check_row({"key": e["requirement"], "requirements": [e["requirement"]],
-                                                   "iadt": e["iadt"], "moc": e["moc"], "delegation": e["delegation"],
-                                                   "manual": "", "deleted": False}, self.config)
-                    rows.append({**row, "errors": []} if e["requirement"] in settle else row)
-                plans.append({"file_id": -k, "name": name, "tome": t, "releases": [release], "rows": rows})
-            # Exigences des tomes concernés laissées sans ligne de plan une fois le fichier importé.
-            covered = {row["key"] for q in plans for row in q["rows"]}
-            for t in sorted(touched):
-                left = [i for i, tome in tome_of.items() if tome == t and i not in covered]
-                if left:
-                    p.append(problem(CHECK, f"{plural(len(left), 'exigence')} du tome {t} sans ligne de plan après "
-                                            f"import : " + listed(left),
-                                     "elles perdent leur ligne de plan : les ajouter au fichier si elles doivent "
-                                     "rester couvertes" if mode == "replace" else
-                                     "ajouter une ligne pour chacune dans ce plan ou dans un autre plan"))
-        between = self._between_plans(results, contents, mode)
-        return {"results": results, "between": between, "requirements": self.requirements,
-                "plans": PlansInMemory(plans),
-                "hypothesis": ("les plans des tomes concernés sont remplacés par le fichier" if mode == "replace" else
-                               "chaque ligne du fichier remplace celle de la même exigence dans les plans de la base, "
-                               "ou s'ajoute ; les autres lignes restent")
-                + " ; les lignes à régler sont supposées corrigées, les exigences inconnues de la base ignorées ; le "
-                  "nom du fichier n'est pas utilisé"}
+                if kind == "unknown":
+                    text, fix = (f"{plural(len(ids), 'numéro')} qui ne sont pas des exigences du tome {tome} : "
+                                 f"{listed(ids)}", "retirer ces lignes, ou corriger les numéros")
+                elif kind == "missing":
+                    text, fix = (f"{plural(len(ids), 'exigence')} du tome {tome} absente{'s' if len(ids) > 1 else ''} "
+                                 f"du plan : {listed(ids)}", "ajouter une ligne pour chacune, avec la référence du "
+                                                             "fichier d'exigences")
+                else:
+                    shown = "; ".join(f"{d['requirement']} : « {d['plan']} » au lieu de « {d['expected']} »"
+                                      for d in items[:LIMIT])
+                    more = f" … et {len(items) - LIMIT} autres" if len(items) > LIMIT else ""
+                    text, fix = (f"{plural(len(ids), 'exigence')} avec une {labels[field]} différente de celle du "
+                                 f"fichier d'exigences : {shown}{more}",
+                                 f"mettre la {labels[field]} du fichier d'exigences (une seule valeur par cellule)")
+                p.append(problem(BLOCKING, text, fix, places))
+            if not [d for d in diffs if not (skip and d["kind"] == "unknown")]:
+                found["facts"].append(f"identique aux exigences du tome {tome} : le plan est accepté")
+                replaced = [q["name"] for q in plans if q["tome"] == tome]
+                if replaced:
+                    p.append(problem(INFO, f"remplace le plan du tome {tome} déjà chargé : {', '.join(replaced)}"))
+                plans = [q for q in plans if q["tome"] != tome] + [
+                    {"file_id": -k, "name": name, "tome": tome, "stale": False, "releases": [self.config.get("release")]}]
+        between = self._between_plans(results, contents)
+        return self._result("plans", results, between, self.requirements, PlansInMemory(plans),
+                            "chaque plan accepté remplace les plans de son tome ; un plan refusé ne change rien")
 
     @staticmethod
     def _places(places):
@@ -497,79 +439,22 @@ class FileCheck:
             tables.setdefault(t, []).append(str(r))
         return " ; ".join(f"tableau {t}, ligne{'s' if len(rows) > 1 else ''} {listed(rows)}" for t, rows in tables.items())
 
-    def _entries(self, content):
-        """Entrées (une par exigence) d'un document de plan lisible, [] sinon."""
-        try:
-            return PlansDatabase.entries(PlansDatabase.read_docx(content, self.config)["rows"])
-        except ValueError:
-            return []
-
-    def _plan_in_memory(self, file_id, name, tome, release, content, settle):
-        """Un fichier de plan vérifié comme PlansDatabase.plans donne un plan enregistré : lignes vérifiées par
-        rapport à la configuration, les lignes à régler supposées corrigées et les numéros inconnus ou non
-        applicables laissés de côté."""
-        rows = []
-        data = PlansDatabase.read_docx(content, self.config)
-        for e in PlansDatabase.entries(data["rows"]):
-            c = settle.get(e["requirement"])
-            if c and c["unknown"]:
-                continue
-            row = PlansDatabase.check_row({"key": e["requirement"], "requirements": [e["requirement"]],
-                                           "iadt": e["iadt"], "moc": e["moc"], "delegation": e["delegation"],
-                                           "manual": "", "deleted": False}, self.config)
-            if c:
-                row = {**row, "errors": []}
-            rows.append(row)
-        return {"file_id": file_id, "name": name, "tome": tome, "releases": [release], "rows": rows}
-
     @staticmethod
-    def _plan_correction(entry, issue):
-        """Correction proposée pour une anomalie d'une ligne de plan (voir PlansDatabase.to_confirm)."""
-        if entry["unknown"]:
-            return ("corriger le numéro, ou importer d'abord l'exigence dans son tome ; sinon la ligne sera ignorée"
-                    if "inconnue" in issue else "corriger la release de l'exigence, ou retirer la ligne du plan")
-        if issue.startswith("déjà dans un autre plan"):
-            return "ne garder l'exigence que dans un plan du tome (le choix sera demandé à l'import)"
-        if issue.startswith(("IADT vide", "IADT inconnu")):
-            return "mettre un IADT de la configuration (I, A, D ou T) et le MOC attendu pour lui"
-        if issue.startswith(("MOC vide", "MOC inconnu")) or "MOC" in issue:
-            expected = " ou ".join(entry["expected_mocs"]) if entry["expected_mocs"] else ""
-            return f"mettre le MOC attendu{' : ' + expected if expected else ''} (règles IADT / MOC de la configuration)"
-        if issue.startswith("plusieurs délégations"):
-            return "ne garder qu'une plateforme dans la cellule Délégation"
-        if issue.startswith("plateforme de délégation inconnue"):
-            return "corriger la cellule Délégation, ou ajouter la plateforme dans Configuration > Plateformes"
-        return "corriger la ligne du plan"
-
-    def _between_plans(self, results, contents, mode):
-        """Problèmes entre fichiers de plan : même fichier deux fois, une exigence dans plusieurs fichiers, et quand
-        ils écrasent la base, un tome concerné par plusieurs fichiers (le dernier importé l'emporterait)."""
+    def _between_plans(results, contents):
+        """Problèmes entre fichiers de plan : même fichier deux fois, un tome concerné par plusieurs plans (le dernier
+        importé remplacerait les autres)."""
         found = []
         names = [n for n, _ in contents]
         for n in sorted({n for n in names if names.count(n) > 1}):
             found.append(problem(SETTLE, f"fichier {n} sélectionné plusieurs fois", "n'en garder qu'un"))
-        numbers = {}
-        for name, entries in contents:
-            for e in entries:
-                numbers.setdefault(e["requirement"], []).append(name)
-        pairs = {}
-        for number, files in numbers.items():
-            if len(set(files)) > 1:
-                pairs.setdefault(" et ".join(sorted(set(files))), []).append(number)
-        for files, ids in pairs.items():
-            found.append(problem(SETTLE, f"{plural(len(ids), 'exigence')} dans plusieurs plans ({files}) : {listed(ids)}",
-                                 "une exigence n'a qu'une ligne de plan : la retirer de l'un d'eux (sinon, la ligne du "
-                                 "dernier importé l'emporte)"))
-        if mode == "replace":
-            by_tome = {}
-            for r in results:
-                for t in r.get("tomes", []):
-                    by_tome.setdefault(t, []).append(r["name"])
-            for t, files in sorted(by_tome.items()):
-                if len(files) > 1:
-                    found.append(problem(SETTLE, f"tome {t} concerné par {len(files)} plans : {', '.join(files)}",
-                                         "un import qui écrase la base remplace les plans du tome : seul le dernier "
-                                         "importé resterait ; les réunir, ou importer les suivants en complément"))
+        by_tome = {}
+        for r in results:
+            if r["tome"] and r["tome"] != "aucun":
+                by_tome.setdefault(r["tome"], []).append(r["name"])
+        for t, files in sorted(by_tome.items()):
+            if len(files) > 1:
+                found.append(problem(CHECK, f"tome {t} concerné par {len(files)} plans : {', '.join(files)}",
+                                     "un plan remplace celui de son tome : seul le dernier importé resterait"))
         return found
 
     # ------------------------------------------------------------------ #
@@ -591,18 +476,15 @@ class FileCheck:
         release = self.config.get("release")
         default = self.config.get("system_platform")   # plateforme de niveau système (celle des STDHL)
         tome_of = {r["id"]: r["tome"] for r in self.requirements.requirements() if not r["deleted"]}
-        # D'après les plans : les exigences déléguées à une autre plateforme que celle de niveau système (non spécifiées
-        # dans un STDHL).
-        hits = {}
-        for q in self.plans.plans(config=self.config):
-            for row in q["rows"]:
-                hits.setdefault(row["key"], []).append(row)
-        other = {i for i, rows in hits.items() if default not in {r["effective_delegation"] for r in rows}}
+        # D'après leur référence : les exigences déléguées à une autre plateforme que celle de niveau système (non
+        # spécifiées dans un STDHL).
+        other = {r["id"] for r in self.requirements.requirements()
+                 if not r["deleted"] and fold(r.get("delegation") or "") != fold(default or "")}
         # Les STDHL de la base, copiés : chaque fichier à son tour y remplace ou y retire des lignes.
         docs = [{**d, "rows": list(d["rows"])} for d in self.stdhl.documents()]
         results, contents = [], []
         for k, (name, content) in enumerate(files, 1):
-            found = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
+            found: dict = {"name": name, "tome": "", "problems": [], "facts": [], "tomes": []}
             results.append(found)
             p = found["problems"]
             try:
@@ -643,9 +525,12 @@ class FileCheck:
                                   f"{plural(len({t for _, t in pairs if t}), 'test')}")
             unknown = list(dict.fromkeys(i for i, _ in pairs if i not in tome_of))
             if unknown:
-                p.append(problem(SETTLE, f"{plural(len(unknown), 'exigence inconnue', 'exigences inconnues')} de la "
-                                         f"base, non enregistrée{'s' if len(unknown) > 1 else ''} : " + listed(unknown),
-                                 "corriger le numéro, ou importer d'abord l'exigence"))
+                skip = FileDatabase.skip_unknown(self.config)
+                p.append(problem(CHECK if skip else BLOCKING,
+                                 f"{plural(len(unknown), 'exigence inconnue', 'exigences inconnues')} de la base : "
+                                 + listed(unknown) + (" — les données liées à ces exigences seront ignorées" if skip
+                                                      else " — le STDHL serait refusé"),
+                                 "corriger les numéros, ou importer d'abord ces exigences"))
             elsewhere = list(dict.fromkeys(i for i, _ in pairs if i in other))
             if elsewhere:
                 p.append(problem(CHECK, f"{plural(len(elsewhere), 'exigence')} déléguée"
@@ -690,8 +575,8 @@ class FileCheck:
                 found["facts"].append("tomes de la base concernés : "
                                       + ", ".join(f"{t} ({len(ids)})" for t, ids in sorted(touched.items())))
             if new:
-                p.append(problem(INFO, f"{plural(len(new), 'exigence')} sans STDHL dans la base, spécifiée"
-                                       f"{'s' if len(new) > 1 else ''} par ce fichier : " + listed(new)))
+                p.append(problem(INFO, f"{plural(len(new), 'exigence')} citée{'s' if len(new) > 1 else ''} par ce fichier "
+                                       f"et par aucun STDHL déjà chargé : " + listed(new)))
             if changed:
                 p.append(problem(INFO, f"{plural(len(changed), 'exigence')} de la base au test demandé modifié : "
                                        + listed(changed)))
@@ -712,19 +597,22 @@ class FileCheck:
             # pas (dans les deux imports), et celles qui perdent le leur avec le fichier.
             specified = {i for d in docs for row in d["rows"] for i in row["requirements"]}
             for t in sorted(touched):
-                top = [i for i, tome in tome_of.items() if tome == t and i in hits and i not in other]
+                top = [i for i, tome in tome_of.items() if tome == t and i not in other]
                 before = [i for i in top if i not in specified_before]
                 lost = [i for i in top if i in specified_before and i not in specified]
                 still = [i for i in before if i not in specified]
                 if still:
-                    p.append(problem(CHECK, f"{plural(len(still), 'exigence')} de {default} du tome {t} déjà sans STDHL "
-                                            f"dans la base, et absente{'s' if len(still) > 1 else ''} du fichier : "
-                                            + listed(still),
-                                     "les spécifier dans ce STDHL ou dans un autre STDHL du tome"))
+                    s_ = "s" if len(still) > 1 else ""
+                    p.append(problem(CHECK, f"{plural(len(still), 'exigence')} de {default} du tome {t} citée{s_} dans "
+                                            f"aucun STDHL, ni ceux déjà chargés ni ce fichier : " + listed(still),
+                                     f"les ajouter à ce STDHL ou à un autre STDHL du tome : tant qu'elle{s_} n'y "
+                                     f"{'sont' if s_ else 'est'} pas, le tome ne termine pas l'étape STDHL"))
                 if lost:
-                    p.append(problem(CHECK, f"{plural(len(lost), 'exigence')} de {default} du tome {t} perd"
-                                            f"{'ent leur' if len(lost) > 1 else ' son'} STDHL avec l'import : " + listed(lost),
-                                     "les ajouter au fichier si elles doivent rester spécifiées"))
+                    s_ = "s" if len(lost) > 1 else ""
+                    p.append(problem(CHECK, f"{plural(len(lost), 'exigence')} de {default} du tome {t} citée{s_} par un "
+                                            f"STDHL déjà chargé, mais plus par aucun après l'import (ce fichier "
+                                            f"remplace celui qui les citait) : " + listed(lost),
+                                     "les ajouter à ce fichier si elles doivent rester spécifiées"))
         between = self._between_stdhl(results, contents, mode)
         return {"results": results, "between": between, "requirements": self.requirements, "plans": self.plans,
                 "stdhl": StdhlInMemory(docs),
@@ -807,9 +695,13 @@ class FileCheck:
                                            "tome : " + listed(found["not_specified"]),
                                  "les spécifier d'abord dans le STDHL de leur tome, ou les retirer de la fiche"))
             if found["unknown"]:
-                p.append(problem(INFO, f"{plural(len(found['unknown']), 'numéro')} absent"
-                                       f"{'s' if len(found['unknown']) > 1 else ''} de la base des exigences, "
-                                       "ignoré" + ("s" if len(found["unknown"]) > 1 else "") + " : " + listed(found["unknown"])))
+                skip = FileDatabase.skip_unknown(self.config)
+                p.append(problem(CHECK if skip else BLOCKING,
+                                 f"{plural(len(found['unknown']), 'numéro')} absent"
+                                 f"{'s' if len(found['unknown']) > 1 else ''} de la base des exigences : "
+                                 + listed(found["unknown"]) + (" — les données liées à ces exigences seront ignorées"
+                                                               if skip else " — la fiche serait refusée"),
+                                 "corriger les numéros, ou importer d'abord ces exigences"))
             if found["delegated"]:
                 p.append(problem(INFO, f"{plural(len(found['delegated']), 'exigence')} déléguée"
                                        f"{'s' if len(found['delegated']) > 1 else ''} à une autre plateforme que "
@@ -910,12 +802,23 @@ class FileCheck:
         plans) en mémoire}), les fichiers sont jugés pour chaque import : verdict et tuiles par mode, `hypothesis`
         étant alors {mode: texte}. `fiches` : les fiches après import (vérification de fichiers de fiches), celles de
         la base sinon."""
+        before = Verification(self.config, self.requirements, self.plans, self.stdhl, self.fiches,
+                              self.traceability).run(())
+        # Dans un tome, on ne passe pas à l'étape suivante tant que la précédente n'est pas complète : un STDHL ou un
+        # fichier de fiches d'un seul tome qui n'en est pas là est refusé, comme à l'import (Verification.late_tomes) ;
+        # un fichier de plusieurs tomes (STDHL unique) est traité comme un fichier sans tome, jamais refusé pour cela.
+        if step in ("stdhl", "fiches"):
+            states = Verification.tome_states(before)
+            for r in results:
+                tomes = r.get("tomes") or []
+                late = Verification.late_tomes(step, states, tomes if len(tomes) == 1 else None, self.config)
+                if late:
+                    r["problems"].insert(0, problem(BLOCKING, Verification.late_text(step, late, self.config),
+                                                    "compléter d'abord l'étape précédente de ces tomes"))
         for r in results:
             r["verdict"], r["counts"] = self._verdict(r["problems"])
             for m, extra in (r.get("by_mode") or {}).items():
                 r.setdefault("verdicts", {})[m] = self._verdict(r["problems"] + extra)[0]
-        before = Verification(self.config, self.requirements, self.plans, self.stdhl, self.fiches,
-                              self.traceability).run(())
         afters = {m: Verification(self.config, q, pl, st, fiches or self.fiches, self.traceability).run(())
                   for m, (q, pl, st) in (modes or {None: (requirements, plans, self.stdhl)}).items()}
         labels = [t["label"] for t in next(iter(afters.values())).get("tiles", []) or before.get("tiles", [])]
@@ -1022,9 +925,6 @@ rien n'a été importé</p>"""]
             out.append("<p>Chaque fichier est vérifié pour les deux imports : s'il <b>écrase la base</b> (import en "
                        + ("remplacement : les exigences des tomes concernés absentes du fichier sont retirées) et s'il "
                           "<b>modifie la base</b> (import en complément : rien n'est retiré).</p>" if step == "requirements"
-                          else "remplacement : les plans des tomes concernés sont remplacés par le fichier) et s'il "
-                          "<b>modifie la base</b> (import en complément : ses lignes remplacent celles des mêmes "
-                          "exigences, les autres restent).</p>" if step == "plans"
                           else "remplacement : les STDHL des tomes concernés sont remplacés par le fichier) et s'il "
                           "<b>modifie la base</b> (import en complément : ses lignes remplacent celles des mêmes "
                           "exigences, les autres restent).</p>"))

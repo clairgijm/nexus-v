@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, urlparse
 from nexus_db import random_platform_color
 
 try:
-    from configuration import FOLDER_VARIABLES, Configuration, storage_path
+    from configuration import FOLDER_VARIABLES, Configuration, fold, storage_path
     from fiches_db import FichesDatabase
     from file_check import FileCheck
     from file_database import FileDatabase
@@ -36,7 +36,7 @@ try:
     from requirements_db import RequirementsDatabase
     from stdhl_db import StdhlDatabase
     from traceability_db import TraceabilityDatabase
-    from verification import Verification
+    from verification import TOME_STATES, Verification
 except ModuleNotFoundError as missing:
     # En général, le serveur a été lancé avec un Python qui n'est pas celui du projet (.venv).
     sys.exit(f"Module Python manquant : {missing.name}\n"
@@ -106,17 +106,16 @@ def open_storage(base):
     file_check = FileCheck(configuration, requirements, plans, stdhl, fiches, traceability, sql)
     # Les documents dont le contenu manque dans la base (nouvelle base, migration, tables vidées) sont relus depuis leur
     # copie enregistrée : la base peut toujours être reconstruite à partir des fichiers.
-    for base in (plans, stdhl, fiches, traceability):
+    for base in (stdhl, fiches, traceability):   # un plan d'acceptation n'a pas de contenu enregistré
         for name in base.read_missing(database, configuration):
             print(f"Base : contenu de « {name} » lu et enregistré")
-    # Les exigences et les plans dont le fichier n'est plus dans la base (supprimés avant que le lien soit gardé) sont
-    # abandonnés.
+    # Les exigences dont le fichier n'est plus dans la base (supprimé avant que le lien soit gardé) sont abandonnées.
     known = {r["id"] for r in database.list()}
+    # Les rapports des fichiers retirés et les rejets des tomes vidés (base supprimée, par exemple) partent aussi.
+    database.prune_reports(requirements.tomes())
     for tome, n in requirements.prune_files(lambda f: f in known).items():
         print(f"Base des exigences : {n} {'exigences' if n > 1 else 'exigence'} du tome « {tome} » sans fichier d'origine "
               f"{'supprimées' if n > 1 else 'supprimée'}")
-    for name in plans.prune_files(lambda f: f in known):
-        print(f"Base des plans : contenu de « {name} » sans fichier d'origine supprimé")
 
 
 def storage_info():
@@ -269,7 +268,16 @@ class Handler(SimpleHTTPRequestHandler):
         elif path in ("/api/verification", "/api/verification/report"):
             selected = []   # une release pour la base : tout est vérifié
             if path == "/api/verification":
-                return self.send_json(verification.run(selected))
+                result = verification.run(selected)
+                # L'état d'avancement de chaque tome suit la vérification : enregistré dans list_tomes, puis donné à la
+                # page avec son libellé (tous les tomes, ceux sans exigence compris).
+                sql.set_tome_states(verification.tome_states(result))
+                result["tome_states"] = [{"tome": name, "state": state, "label": TOME_STATES[state]}
+                                         for name, state in sql.tome_states()]
+                # Légende des couleurs, dans l'ordre d'avancement : seulement les étapes du processus retenu.
+                skipped = {"plan": not configuration.get("process_plan"), "stdhl": not configuration.get("process_stdhl")}
+                result["tome_state_labels"] = {k: v for k, v in TOME_STATES.items() if not skipped.get(k)}
+                return self.send_json(result)
             try:
                 name, content = verification.report(selected)
             except ValueError as e:
@@ -287,17 +295,17 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(sql.table(m[1]))
             except KeyError:
                 return self.send_text_error(HTTPStatus.NOT_FOUND, "table inconnue")
-        elif path == "/api/plans/check":
-            query = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
-            selected = []   # une release pour la base
-            return self.send_json(plans.check_tome(query.get("tome", ""), requirements, configuration, selected))
         elif path == "/api/info":
             return self.send_json(storage_info())
-        # Rapport du dernier rejet d'un type de fichier, ouvert depuis sa boîte de chargement.
+        # Rejets gardés par tome : la page met leurs chevrons au rouge.
+        elif path == "/api/rejects":
+            return self.send_json(database.rejects())
+        # Rapport du dernier rejet d'un type (?tome= : pour ce tome), ouvert depuis sa boîte ou son chevron.
         elif m := re.fullmatch(r"/api/rejects/(requirements|plans|stdhl|fiches|traceability)", path):
-            report = database.reject(m[1])
+            tome = (parse_qs(urlparse(self.path).query).get("tome") or [""])[0]
+            report = database.reject(m[1], tome or None)
             if report is None:
-                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport de rejet pour ce type de fichier")
+                return self.send_text_error(HTTPStatus.NOT_FOUND, "pas de rapport de rejet")
             return self.send_body(report.encode("utf-8"), "text/html; charset=utf-8")
         # Rapport de l'import d'un fichier, ouvert par la page Gestion des fichiers dans une nouvelle fenêtre.
         elif (file_id := self.file_id("/rapport")) is not None:
@@ -334,23 +342,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
             # Une réponse par fichier retiré, dans l'ordre demandé.
             return self.send_json([self.remove_file(i) for i in ids if database.get(i)])
-        if url.path == "/api/plans/edit":
-            # Modification à la main de la ligne d'une exigence dans un plan : {file_id, action:
-            # add|update|delete|restore, requirement, values}.
-            try:
-                data = json.loads(self.read_body() or b"{}")
-                row = plans.edit(int(data.get("file_id") or 0), data.get("action"), data.get("requirement"),
-                                 data.get("values"), configuration)
-            except ValueError as e:   # couvre aussi un JSON invalide
-                return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
-            return self.send_json({"row": row})
         if url.path == "/api/stdhl/edit":
-            # Ligne d'un STDHL supprimée ou rétablie par l'utilisateur : {file_id, action: delete|restore, requirement,
-            # test}.
+            # Ligne d'un STDHL modifiée à la main : {file_id, action: add|update|delete|restore, requirement, test,
+            # new_requirement, new_test}.
             try:
                 data = json.loads(self.read_body() or b"{}")
                 return self.send_json(stdhl.edit(int(data.get("file_id") or 0), data.get("action"),
-                                                 data.get("requirement"), data.get("test")))
+                                                 data.get("requirement"), data.get("test"),
+                                                 data.get("new_requirement"), data.get("new_test")))
             except (ValueError, TypeError) as e:   # couvre aussi un JSON invalide
                 return self.send_text_error(HTTPStatus.BAD_REQUEST, str(e))
         if url.path == "/api/tests/rename":
@@ -366,8 +365,9 @@ class Handler(SimpleHTTPRequestHandler):
                 data = json.loads(self.read_body() or b"{}")
                 req = requirements.edit(str(data.get("tome") or ""), data.get("action"), data.get("id"),
                                         data.get("requirement"), configuration)
+                # Les exigences du tome ont changé : son plan d'acceptation est à recharger.
+                plans.mark_stale([str(data.get("tome") or "")])
                 if data.get("action") in ("add", "update"):   # un numéro cité peut être devenu connu
-                    plans.read_missing(database, configuration, again=True)
                     stdhl.read_missing(database, configuration, again=True)
                     fiches.read_missing(database, configuration, again=True)
                     traceability.read_missing(database, configuration, again=True)
@@ -406,16 +406,21 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError("paramètres name / tome manquants")
                 # Le rapport de l'import : celui de la vérification avant import, sur la base d'avant l'import.
                 report = self.import_report("requirements", query["name"], content)
+                # Les changements faits à la main dans les STDHL sont mis de côté : l'import recrée les exigences.
+                stdhl_marks = stdhl.marks()
                 summary = requirements.import_file(database, content, query["name"], query["tome"].strip(),
                                                    query.get("mode", "replace"), query.get("sheet") or None,
                                                    configuration, selected, choices)
                 if report:
                     database.save_report(summary["file_id"], report)
                 summary["report"] = bool(report)   # la page propose de l'ouvrir
-                database.remove_reject("requirements")
-                # Les plans, STDHL et fiches ne gardent que des exigences de la base : relus.
-                plans.read_missing(database, configuration, again=True)
+                database.remove_reject("requirements", query["tome"].strip())
+                # Les exigences du tome ont changé : son plan d'acceptation est à recharger.
+                plans.mark_stale([summary["tome"]])
+                # Les STDHL et fiches ne gardent que des exigences de la base : relus, avec les changements faits à la
+                # main dans les STDHL.
                 stdhl.read_missing(database, configuration, again=True)
+                stdhl.restore_marks(stdhl_marks)
                 fiches.read_missing(database, configuration, again=True)
                 traceability.read_missing(database, configuration, again=True)
             except ValueError as e:
@@ -435,6 +440,21 @@ class Handler(SimpleHTTPRequestHandler):
                 content = self.read_body()
                 if not query.get("name"):
                     raise ValueError("paramètre name manquant")
+                # Un plan d'acceptation ou un STDHL ne se charge que si son étape est dans le processus retenu.
+                step = {"plans": ("process_plan", "le plan d'acceptation"), "stdhl": ("process_stdhl", "le STDHL")}.get(m[1])
+                if step and not configuration.get(step[0]):
+                    raise ValueError(f"{step[1]} n'est pas retenu dans le processus de la release "
+                                     "(Configuration > Paramètres généraux)")
+                # On ne passe pas à l'étape suivante tant que la précédente n'est pas complète pour les tomes du
+                # fichier (tous les tomes pour un fichier sans tome) : vérifié au chargement, et à l'analyse quand le
+                # tome est choisi.
+                if m[1] in ("stdhl", "fiches", "traceability") and (m[2] == "load" or query.get("tome")):
+                    kind = "stdhl" if m[1] == "stdhl" else "fiches"
+                    tome = (query.get("tome") or "").strip()
+                    late = Verification.late_tomes(kind, verification.tome_states(verification.run(())),
+                                                   [tome] if tome else None, configuration)
+                    if late:
+                        raise ValueError(Verification.late_text(kind, late, configuration))
                 if m[2] == "analyse":
                     if base is plans:   # avec tome et releases : inconnues et exigences d'un autre plan
                         return self.send_json(plans.analyse(content, configuration, (query.get("tome") or "").strip(),
@@ -463,7 +483,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if report:
                     database.save_report(result["file_id"], report)
                 result["report"] = bool(report)   # la page propose de l'ouvrir
-                database.remove_reject(m[1])
+                database.remove_reject(m[1], (query.get("tome") or "").strip())
             except ValueError as e:
                 # Rejeté (analyse ou chargement) : son rapport de rejet est gardé.
                 return self.reject(m[1], query, content, str(e))
@@ -545,22 +565,47 @@ class Handler(SimpleHTTPRequestHandler):
             report = (f'<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d\'import — '
                       f'chargement rejeté</title></head><body style="font-family: sans-serif; margin: 24px">'
                       f'<h1>Rapport d\'import — chargement rejeté</h1><p>{html.escape(name)}</p>{reason}</body></html>')
-        database.save_reject(kind, report)
+        # Le tome du fichier : celui choisi, sinon celui que nomme le nom d'un fichier d'exigences ou d'un plan ; le
+        # rejet est gardé pour ce tome (son chevron passe au rouge), et comme dernier rejet du type (sa boîte).
+        tome = (query.get("tome") or "").strip()
+        if not tome and kind == "requirements":
+            tome = requirements.tome_from_name(name, configuration) or ""
+        elif not tome and kind == "plans":
+            tome = plans.tome_from_name(name, configuration)
+        if not tome:
+            # Rejeté avant le choix du tome (fichier illisible, par exemple) : le tome dont le nom figure dans le nom du
+            # fichier, comme mot entier (fct1 ne se confond pas avec fct10).
+            folded = fold(name)
+            found = [t for t in requirements.tomes() if re.search(rf"(?<![a-z0-9]){re.escape(fold(t))}(?![a-z0-9])", folded)]
+            tome = found[0] if len(found) == 1 else ""
+        database.save_reject(kind, tome, report)
         return self.send_text_error(HTTPStatus.BAD_REQUEST, message)
 
     def remove_file(self, file_id):
         """Retire un fichier et ce qui en vient, avec les fichiers de son groupe (un fichier d'exigences part avec
         les autres fichiers d'exigences de son tome : le premier import et ses compléments). Renvoie ce qui a été
         retiré."""
-        # Les exigences importées de ces fichiers, ou le contenu d'un plan, quittent la base avec eux (la cascade SQL
-        # les retirerait aussi ; ils sont retirés d'abord pour dire ce qui a été retiré).
+        # Les exigences importées de ces fichiers quittent la base avec eux (la cascade SQL les retirerait aussi ; elles
+        # sont retirées d'abord pour dire ce qui a été retiré).
         group = database.group(file_id)
-        removed = {"deleted": file_id, "group": group, "requirements_removed": {}, "plan_removed": None}
+        removed = {"deleted": file_id, "group": group, "requirements_removed": {}}
+        # L'étape du fichier est à refaire pour ses tomes (tous pour un fichier sans tome) : leurs rejets de cette étape
+        # et des suivantes n'ont plus d'objet.
+        kinds = {"requirements": "requirements", "plan": "plans", "stdhl": "stdhl", "xml": "fiches",
+                 "traceability": "traceability"}
+        for i in group:
+            record = database.get(i)
+            if record and record["slot"] in kinds:
+                for tome in [record["tome"]] if record["tome"] else requirements.tomes():
+                    database.remove_reject(kinds[record["slot"]], tome)
         for i in group:
             for tome, n in requirements.remove_file(i).items():
                 removed["requirements_removed"][tome] = removed["requirements_removed"].get(tome, 0) + n
-            removed["plan_removed"] = plans.remove(i) or removed["plan_removed"]
             database.remove(i)
+        # Les exigences de ces tomes ont changé : leurs plans d'acceptation sont à recharger.
+        plans.mark_stale(list(removed["requirements_removed"]))
+        # Les rejets d'un tome qui n'a plus d'exigences n'ont plus d'objet.
+        database.prune_reports(requirements.tomes())
         return removed
 
     def do_PUT(self):
@@ -578,8 +623,7 @@ class Handler(SimpleHTTPRequestHandler):
                         "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                         "stdhl2_release_regex", "stdhl2_test_case_regex")
             tags = ("requirement_regex", "test_tag", "test_case_tag", "requirement_tag")
-            reading = ("requirement_regex", "code_separator_regex", "headers_plan")   # comment les plans sont lus
-            before = {name: configuration.get(name) for name in settings + tags + reading}
+            before = {name: configuration.get(name) for name in settings + tags}
             result = configuration.update(json.loads(self.read_body() or b"{}"))
             # Seuls les documents dont les réglages de lecture ont changé sont relus.
             changed = {name for name, value in before.items() if configuration.get(name) != value}
@@ -587,8 +631,6 @@ class Handler(SimpleHTTPRequestHandler):
                 stdhl.read_missing(database, configuration, again=True)
             if changed & set(tags):
                 fiches.read_missing(database, configuration, again=True)
-            if changed & set(reading):
-                plans.read_missing(database, configuration, again=True)
             # Un sous-dossier renommé garde ses fichiers.
             for name, old in folders.items():
                 new = configuration.get(name)

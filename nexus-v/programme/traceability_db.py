@@ -76,7 +76,13 @@ class TraceabilityDatabase:
         inconnus du `tome` (de toute la base sans tome), à ignorer (même forme que les entrées de plan à régler).
         Refusé (ValueError) quand il est illisible ou sans aucun numéro."""
         ids = self._readable(content, config)["ids"]
-        return {"ids": len(ids), "to_confirm": FileDatabase.to_ignore(self.sql.db, ids, tome or None)}
+        # Le tome choisi : un numéro qui n'en est pas une exigence rend le fichier inutilisable, il est refusé.
+        if tome:
+            unknown = [e["key"] for e in FileDatabase.to_ignore(self.sql.db, ids, tome)]
+            if not FileDatabase.skip_unknown(config) and \
+                    (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+                raise ValueError(message)
+        return {"ids": len(ids), "to_confirm": []}
 
     @staticmethod
     def _write(db, file_id, ids):
@@ -99,9 +105,11 @@ class TraceabilityDatabase:
         if config is not None and not config.is_platform(platform or ""):
             raise ValueError("indiquer la plateforme d'où vient ce fichier (une plateforme de la configuration)")
         data = self._readable(content, config)
-        # Numéros absents du tome (de la base sans tome) : ignorés par l'utilisateur, non enregistrés.
-        unknown = FileDatabase.to_ignore(self.sql.db, data["ids"], tome)
-        FileDatabase.check_ignored(unknown, decisions)
+        # Un numéro absent du tome (de la base sans tome) rend le fichier inutilisable : refusé.
+        unknown = [e["key"] for e in FileDatabase.to_ignore(self.sql.db, data["ids"], tome)]
+        # Avec skip_unknown_req, ces numéros sont ignorés (non enregistrés) au lieu de refuser.
+        if not FileDatabase.skip_unknown(config) and (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+            raise ValueError(message)
         record = files.add("traceability", name, content, tome=tome, releases=releases)
         try:
             with self.sql.transaction() as db:
@@ -115,7 +123,7 @@ class TraceabilityDatabase:
         except Exception:
             files.remove(record["id"])
             raise
-        return {"file_id": record["id"], "tome": tome, "ids": len(data["ids"]) - len(unknown), "ignored": len(unknown),
+        return {"file_id": record["id"], "tome": tome, "ids": len(set(data["ids"])) - len(unknown), "ignored": len(unknown),
                 "replaced": files.remove_older(record)}
 
     def read_missing(self, files, config=None, again=False):

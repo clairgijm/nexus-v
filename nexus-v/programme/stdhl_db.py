@@ -25,7 +25,7 @@ Pour la page (to_dict) :
 import re
 
 from configuration import DEFAULT_CONFIG, fold, header_column, header_text, match_header, plural, table_left_out
-from file_database import WordDocument
+from file_database import FileDatabase, WordDocument
 
 
 def found(match):
@@ -252,9 +252,16 @@ class StdhlDatabase:
         deleted = {f"{r[0] or ''}|{r[1]}" for r in db.execute(
             "SELECT t.name, q.req_id FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
             "LEFT JOIN fe_tests t ON t.id = x.test_id WHERE x.file_id = ? AND x.deleted = 1", (file_id,))}
+        # Les lignes ajoutées à la main restent : elles ne viennent pas du document.
+        manual = db.execute("SELECT requirement_id, test_id, deleted FROM stdhl_exi WHERE file_id = ? AND manual = 1",
+                            (file_id,)).fetchall()
         db.execute("DELETE FROM stdhl_exi WHERE file_id = ?", (file_id,))
-        # Numéro d'exigence -> id de la base, pour enregistrer la couverture par id.
-        known = {r[0]: r[1] for r in db.execute("SELECT req_id, id FROM requirements")}
+        # Numéro d'exigence -> id, du tome du STDHL s'il en a un, de toute la base sinon : un numéro d'un autre tome
+        # n'est pas enregistré.
+        tome_id = db.execute("SELECT tome_id FROM files WHERE id = ?", (file_id,)).fetchone()[0]
+        known = {r[0]: r[1] for r in db.execute(
+            "SELECT req_id, id FROM requirements" + (" WHERE tome_id = ?" if tome_id is not None else ""),
+            (tome_id,) if tome_id is not None else ())}
         unknown = []
         for r in data["rows"]:
             for number in r["requirements"]:
@@ -271,6 +278,11 @@ class StdhlDatabase:
                                    (file_id, known[number], test, int(key in deleted)))
                 elif number not in unknown:
                     unknown.append(number)
+        for requirement_id, test, gone in manual:
+            if not db.execute("SELECT 1 FROM stdhl_exi WHERE file_id = ? AND requirement_id = ? AND test_id IS ?",
+                              (file_id, requirement_id, test)).fetchone():
+                db.execute("INSERT INTO stdhl_exi (file_id, requirement_id, test_id, deleted, manual) "
+                           "VALUES (?, ?, ?, ?, 1)", (file_id, requirement_id, test, gone))
         issues = data["issues"] + ([plural(len(unknown), "numéro d'exigence absent de la base, non enregistré",
                                            "numéros d'exigence absents de la base, non enregistrés")
                                     + " : " + ", ".join(unknown)] if unknown else [])
@@ -293,6 +305,12 @@ class StdhlDatabase:
         est refusé (voir _readable)."""
         tome = files.check_tome("STDHL", requirements, tome)
         data = self._readable(content, name, config)
+        # Un numéro qui n'est pas une exigence de son tome (de la base sans tome) rend le STDHL inutilisable : refusé.
+        known = {r["id"] for r in requirements.requirements([tome] if tome else None) if not r["deleted"]}
+        unknown = list(dict.fromkeys(i for row in data["rows"] for i in row["requirements"] if i not in known))
+        # Avec skip_unknown_req, ces numéros sont ignorés (non enregistrés, voir _write) au lieu de refuser.
+        if not FileDatabase.skip_unknown(config) and (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+            raise ValueError(message)
         # La copie est enregistrée d'abord : si l'écriture du contenu échoue, la copie est retirée, rien ne reste à
         # moitié chargé.
         record = files.add("stdhl", name, content, tome=tome, releases=releases)
@@ -302,7 +320,7 @@ class StdhlDatabase:
         except Exception:
             files.remove(record["id"])
             raise
-        return {"file_id": record["id"], "rows": len(data["rows"]), "skipped": data["skipped"],
+        return {"file_id": record["id"], "rows": len(data["rows"]), "skipped": data["skipped"], "ignored": len(unknown),
                 "format": data["format"], "replaced": files.remove_older(record)}
 
     def read_missing(self, files, config=None, again=False):
@@ -335,12 +353,12 @@ class StdhlDatabase:
                                "LEFT JOIN list_tomes t ON t.id = f.tome_id WHERE f.source = 'stdhl' ORDER BY f.id")
         rows, releases = {}, self.sql.file_releases()
         # Une ligne par exigence et test demandé, dans l'ordre du document.
-        for r in self.sql.query("SELECT x.file_id, q.req_id, t.name AS test, x.deleted FROM stdhl_exi x "
+        for r in self.sql.query("SELECT x.file_id, q.req_id, t.name AS test, x.deleted, x.manual FROM stdhl_exi x "
                                 "JOIN requirements q ON q.id = x.requirement_id LEFT JOIN fe_tests t ON t.id = x.test_id "
                                 f"{'' if with_deleted else 'WHERE x.deleted = 0 '}ORDER BY x.file_id, x.id"):
             # Les lignes d'un fichier supprimé entre-temps sont ignorées grâce aux en-têtes ci-dessous.
             rows.setdefault(r["file_id"], []).append({"requirements": [r["req_id"]], "test": r["test"] or "",
-                                                     "deleted": bool(r["deleted"])})
+                                                     "deleted": bool(r["deleted"]), "manual": bool(r["manual"])})
         return [{"file_id": h["file_id"], "name": h["name"], "releases": releases.get(h["file_id"], []),
                  "stdhl_name": h["stdhl_name"], "tome": h["tome"], "rows": rows.get(h["file_id"], []),
                  "issues": [i for i in h["issues"].split("\n") if i]} for h in heads]
@@ -349,17 +367,94 @@ class StdhlDatabase:
         """Les STDHL par numéro de fichier, pour la page."""
         return {"stdhl": {str(d["file_id"]): d for d in self.documents(with_deleted=True)}}
 
-    def edit(self, file_id, action, requirement, test=""):
-        """Ligne d'une exigence et d'un test dans un STDHL, supprimée par l'utilisateur (« delete » : gardée, barrée,
-        laissée de côté par la vérification) ou rétablie (« restore »). ValueError quand la ligne est inconnue."""
-        if action not in ("delete", "restore"):
-            raise ValueError(f"action inconnue : {action}")
+    def marks(self):
+        """Les changements faits à la main dans les STDHL (lignes ajoutées, lignes supprimées), par numéro d'exigence
+        et nom de test : [(file_id, numéro, test, ajoutée, supprimée)]. Un import d'exigences recrée les exigences (les
+        lignes qui les citent partent en cascade) : ces changements sont mis de côté avant, puis remis (restore_marks)."""
+        return [(r["file_id"], r["req_id"], r["test"], r["manual"], r["deleted"]) for r in self.sql.query(
+            "SELECT x.file_id, q.req_id, COALESCE(t.name, '') AS test, x.manual, x.deleted FROM stdhl_exi x "
+            "JOIN requirements q ON q.id = x.requirement_id LEFT JOIN fe_tests t ON t.id = x.test_id "
+            "WHERE x.manual = 1 OR x.deleted = 1")]
+
+    def restore_marks(self, marks):
+        """Remet les changements faits à la main mis de côté par marks() : une ligne ajoutée l'est à nouveau quand son
+        exigence existe encore, une ligne supprimée l'est à nouveau quand le document la contient encore."""
+        from nexus_db import test_id as test_of
         with self.sql.transaction() as db:
-            row = db.execute(
-                "SELECT x.id FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
-                "LEFT JOIN fe_tests t ON t.id = x.test_id WHERE x.file_id = ? AND q.req_id = ? AND COALESCE(t.name, '') = ?",
-                (file_id, str(requirement or ""), str(test or ""))).fetchone()
+            for file_id, number, test, manual, deleted in marks:
+                if not db.execute("SELECT 1 FROM files WHERE id = ?", (file_id,)).fetchone():
+                    continue
+                req = db.execute("SELECT id FROM requirements WHERE req_id = ?", (number,)).fetchone()
+                if req is None:
+                    continue
+                row = db.execute("SELECT x.id FROM stdhl_exi x LEFT JOIN fe_tests t ON t.id = x.test_id "
+                                 "WHERE x.file_id = ? AND x.requirement_id = ? AND COALESCE(t.name, '') = ?",
+                                 (file_id, req[0], test)).fetchone()
+                if row:
+                    db.execute("UPDATE stdhl_exi SET deleted = ?, manual = ? WHERE id = ?", (deleted, manual, row[0]))
+                elif manual:
+                    db.execute("INSERT INTO stdhl_exi (file_id, requirement_id, test_id, deleted, manual) "
+                               "VALUES (?, ?, ?, ?, 1)", (file_id, req[0], test_of(db, test) if test else None, deleted))
+
+    def edit(self, file_id, action, requirement, test="", new_requirement=None, new_test=None):
+        """Modification à la main d'une ligne d'un STDHL (une exigence et le test demandé pour elle).
+        « add » : nouvelle ligne `requirement` / `test` (une exigence de la base, du tome du STDHL quand il en a un ;
+        test facultatif), marquée ajoutée à la main ; « update » : la ligne `requirement` / `test` devient
+        `new_requirement` / `new_test` ; « delete » : ligne barrée, laissée de côté par la vérification (retirée pour
+        de bon quand elle avait été ajoutée à la main) ; « restore » : suppression annulée. Les lignes ajoutées et les
+        suppressions restent quand le fichier est relu. ValueError quand le changement est refusé."""
+        if action not in ("add", "update", "delete", "restore"):
+            raise ValueError(f"action inconnue : {action}")
+        from nexus_db import test_id as test_of
+        with self.sql.transaction() as db:
+            head = db.execute("SELECT tome_id FROM files WHERE id = ? AND source = 'stdhl'", (file_id,)).fetchone()
+            if head is None:
+                raise ValueError(f"STDHL inconnu : n° {file_id}")
+
+            def find(number, name):
+                return db.execute(
+                    "SELECT x.id, x.manual, x.deleted FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
+                    "LEFT JOIN fe_tests t ON t.id = x.test_id WHERE x.file_id = ? AND q.req_id = ? "
+                    "AND COALESCE(t.name, '') = ?", (file_id, str(number or ""), str(name or ""))).fetchone()
+
+            def add(number, name):
+                number, name = str(number or "").strip(), str(name or "").strip()
+                where, params = ("q.req_id = ?", [number]) if head[0] is None else ("q.req_id = ? AND q.tome_id = ?",
+                                                                                   [number, head[0]])
+                req = db.execute(f"SELECT q.id FROM requirements q WHERE {where}", params).fetchone()
+                if req is None:
+                    raise ValueError(f"exigence inconnue{'' if head[0] is None else ' dans le tome du STDHL'} : "
+                                     f"« {number} »")
+                existing = find(number, name)
+                if existing and not existing[2]:
+                    raise ValueError(f"la ligne {number} / {name or 'sans test'} est déjà dans ce STDHL")
+                if existing:   # supprimée auparavant : rétablie
+                    db.execute("UPDATE stdhl_exi SET deleted = 0 WHERE id = ?", (existing[0],))
+                    return
+                db.execute("INSERT INTO stdhl_exi (file_id, requirement_id, test_id, deleted, manual) "
+                           "VALUES (?, ?, ?, 0, 1)", (file_id, req[0], test_of(db, name) if name else None))
+
+            def remove(row):
+                if row[1]:   # ajoutée à la main : retirée pour de bon
+                    db.execute("DELETE FROM stdhl_exi WHERE id = ?", (row[0],))
+                else:
+                    db.execute("UPDATE stdhl_exi SET deleted = 1 WHERE id = ?", (row[0],))
+
+            if action == "add":
+                add(requirement, test)
+                return {"added": True}
+            row = find(requirement, test)
             if row is None:
                 raise ValueError(f"ligne inconnue dans ce STDHL : {requirement} / {test or 'sans test'}")
-            db.execute("UPDATE stdhl_exi SET deleted = ? WHERE id = ?", (int(action == "delete"), row[0]))
+            if action == "update":
+                new = (str(new_requirement or "").strip(), str(new_test or "").strip())
+                if new == (str(requirement or ""), str(test or "")):
+                    return {"updated": False}
+                remove(row)
+                add(*new)
+                return {"updated": True}
+            if action == "delete":
+                remove(row)
+            else:
+                db.execute("UPDATE stdhl_exi SET deleted = 0 WHERE id = ?", (row[0],))
         return {"deleted": action == "delete"}

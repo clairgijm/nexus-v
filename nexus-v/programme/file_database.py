@@ -7,8 +7,9 @@ croissant à chaque chargement (jamais réutilisé, même après un retrait). Un
 
 Le rapport de l'import d'un fichier (le même que la vérification avant import) est gardé dans le sous-dossier
 « rapport » du dossier des fichiers, sous le nom « <n°>_rapport.html » ; il est supprimé avec le fichier. Un fichier
-rejeté à l'import laisse un rapport de rejet par type de fichier, « rejet_<type>.html », remplacé au rejet suivant de
-ce type et supprimé au chargement réussi suivant.
+rejeté à l'import laisse un rapport de rejet pour son type et son tome, « rejet_<type>_<tome>.html » (et
+« rejet_<type>.html », le dernier rejet du type), remplacé au rejet suivant et supprimé quand un fichier de ce type est
+chargé dans ce tome.
 
 Le tome est celui d'un fichier d'exigences ou d'un plan, et pour un fichier STDHL ou de fiches celui choisi au
 chargement (None : tous les tomes). Le module lit aussi les documents Word (WordDocument), avec la seule bibliothèque
@@ -201,25 +202,68 @@ class FileDatabase:
         path = self.report_path(file_id)
         return path.read_text(encoding="utf-8") if path.is_file() else None
 
-    def reject_path(self, kind):
+    def reject_path(self, kind, tome=None):
         """Chemin du rapport du dernier rejet d'un type de fichier (requirements, plans, stdhl, fiches,
-        traceability) : <dossier des fichiers>/rapport/rejet_<type>.html."""
-        return self.directory / "rapport" / f"rejet_{kind}.html"
+        traceability) pour un tome : <dossier des fichiers>/rapport/rejet_<type>_<tome>.html ; sans tome, le dernier
+        rejet du type, quel que soit le tome : rejet_<type>.html."""
+        suffix = f"_{re.sub(r'[^\w.-]', '_', tome)}" if tome else ""
+        return self.directory / "rapport" / f"rejet_{kind}{suffix}.html"
 
-    def save_reject(self, kind, html):
-        """Écrit le rapport du rejet d'un fichier ; il remplace celui du rejet précédent du même type."""
-        path = self.reject_path(kind)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(html, encoding="utf-8")
+    def save_reject(self, kind, tome, html):
+        """Écrit le rapport du rejet d'un fichier : comme dernier rejet de son type, et comme dernier rejet de son
+        tome pour ce type quand le tome est connu (chacun remplace le précédent)."""
+        for path in [self.reject_path(kind)] + ([self.reject_path(kind, tome)] if tome else []):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(html, encoding="utf-8")
 
-    def reject(self, kind):
-        """Texte HTML du rapport du dernier rejet d'un type de fichier, ou None."""
-        path = self.reject_path(kind)
+    def reject(self, kind, tome=None):
+        """Texte HTML du rapport du dernier rejet d'un type (pour un tome), ou None."""
+        path = self.reject_path(kind, tome)
         return path.read_text(encoding="utf-8") if path.is_file() else None
 
-    def remove_reject(self, kind):
-        """Retire le rapport de rejet d'un type de fichier : un fichier de ce type vient d'être chargé."""
+    def rejects(self):
+        """Rejets gardés par tome : [{"kind", "tome"}] (les chevrons de ces tomes passent au rouge)."""
+        folder = self.directory / "rapport"
+        kinds = ("requirements", "plans", "stdhl", "fiches", "traceability")
+        found = []
+        for path in folder.glob("rejet_*_*.html") if folder.is_dir() else []:
+            kind, _, tome = path.stem[len("rejet_"):].partition("_")
+            if kind in kinds and tome:
+                found.append({"kind": kind, "tome": tome})
+        return found
+
+    # Types de fichier dans l'ordre des étapes : un import réussi efface les rejets de son étape et des suivantes.
+    REJECT_ORDER = ("requirements", "plans", "stdhl", "fiches", "traceability")
+
+    def remove_reject(self, kind, tome=None):
+        """Un fichier de ce type vient d'être chargé dans le tome : ses rejets et ceux des étapes suivantes du tome,
+        à refaire de toute façon, sont retirés, ainsi que le dernier rejet du type."""
         self.reject_path(kind).unlink(missing_ok=True)
+        if tome:
+            for later in self.REJECT_ORDER[self.REJECT_ORDER.index(kind):]:
+                self.reject_path(later, tome).unlink(missing_ok=True)
+
+    def prune_reports(self, tomes):
+        """Retire les rapports devenus sans objet : ceux des fichiers qui ne sont plus dans la base, et les rejets
+        des tomes qui n'ont plus d'exigences (`tomes` : ceux qui en ont). Renvoie le nombre de rapports retirés."""
+        folder = self.directory / "rapport"
+        if not folder.is_dir():
+            return 0
+        known = {str(r["id"]) for r in self.list()}
+        kept = {t.casefold() for t in tomes}
+        gone = 0
+        for path in folder.glob("*.html"):
+            number = path.stem.partition("_")[0]
+            stale = path.stem.endswith("_rapport") and number not in known
+            if path.stem.startswith("rejet_"):
+                kind, _, tome = path.stem[len("rejet_"):].partition("_")
+                stale = bool(tome) and tome.casefold() not in kept
+                # Sans aucune exigence dans la base, les derniers rejets de chaque type partent aussi.
+                stale = stale or (not tome and not kept)
+            if stale:
+                path.unlink(missing_ok=True)
+                gone += 1
+        return gone
 
     def list(self, slot=None):
         """Enregistrements, éventuellement ceux d'un seul slot."""
@@ -333,6 +377,24 @@ class FileDatabase:
     def tome_requirements(db, tome_id):
         """{numéro d'exigence: id} des exigences d'un tome."""
         return {r["req_id"]: r["id"] for r in db.execute("SELECT id, req_id FROM requirements WHERE tome_id = ?", (tome_id,))}
+
+    @staticmethod
+    def skip_unknown(config):
+        """Vrai quand la configuration demande d'ignorer les exigences inconnues (skip_unknown_req) au lieu de
+        refuser le fichier qui les cite."""
+        return bool(config.get("skip_unknown_req")) if config is not None else False
+
+    @staticmethod
+    def unknown_refusal(unknown, tome=None):
+        """Message du refus d'un fichier qui cite des numéros qui ne sont pas des exigences de son tome (de la base
+        sans tome) : il ne serait pas utilisable tel quel ; None quand il n'y en a pas."""
+        if not unknown:
+            return None
+        more = f" … et {len(unknown) - 30} autres" if len(unknown) > 30 else ""
+        where = f"du tome {tome}" if tome else "de la base"
+        what = "ne sont pas des exigences" if len(unknown) > 1 else "n'est pas une exigence"
+        return (f"{plural(len(unknown), 'numéro')} qui {what} {where} : " + ", ".join(unknown[:30]) + more
+                + " — corriger les numéros, ou importer d'abord ces exigences : fichier non chargé")
 
     @staticmethod
     def check_attachment(kind, requirements, tome):

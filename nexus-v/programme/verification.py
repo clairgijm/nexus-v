@@ -7,16 +7,20 @@ liste d'anomalies.
 
 Règles :
 
-  - un plan couvre une exigence de son tome ; un STDHL ou un fichier de fiches couvre une exigence de son tome, ou de
-    tous les tomes quand il n'appartient à aucun ;
+  - un plan d'acceptation n'est chargé que s'il est identique aux exigences de son tome (plans_db.py) : un tome qui a
+    un plan a toutes ses exigences à l'étape Plan ; un plan dont les exigences ont changé depuis est à recharger
+    (PLAN À RECHARGER) ;
+  - un STDHL ou un fichier de fiches couvre une exigence de son tome, ou de tous les tomes quand il n'appartient à
+    aucun ;
   - une exigence qualifiée ou hors scope (champ validation, d'après « Validation releases ») n'est attendue ni dans
     les STDHL ni dans les fiches (QUALIFIÉE, HORS SCOPE) ;
   - seules les exigences déléguées à la plateforme de niveau système (configuration system_platform) sont spécifiées
-    dans un STDHL : pour les autres, l'étape STDHL ne s'applique pas (AUTRE PLATEFORME) ; avec use_requirement_stdhl,
-    une exigence sans valeur dans la colonne STDHL n'y est pas vérifiée (NON DEMANDÉ) ;
-  - une exigence est couverte par une fiche de la plateforme à laquelle son plan la délègue ; pour la plateforme de
+    dans un STDHL : pour les autres, l'étape STDHL ne s'applique pas (AUTRE PLATEFORME) ;
+  - une exigence est couverte par une fiche de la plateforme à laquelle elle est déléguée ; pour la plateforme de
     niveau système, chaque test que le STDHL lui associe doit la citer dans les fiches (sinon TEST MANQUANT) ;
-  - une étape sans aucun fichier chargé est à charger : ce n'est pas un défaut.
+  - une étape sans aucun fichier chargé est à charger : ce n'est pas un défaut ;
+  - seules les étapes du processus retenu pour la release sont vérifiées (configuration process_plan, process_stdhl :
+    Plan d'acceptation et STDHL facultatifs) ; sans STDHL, les fiches ne sont pas comparées aux tests demandés.
 """
 import io
 import re
@@ -36,13 +40,13 @@ OK, MISSING, NO_DOC, ERROR, PENDING = "ok", "ko", "nodoc", "err", "wait"
 QUALIFIED, OUT_OF_SCOPE = "qualified", "scope"   # étapes STDHL et fiches : non attendue (champ validation)
 NOT_EXPECTED = (QUALIFIED, OUT_OF_SCOPE)
 OTHER = "other"   # étape STDHL d'une exigence d'une autre plateforme que celle de niveau système
-UNTAGGED = "none"  # étape STDHL d'une exigence sans STDHL (colonne STDHL vide, prise en compte) : non vérifiée
 TEST_MISSING = "test"   # étape Fiches : couverte par les fiches, mais pas par chaque test demandé par le STDHL
+STALE = "stale"   # étape Plan : le plan du tome a été chargé avant le dernier changement de ses exigences
 STATUS_LABELS = {OK: "OK", MISSING: "MANQUANT", NO_DOC: "DOC NON CHARGÉ", ERROR: "ERREUR", PENDING: "À CHARGER",
-                 QUALIFIED: "QUALIFIÉE", OUT_OF_SCOPE: "HORS SCOPE", OTHER: "AUTRE PLATEFORME", UNTAGGED: "NON DEMANDÉ",
-                 TEST_MISSING: "TEST MANQUANT"}
+                 QUALIFIED: "QUALIFIÉE", OUT_OF_SCOPE: "HORS SCOPE", OTHER: "AUTRE PLATEFORME",
+                 TEST_MISSING: "TEST MANQUANT", STALE: "PLAN À RECHARGER"}
 
-# Camembert de couverture des Fiches d'essai, par rapport à la délégation du plan : une part par plateforme (exigences
+# Camembert de couverture des Fiches d'essai, par rapport à la délégation des exigences : une part par plateforme (exigences
 # qui lui sont déléguées et couvertes par ses fiches), et les exigences non couvertes par leur plateforme de délégation.
 # Libellés courts (les aides des camemberts les expliquent).
 NOT_COVERED, NO_PLAN = "Non couvert", "Absent"
@@ -56,7 +60,10 @@ COVERED = "Couvert"
 PASSED, FAILED, NOT_RUN = "PASSED", "FAILED", "Non exécuté"
 RESERVED = {NOT_COVERED: "var(--not-covered)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
             PASSED: "var(--ok)", FAILED: "var(--not-covered)", NOT_RUN: "var(--muted)"}
-REPORT_COLOURS = {OK: "C6EFCE", MISSING: "FFC7CE", ERROR: "FFC7CE", NO_DOC: "FFEB9C", TEST_MISSING: "FFC7CE"}   # cellules de statut du rapport
+# État d'avancement d'un tome (list_tomes.state), du moins au plus avancé, et son libellé.
+TOME_STATES = {"": "rien de chargé", "requirements": "exigences chargées", "plan": "plan d'acceptation vérifié",
+               "stdhl": "STDHL vérifié", "fiches": "couverture partielle par les fiches", "done": "tout est fini"}
+REPORT_COLOURS = {OK: "C6EFCE", MISSING: "FFC7CE", STALE: "FFC7CE", NO_DOC: "FFEB9C", TEST_MISSING: "FFC7CE"}   # cellules de statut du rapport
 
 
 def unique(values):
@@ -133,13 +140,79 @@ class Verification:
         fiches = self.fiches.documents() + self.traceability.documents()
         rows = self._rows(requirements, plans, stdhl, fiches, selected)
         # Étapes qui n'ont encore aucun fichier : nommées dans le verdict, et leurs tuiles disent « à charger ».
-        waiting = [name for k, name in enumerate(STAGES) if any(r["statuses"][k] == PENDING for r in rows)]
-        return {"names": STAGES, "rows": rows, "releases": releases, "waiting": waiting,
+        stages = self.stages()
+        waiting = [name for k, name in enumerate(stages) if any(r["statuses"][k] == PENDING for r in rows)]
+        return {"names": stages, "rows": rows, "releases": releases, "waiting": waiting,
                 "status_labels": STATUS_LABELS, "defects": sum(1 for r in rows if r["lost_at"]),
-                "lost": [[name, sum(1 for r in rows if r["lost_at"] == name)] for name in STAGES],
+                "lost": [[name, sum(1 for r in rows if r["lost_at"] == name)] for name in stages],
                 "verdict": self._verdict(rows, waiting, releases), "tiles": self._tiles(rows, waiting, releases),
                 "charts": self._charts(rows, plans, fiches), "platform_charts": self._platform_charts(rows, fiches),
                 "result_charts": self._result_charts(rows, fiches)}
+
+    @staticmethod
+    def tome_states(result):
+        """État d'avancement de chaque tome d'après le résultat de run() : {tome: état} (TOME_STATES). Un tome passe à
+        l'état suivant quand toutes ses exigences ont franchi l'étape : chacune dans un plan (plan), chacune trouvée
+        dans un STDHL ou non attendue (stdhl), puis couverture par les fiches partielle (fiches) ou complète,
+        qualifiées et hors scope comprises (done)."""
+        names = result.get("names") or STAGES   # les étapes du processus retenu, dans l'ordre
+        by_tome = {}
+        for r in result.get("rows") or []:
+            by_tome.setdefault(r["tome"], []).append(dict(zip(names, r["statuses"])))
+        states = {}
+        for tome, rows in by_tome.items():
+            # Les étapes retenues, dans l'ordre : le tome avance tant que toutes ses exigences franchissent l'étape.
+            state = "requirements"
+            for name in names:
+                values = [s[name] for s in rows]
+                if name == STAGE_PLAN:
+                    if not all(v == OK for v in values):
+                        break
+                    state = "plan"
+                elif name == STAGE_STDHL:
+                    if not all(v in (OK, *NOT_EXPECTED, OTHER) for v in values):
+                        break
+                    state = "stdhl"
+                elif all(v in (OK, *NOT_EXPECTED) for v in values):
+                    state = "done"
+                elif any(v in (OK, TEST_MISSING) for v in values):
+                    state = "fiches"
+            states[tome] = state
+        return states
+
+    @staticmethod
+    def needed_state(step, config):
+        """État qu'un tome doit avoir atteint avant le chargement d'un fichier de l'étape `step` (« stdhl » ou
+        « fiches ») : celui de l'étape retenue qui la précède dans le processus (plan d'acceptation, STDHL), None
+        quand seule l'étape Exigences la précède."""
+        previous = {"stdhl": [("plan", "process_plan")],
+                    "fiches": [("stdhl", "process_stdhl"), ("plan", "process_plan")]}[step]
+        return next((state for state, key in previous if config.get(key)), None)
+
+    @classmethod
+    def late_tomes(cls, step, states, tomes, config):
+        """Tomes dont l'étape précédant `step` n'est pas complète : [(tome, état)] ; dans un tome, on ne passe pas à
+        l'étape suivante tant que la précédente ne l'est pas. La règle vaut tome par tome : `states` : {tome: état}
+        (tome_states) ; `tomes` : le tome du fichier, ou None pour un fichier sans tome (STDHL unique, fiches de tous
+        les tomes), qui n'est pas refusé : chaque tome y avance à son rythme."""
+        need = cls.needed_state(step, config)
+        if need is None or not tomes:
+            return []
+        order = list(TOME_STATES)
+        return [(t, states.get(t, "")) for t in tomes if order.index(states.get(t, "")) < order.index(need)]
+
+    @classmethod
+    def late_text(cls, step, late, config):
+        """Message du refus d'un fichier dont l'étape précédente n'est pas complète pour ses tomes."""
+        need = TOME_STATES[cls.needed_state(step, config)]
+        return (f"étape précédente non complète pour {plural(len(late), 'tome')} : "
+                + ", ".join(f"{t} ({TOME_STATES[s]})" for t, s in late)
+                + f" ; il faut d'abord « {need} » pour chaque tome concerné")
+
+    def stages(self):
+        """Étapes du processus retenu pour la release, dans l'ordre : Plan d'acceptation et STDHL quand ils sont
+        retenus (configuration process_plan, process_stdhl), puis Fiches d'essai."""
+        return ([STAGE_PLAN] if self.config.get("process_plan") else [])             + ([STAGE_STDHL] if self.config.get("process_stdhl") else []) + [STAGE_FICHES]
 
     def _sheets(self, fiches, requirement, selected):
         """Fichiers de fiches qui peuvent couvrir une exigence : l'une de ses releases, et son tome (ou aucun tome)."""
@@ -147,13 +220,11 @@ class Verification:
 
     def _rows(self, requirements, plans, stdhl, fiches, selected):
         """Une ligne par exigence : ses statuts à chaque étape et sa couverture."""
-        # Index des lignes de plan par numéro d'exigence, chaque ligne avec son plan (tome, nom), pour que chaque
-        # exigence trouve ses lignes sans parcourir chaque plan.
-        plan_hits = {}
+        # Plans chargés de chaque tome : un plan chargé est identique aux exigences de son tome ; il est à recharger
+        # quand elles ont changé depuis (stale).
+        plans_of = {}
         for plan in plans:
-            for row in plan["rows"]:
-                for req in row["requirements"]:
-                    plan_hits.setdefault(req, []).append({**row, "plan": plan})
+            plans_of.setdefault(plan["tome"], []).append(plan)
         # Index des lignes de STDHL par fichier puis par numéro d'exigence : une exigence ne regarde que les STDHL qui
         # s'appliquent à son tome.
         stdhl_hits = {}
@@ -162,18 +233,18 @@ class Verification:
                 for req in row["requirements"]:
                     stdhl_hits.setdefault(doc["file_id"], {}).setdefault(req, []).append(row)
         rows = []
+        stages = self.stages()
+        use_stdhl = STAGE_STDHL in stages   # sans STDHL, les fiches ne sont pas comparées aux tests qu'il demande
         for r in requirements:
             req_id = r["id"]
-            # Lignes de plan de l'exigence, dans un plan de son propre tome (un numéro cité par un plan d'un autre tome
-            # ne compte pas).
-            hits = [h for h in plan_hits.get(req_id, [])
-                    if h["plan"]["tome"] == r["tome"] and self._in_release(h["plan"], r, selected)]
+            # Plans de son tome : à jour, ou seulement à recharger.
+            own_plans = plans_of.get(r["tome"], [])
+            planned = any(not p["stale"] for p in own_plans)
             # STDHL qui s'appliquent à l'exigence (son tome, ou aucun tome) et fichiers de fiches qui la citent.
-            docs = [d for d in self._of_tome(stdhl, r["tome"]) if self._in_release(d, r, selected)]
+            docs = [d for d in self._of_tome(stdhl, r["tome"]) if self._in_release(d, r, selected)] if use_stdhl else []
             sheets = [x for x in self._sheets(fiches, r, selected) if req_id in x["ids"]]
-            # Plateformes auxquelles l'exigence est déléguée (ses lignes de plan) ; une fiche de l'une d'elles la
-            # couvre.
-            platforms = set(unique(h["effective_delegation"] for h in hits))
+            # Plateforme à laquelle l'exigence est déléguée (sa référence) ; une fiche de cette plateforme la couvre.
+            platforms = {r["delegation"]} if r.get("delegation") else set()
             # Lignes de ces STDHL qui citent l'exigence, chacune avec le test (fiche SYS_) qu'elle demande.
             found = [row for d in docs for row in stdhl_hits.get(d["file_id"], {}).get(req_id, [])]
             # Qualifiée ou hors scope (champ validation) : attendue ni dans les STDHL ni dans les fiches.
@@ -182,8 +253,6 @@ class Verification:
             # STDHL.
             system_platform = self.config.get("system_platform")
             other = not ended and fold(r.get("delegation") or "") != fold(system_platform)
-            # La colonne STDHL est facultative : une exigence sans STDHL n'est pas vérifiée par rapport aux STDHL.
-            untagged = self.config.get("use_requirement_stdhl") and not r["stdhl"]
             # Tests demandés par le STDHL pour l'exigence, et tests des fiches de la plateforme de niveau système qui la
             # couvrent : chaque test demandé doit y être (davantage de tests dans les fiches ne gêne pas).
             default = system_platform
@@ -191,7 +260,7 @@ class Verification:
             tested = unique(c["test"] for x in sheets if x["platform"] == default for c in x["rows"]
                             if req_id in c["requirements"])
             absent = [t for t in asked if t not in tested]
-            # La couverture est jugée par rapport à la délégation du plan : seules les fiches d'une plateforme de
+            # La couverture est jugée par rapport à la délégation de l'exigence : seules les fiches d'une plateforme de
             # délégation comptent, et celles de la plateforme de niveau système seulement avec chaque test demandé par
             # le STDHL.
             covering = unique(x["platform"] for x in sheets if x["platform"] in platforms
@@ -200,21 +269,24 @@ class Verification:
             # Couverte par des fiches de la plateforme de niveau système, mais pas par chaque test demandé par le STDHL
             # : TEST MANQUANT, pas MANQUANT.
             partial = not own and default in platforms and bool(tested) and bool(absent)
-            # Un statut par étape, dans l'ordre de STAGES. Plan : à charger, manquant, une ligne en erreur, ou OK. STDHL
+            # Un statut par étape, dans l'ordre de STAGES. Plan : à charger, manquant, à recharger, ou OK. STDHL
             # : qualifiée ou hors scope, autre plateforme, non demandé, à charger, trouvée, manquante dans les STDHL de
             # son tome, ou aucun STDHL chargé pour son tome. Fiches : qualifiée ou hors scope, à charger, couverte, un
             # test manquant, ou manquante.
-            statuses = [
-                PENDING if not plans else MISSING if not hits else ERROR if any(h["errors"] for h in hits) else OK,
-                ended if ended else OTHER if other else UNTAGGED if untagged else PENDING if not stdhl
+            every = {
+                STAGE_PLAN: PENDING if not plans else OK if planned else STALE if own_plans else MISSING,
+                STAGE_STDHL: ended if ended else OTHER if other else PENDING if not stdhl
                 else OK if found else MISSING if docs
                 else NO_DOC,
-                ended if ended else PENDING if not fiches else OK if own else TEST_MISSING if partial else MISSING,
-            ]
+                STAGE_FICHES: ended if ended else PENDING if not fiches else OK if own else TEST_MISSING if partial
+                else MISSING,
+            }
+            # Seules les étapes du processus retenu.
+            statuses = [every[name] for name in stages]
             # L'étape où l'exigence est perdue : la première qui est un défaut (OK, à charger, qualifiée, hors scope,
             # autre plateforme et non demandé ne sont pas des défauts).
-            lost = next((name for name, s in zip(STAGES, statuses)
-                         if s not in (OK, PENDING, *NOT_EXPECTED, OTHER, UNTAGGED)), "")
+            lost = next((name for name, s in zip(stages, statuses)
+                         if s not in (OK, PENDING, *NOT_EXPECTED, OTHER)), "")
             # Résultat des tests de l'exigence, par plateforme qui la couvre : FAILED si l'un a échoué, PASSED si tous
             # sont passés, Non exécuté sinon (les fichiers Excel des autres plateformes n'ont pas de résultat).
             def result_of(values):
@@ -261,14 +333,14 @@ class Verification:
         """Nombre d'exigences, puis OK / attendues pour chaque étape ; les exigences qualifiées ou hors scope ne sont
         pas attendues, ni, dans les STDHL, celles déléguées à une autre plateforme."""
         tiles = [{"label": f"{SOURCE_NAME}{self._scope(releases)}", "value": len(rows)}]
-        for k, name in enumerate(STAGES):
+        for k, name in enumerate(self.stages()):
             if name in waiting:
                 tiles.append({"label": name, "waiting": True})
                 continue
             # OK sur les exigences attendues à cette étape : celles qualifiées ou hors scope, d'une autre plateforme à
             # l'étape STDHL et celles sans STDHL demandé ne sont pas attendues.
             done = sum(1 for r in rows if r["statuses"][k] == OK)
-            expected = sum(1 for r in rows if r["statuses"][k] not in (*NOT_EXPECTED, OTHER, UNTAGGED))
+            expected = sum(1 for r in rows if r["statuses"][k] not in (*NOT_EXPECTED, OTHER))
             tiles.append({"label": name, "value": done, "expected": expected, "percent": percent(done, expected)})
         return tiles
 
@@ -311,21 +383,21 @@ class Verification:
                               else {})} for label, ids in shown]}
 
     def _platform_charts(self, rows, fiches):
-        """Un camembert par plateforme à laquelle des exigences sont déléguées dans les plans : couvertes par ses
+        """Un camembert par plateforme à laquelle des exigences sont déléguées : couvertes par ses
         fiches ou non (page Fiches d'Essai). Les exigences qualifiées ou hors scope ne comptent pas."""
         if not fiches:
             return []
         # Les exigences qualifiées ou hors scope (covered_by None) ne sont attendues dans aucune fiche.
         expected = [r for r in rows if r["covered_by"] is not None]
         known = list(self.config.get("platforms"))
-        # Les plateformes de la configuration d'abord, dans son ordre, puis toute autre plateforme nommée par un plan.
+        # Les plateformes de la configuration d'abord, dans son ordre, puis toute autre plateforme de délégation.
         platforms = known + sorted({p for r in expected for p in r["delegated_to"]} - set(known), key=by_name)
         charts = []
         for platform in platforms:
             delegated = [r for r in expected if platform in r["delegated_to"]]
             if delegated:
                 chart = self._chart(
-                    f"Plateforme {platform}", f"Exigences déléguées à {platform} dans les plans d'acceptation.",
+                    f"Plateforme {platform}", f"Exigences déléguées à {platform}.",
                     [(COVERED, [r for r in delegated if platform in r["covered_by"]]),
                      (NOT_COVERED, [r for r in delegated if platform not in r["covered_by"]])])
                 for part in chart["parts"]:   # la part couverte en vert (couleur réservée)
@@ -374,16 +446,14 @@ class Verification:
                                       split("moc", list(self.config.get("mocs"))), colors="mocs",
                                       names=self.config.get("mocs")))
         # Couverture par les fiches : couvertes (vert) ou non (rouge), les exigences qualifiées ou hors scope laissées
-        # de côté. Une exigence est couverte par une fiche de la plateforme à laquelle elle est déléguée ; une exigence
-        # absente des plans n'est pas couverte.
+        # de côté. Une exigence est couverte par une fiche de la plateforme à laquelle elle est déléguée.
         tested = [r for r in rows if r["covered_by"] is not None]
         # Le camembert de couverture n'a de sens qu'une fois des fiches chargées et des exigences à tester.
         if fiches and tested:
             charts.append(self._chart(
                 "Couverture par les fiches",
-                "Exigences à qualifier : couvertes par une fiche de la plateforme à laquelle elles sont déléguées "
-                "dans le plan, ou non couvertes (une fiche d'une autre plateforme ne compte pas ; une exigence absente "
-                "des plans n'est pas couverte).",
+                "Exigences à qualifier : couvertes par une fiche de la plateforme à laquelle elles sont déléguées, "
+                "ou non couvertes (une fiche d'une autre plateforme ne compte pas).",
                 [(COVERED, [r for r in tested if r["covered_by"]]),
                  (NOT_COVERED, [r for r in tested if not r["covered_by"]])]))
         # Résultats des fiches XML : une part par exigence qu'elles citent.
@@ -424,14 +494,14 @@ class Verification:
 
         labels = result["status_labels"]
         sheet("Traçabilité", [
-            ["Exigence", "Titre", "Tome", "Releases", "STDHL", "IADT", "MOC", "Délégation",
+            ["Exigence", "Titre", "Tome", "Releases", "IADT", "MOC", "Délégation",
              *result["names"], "Perdue à l'étape", "Tests demandés (STDHL)", "Tests des fiches", "Tests manquants"],
-            *([r["id"], r["title"], r["tome"], ", ".join(r["releases"]), r["stdhl"], r["iadt"], r["moc"],
+            *([r["id"], r["title"], r["tome"], ", ".join(r["releases"]), r["iadt"], r["moc"],
                r["delegation"], *(labels[s] for s in r["statuses"]), r["lost_at"], ", ".join(r["tests_asked"]),
                ", ".join(r["tests_found"]), ", ".join(r["tests_absent"])] for r in result["rows"])])
         # Cellules de statut colorées comme les badges de la page : vert OK, rouge manquant ou erreur, jaune document
         # non chargé.
-        first = 9   # première colonne des statuts
+        first = 8   # première colonne des statuts
         for line, r in enumerate(result["rows"], 2):
             for k, status in enumerate(r["statuses"]):
                 if status in REPORT_COLOURS:

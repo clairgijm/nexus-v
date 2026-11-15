@@ -162,7 +162,9 @@ class FichesDatabase:
         # Les STDHL spécifient les tests de leur plateforme (configuration system_platform) : ses fiches sont vérifiées
         # par rapport à eux.
         system_platform = (config.get("system_platform") if config is not None else "") or ""
-        with_stdhl = bool(platform) and platform.casefold() == system_platform.casefold()
+        # Sans STDHL dans le processus retenu (process_stdhl), ses règles ne s'appliquent pas.
+        use_stdhl = bool(config.get("process_stdhl")) if config is not None else True
+        with_stdhl = use_stdhl and bool(platform) and platform.casefold() == system_platform.casefold()
         tome_of = {r["req_id"]: r["tome"] for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM requirements q JOIN list_tomes t ON t.id = q.tome_id"
             + (" WHERE t.name = ?" if tome else ""), (tome,) if tome else ())}
@@ -177,16 +179,18 @@ class FichesDatabase:
         specified = {(r["req_id"], r["tome"]) for r in self.sql.query(
             "SELECT q.req_id, t.name AS tome FROM stdhl_exi x JOIN requirements q ON q.id = x.requirement_id "
             "JOIN files f ON f.id = x.file_id LEFT JOIN list_tomes t ON t.id = f.tome_id WHERE x.deleted = 0")}
-        # Déléguée ailleurs : aucune des lignes de plan de l'exigence n'est déléguée à la plateforme du fichier.
+        # Déléguée ailleurs : l'exigence (sa référence, dans le fichier d'exigences) est déléguée à une autre
+        # plateforme que celle du fichier.
         own = {r["req_id"] for r in self.sql.query(
-            "SELECT DISTINCT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
-            "JOIN list_plateformes l ON l.id = p.delegation_id WHERE p.deleted = 0 AND LOWER(l.name) = LOWER(?)",
-            (platform,))}
+            "SELECT q.req_id FROM requirements q JOIN list_plateformes l ON l.id = q.delegation_id "
+            "WHERE LOWER(l.name) = LOWER(?)", (platform,))}
         planned = {r["req_id"] for r in self.sql.query(
-            "SELECT DISTINCT q.req_id FROM plan_acceptation p JOIN requirements q ON q.id = p.requirement_id "
-            "WHERE p.deleted = 0")}
+            "SELECT req_id FROM requirements WHERE delegation_id IS NOT NULL")}
         rows, unknown, untitled, ignored_tests, ignored_cases = [], [], [], [], []
         for r in data["rows"]:
+            # Un numéro inconnu est relevé sur toute ligne, même ignorée ensuite : le fichier qui le cite est refusé
+            # (ou, avec skip_unknown_req, ses données sont ignorées).
+            unknown += [i for i in r["requirements"] if i not in tome_of and i not in unknown]
             if not (r["test_case"] or "").strip():
                 untitled.append(r["test"])
                 continue
@@ -198,7 +202,6 @@ class FichesDatabase:
                 ignored_cases.append(f"{r['test']} / {r['test_case']}")
                 continue
             keep = [i for i in r["requirements"] if i in tome_of]
-            unknown += [i for i in r["requirements"] if i not in tome_of and i not in unknown]
             if keep:
                 rows.append((r["test"], r["test_case"], keep, r.get("result")))
         cited = list(dict.fromkeys(i for _, _, ids, _ in rows for i in ids))
@@ -218,9 +221,13 @@ class FichesDatabase:
                 "not_specified": not_specified, "delegated": delegated}
 
     @staticmethod
-    def refusal(found):
-        """Le message qui refuse un fichier de fiches dont des exigences ne sont dans aucun STDHL, ou None."""
+    def refusal(found, config=None):
+        """Le message qui refuse un fichier de fiches qui cite des numéros qui ne sont pas des exigences de son tome
+        (de la base sans tome), ou dont des exigences ne sont dans aucun STDHL ; None sinon."""
+        from file_database import FileDatabase
         parts = []
+        if found["unknown"] and not FileDatabase.skip_unknown(config):
+            parts.append(FileDatabase.unknown_refusal(found["unknown"]).removesuffix(" : fichier non chargé"))
         if found["not_specified"]:
             parts.append(f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son tome : "
                          + ", ".join(found["not_specified"]) + " (les spécifier d'abord dans le STDHL)")
@@ -278,7 +285,7 @@ class FichesDatabase:
         if config is not None and not config.is_platform(platform):
             raise ValueError(f"plateforme {platform} absente de la configuration")
         found = self.screen(data, tome, config, platform)
-        if (message := self.refusal(found)) is not None:
+        if (message := self.refusal(found, config)) is not None:
             raise ValueError(message)
         # La copie est enregistrée d'abord, le contenu ensuite, dans une transaction : en cas d'échec, la copie est
         # retirée.

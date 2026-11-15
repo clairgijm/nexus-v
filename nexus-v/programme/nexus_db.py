@@ -90,7 +90,7 @@ def random_platform_color(taken=()):
 
 # Première rangée d'onglets de la page Tables de la base : les fichiers et le contenu des documents, le long de la
 # chaîne.
-FIRST_TABLES = ("files", "requirements", "plan_acceptation", "stdhl_exi", "fe_tests", "fe_test_case", "stdhl_test_case",
+FIRST_TABLES = ("files", "requirements", "stdhl_exi", "fe_tests", "fe_test_case", "stdhl_test_case",
                 "fiches_essai")
 
 # Nom du référentiel (comme dans la configuration) -> table, colonne clé, colonne libellé (None : une simple liste).
@@ -106,13 +106,13 @@ REFERENTIALS = {
 USES = {
     "tomes": [("exigence", "exigences", "SELECT COUNT(*) FROM requirements WHERE tome_id = (SELECT id FROM list_tomes WHERE name = ?)"),
               ("fichier", "fichiers", "SELECT COUNT(*) FROM files WHERE tome_id = (SELECT id FROM list_tomes WHERE name = ?)")],
-    "platforms": [("ligne de plan", "lignes de plan", "SELECT COUNT(*) FROM plan_acceptation WHERE delegation_id = "
+    "platforms": [("exigence", "exigences", "SELECT COUNT(*) FROM requirements WHERE delegation_id = "
                    "(SELECT id FROM list_plateformes WHERE name = ?)"),
                   ("fichier de fiches", "fichiers de fiches", "SELECT COUNT(*) FROM files WHERE platform_id = "
                    "(SELECT id FROM list_plateformes WHERE name = ?)")],
-    "iadt": [("ligne de plan", "lignes de plan", "SELECT COUNT(*) FROM plan_acceptation WHERE iadt_id = "
+    "iadt": [("exigence", "exigences", "SELECT COUNT(*) FROM requirements WHERE iadt_id = "
               "(SELECT id FROM list_iadt WHERE code = ?)")],
-    "mocs": [("ligne de plan", "lignes de plan", "SELECT COUNT(*) FROM plan_acceptation WHERE moc_id = "
+    "mocs": [("exigence", "exigences", "SELECT COUNT(*) FROM requirements WHERE moc_id = "
               "(SELECT id FROM list_moc WHERE code = ?)")],
 }
 
@@ -174,14 +174,7 @@ class NexusDatabase:
                 raise ValueError(f"{self.path} : base en version {version}, version attendue : {self.version} ; "
                                  "une migration est nécessaire")
             with self.db:
-                # Nettoyage à chaque ouverture et après chaque transaction (voir transaction).
-                self._drop_unused(self.db)
                 self.set_meta("schema_version", self.version)
-
-    @staticmethod
-    def _drop_unused(db):
-        """Retire les valeurs STDHL qu'aucune exigence ne nomme plus."""
-        db.execute("DELETE FROM list_stdhl WHERE id NOT IN (SELECT stdhl_id FROM requirements WHERE stdhl_id IS NOT NULL)")
 
     def checkpoint(self):
         """Fait tout passer dans le fichier principal, pour qu'il puisse être copié seul."""
@@ -210,7 +203,6 @@ class NexusDatabase:
                 if outer:
                     with self.db:
                         yield self.db
-                        self._drop_unused(self.db)
                 else:
                     yield self.db
             # Une contrainte non respectée (valeur unique, lien vers une ligne absente) devient un message pour la page.
@@ -350,6 +342,18 @@ class NexusDatabase:
     def tome_descriptions(self):
         """{tome: description} des tomes (ce que chacun contient, donné par l'utilisateur)."""
         return {r["name"]: r["description"] for r in self.query("SELECT name, description FROM list_tomes ORDER BY id")}
+
+    def tome_states(self):
+        """[(tome, état d'avancement)] de tous les tomes, dans l'ordre du référentiel (voir Verification.tome_states)."""
+        return [(r["name"], r["state"]) for r in self.query("SELECT name, state FROM list_tomes ORDER BY id")]
+
+    def set_tome_states(self, states):
+        """Enregistre l'état d'avancement des tomes : {tome: état} ; un tome absent n'a rien de chargé (état vide).
+        Seuls les états qui changent sont écrits."""
+        changed = [(states.get(name, ""), name) for name, state in self.tome_states() if states.get(name, "") != state]
+        if changed:
+            with self.transaction() as db:
+                db.executemany("UPDATE list_tomes SET state = ? WHERE name = ?", changed)
 
     def set_tome_descriptions(self, descriptions):
         """Descriptions des tomes : {nom: texte}."""

@@ -3,7 +3,7 @@
 For each tome fct1 to fct10, from its requirements of release A (exigences/2026-01-01-fctk.xlsx, loaded in the base):
 - complement/2026-03-15-fctk-complement.xlsx: only new requirements (5 % of the tome) and modified ones (5 %);
 - remplacement/2026-03-15-fctk-remplacement.xlsx: the whole tome, 5 % removed, 5 % new and 5 % modified.
-A modified requirement changes one field, in turn: its title, its STDHL, or its release (A becomes B: the requirement
+A modified requirement changes one field, in turn: its title, its validation (QUALIFIE, or back to A when already qualified), or its release (A becomes B: the requirement
 leaves the release of the base, so it is reported outside the release). LISEZMOI-complement-remplacement.html lists, file by file, the numbers
 of each case: what the check (and the import) must find.
 Usage (from nexus-v/programme): python ../../base-test/generateurs/make_verification_modifications.py ../../base-test
@@ -22,15 +22,15 @@ from lisezmoi import write_html
 BASE = Path(sys.argv[1])
 OUT = BASE / "verification-import" / "exigences"
 SHARE = 0.05
-FIELDS = ("titre", "STDHL", "release")
+FIELDS = ("titre", "validation", "release")
 in_a = lambda r: "A" in str(r[2] or "").replace(" ", "").split(",")
 
 
 def rows_of(k):
-    """Rows [ID, Titre, Specification releases, STDHL, IADT, MOC, Délégation, Validation releases] of release A of the
+    """Rows [ID, Titre, Specification releases, IADT, MOC, Délégation, Validation releases] of release A of the
     test file of fctk, as the base holds them (specification releases reduced to A, validation releases kept)."""
     ws = openpyxl.load_workbook(BASE / "exigences" / f"2026-01-01-fct{k}.xlsx").active
-    return [["A" if c == 2 else v for c, v in enumerate(r[:8])]
+    return [["A" if c == 2 else v for c, v in enumerate(r[:7])]
             for r in ws.iter_rows(min_row=2, values_only=True) if r[0] and in_a(r)]
 
 
@@ -39,12 +39,12 @@ def save(path, rows):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Exigences"
-    ws.append(["ID", "Titre", "Specification releases", "STDHL", "IADT", "MOC", "Délégation", "Validation releases"])
+    ws.append(["ID", "Titre", "Specification releases", "IADT", "MOC", "Délégation", "Validation releases"])
     for r in rows:
         ws.append(r)
     for c in ws[1]:
         c.font, c.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
-    for col, w in zip("ABCDEFGH", (24, 60, 16, 12, 8, 9, 14, 16)):
+    for col, w in zip("ABCDEFG", (24, 60, 16, 8, 9, 14, 16)):
         ws.column_dimensions[col].width = w
     ws.page_setup.paperSize, ws.page_setup.orientation = ws.PAPERSIZE_A4, "portrait"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
@@ -58,8 +58,9 @@ def modify(row, field):
     row = list(row)
     if field == "titre":
         row[1] = f"{row[1]} — version modifiée"
-    elif field == "STDHL":
-        row[3] = f"{row[3]}-bis"
+    elif field == "validation":
+        # La validation change : une exigence qualifiée redevient à qualifier, les autres deviennent qualifiées.
+        row[6] = "A" if "QUALIFIE" in str(row[6] or "").upper() else "QUALIFIE"
     else:
         row[2] = "B"
     return row
@@ -67,7 +68,7 @@ def modify(row, field):
 
 def new_rows(k, first, count):
     """New requirements of fctk, numbered from `first`."""
-    return [[f"SSS_FCT{k}_REQ_{n}", f"nouvelle exigence {n} de FCT{k}", "A", f"fct{k}", "T", "MOC4", "TOP", "A"]
+    return [[f"SSS_FCT{k}_REQ_{n}", f"nouvelle exigence {n} de FCT{k}", "A", "T", "MOC4", "TOP", "A"]
             for n in range(first, first + count)]
 
 
@@ -104,7 +105,7 @@ for k in range(1, 11):
                     **{f"{f} modifié" if f != "release" else "release passée en B": [ids[i] for i, g in changed.items() if g == f]
                        for f in FIELDS}}))
 
-cases = ("retirées", "nouvelles", "titre modifié", "STDHL modifié", "release passée en B")
+cases = ("retirées", "nouvelles", "titre modifié", "validation modifié", "release passée en B")
 lines = ["# Fichiers de complément et de remplacement", "",
          "Prérequis : les exigences de test `exigences/2026-01-01-fct1.xlsx` à `fct10.xlsx` sont chargées dans la base "
          "(tomes fct1 à fct10, release A). Chaque fichier part des exigences de la release A de son tome.", "",
@@ -115,14 +116,14 @@ lines = ["# Fichiers de complément et de remplacement", "",
          "écrase la base ».", "",
          "Le rapport donne toujours les deux cas : un fichier de complément qui écraserait la base en retirerait les "
          "95 % d'exigences qu'il ne contient pas, ce qu'il doit signaler.", "",
-         "Une exigence modifiée change un seul champ, à tour de rôle : le titre (« — version modifiée » ajouté), le "
-         "STDHL (« -bis » ajouté) ou la release (A devient B). Une exigence passée en B sort de la release de la base : "
+         "Une exigence modifiée change un seul champ, à tour de rôle : le titre (« — version modifiée » ajouté), la "
+         "validation (QUALIFIE, ou A pour une exigence déjà qualifiée) ou la release (A devient B). Une exigence passée en B sort de la release de la base : "
          "le rapport la signale dans un groupe hors release A, rejeté à l'import (Rejeté) ; en remplacement, elle est "
          "aussi comptée parmi "
          "les exigences absentes du fichier. Les exigences nouvelles n'ont pas de ligne de plan : la couverture du plan "
          "baisse d'autant.", "",
          "Le rapport doit donner, pour chaque fichier, les numéros ci-dessous : « exigences nouvelles », « exigences de la "
-         "base au titre modifié », « exigences de la base au STDHL modifié », le groupe « release B » hors release et, "
+         "base au titre modifié », « exigences de la base à la validation modifiée », le groupe « release B » hors release et, "
          "s'il écrase la base, « exigences du tome absentes du fichier » (les retirées et celles passées en B).", "",
          "Régénérer : `python ../../base-test/generateurs/make_verification_modifications.py ../../base-test` depuis "
          "`nexus-v/programme`.", "",

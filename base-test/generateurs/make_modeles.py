@@ -40,6 +40,17 @@ TESTS = {"SYS_PERF_MODELE_001": "Performances", "SYS_COM_MODELE_002": "Communica
 FORMAT2 = {"SYS_PERF_MODELE_001": "PERFORMANCES_001", "SYS_COM_MODELE_002": "COMMUNICATIONS_002"}
 
 
+# Validation releases des exigences du modèle : les releases de la spécification, sauf 004 qualifiée (dernier test en
+# A), 007 testée en B seulement et 005 sans release de validation (hors scope).
+VALIDATION = {"SSS_MODELE_REQ_004": "A, QUALIFIE", "SSS_MODELE_REQ_005": "", "SSS_MODELE_REQ_007": "B"}
+
+
+def plan_validation(r):
+    """Texte de la colonne Validation du plan pour une exigence du modèle, dans la release A."""
+    values = [v.strip().upper() for v in (VALIDATION.get(r[0], r[2]) or "").split(",") if v.strip()]
+    return "déjà qualifiée" if "QUALIFIE" in values else "à qualifier" if "A" in values else "hors scope"
+
+
 def covered(test, case=None):
     """Requirements of a test (and test case) in the example."""
     return [r for r in REQS if r[7] == test and (case is None or r[8] == case)]
@@ -120,17 +131,14 @@ def requirements():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Exigences"
-    ws.append(["ID", "Titre", "Specification releases", "STDHL", "IADT", "MOC", "Délégation", "Validation releases"])
-    # Validation releases: the specification releases, but 004 qualified (last tested in A) and 007 tested in B only.
-    # 005, not tested in this release: no validation release (out of scope).
-    validation = {"SSS_MODELE_REQ_004": "A, QUALIFIE", "SSS_MODELE_REQ_005": "", "SSS_MODELE_REQ_007": "B"}
+    ws.append(["ID", "Titre", "Specification releases", "IADT", "MOC", "Délégation", "Validation releases"])
     for r in REQS:
-        # One MOC in the requirements file (the reference); the plan may give several (003: MOC2, MOC3).
-        ws.append([r[0], r[1], r[2], r[3], r[4], r[5].split(",")[0].strip(), r[6] or "TOP",
-                   validation.get(r[0], r[2]) or None])
+        # Un seul MOC dans le fichier d'exigences (la référence).
+        ws.append([r[0], r[1], r[2], r[4], r[5].split(",")[0].strip(), r[6] or "TOP",
+                   VALIDATION.get(r[0], r[2]) or None])
     for c in ws[1]:
         c.font, c.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
-    for col, w in zip("ABCDEFGH", (24, 52, 16, 14, 8, 9, 14, 16)):
+    for col, w in zip("ABCDEFG", (24, 52, 16, 8, 9, 14, 16)):
         ws.column_dimensions[col].width = w
     help_ = wb.create_sheet("Mode d'emploi")
     lines = [
@@ -140,7 +148,7 @@ def requirements():
         ("Nom du fichier", "<AAAA-MM-JJ>-<TOME>.xlsx, par exemple 2026-01-01-MODELE.xlsx : le tome est le texte après "
                            "la date, jusqu'au tiret, au souligné ou à l'extension suivant (requirements_tome_regex)."),
         ("Un seul tome", "un fichier d'exigences porte un seul tome (une seule fonction)."),
-        ("Ligne 1", "les en-têtes, dans n'importe quel ordre : ID, Titre, Specification releases, STDHL, IADT, MOC, "
+        ("Ligne 1", "les en-têtes, dans n'importe quel ordre : ID, Titre, Specification releases, IADT, MOC, "
                     "Délégation, Validation releases "
                     "(headers_requirements). "
                     "Un en-tête absent fait refuser le fichier ; les autres colonnes sont ignorées."),
@@ -155,12 +163,7 @@ def requirements():
                                 "point compte), à qualifier si la release est dans la liste, hors scope sinon ; une "
                                 "cellule vide est admise : l'exigence est hors du scope de la validation."),
         ("Specification releases", "une ou plusieurs releases séparées par une virgule (release_separator_regex), par exemple « A, B ». "
-                    "À l'import, l'utilisateur choisit les releases gardées ; une exigence hors de ces releases peut "
-                    "être forcée ou ignorée."),
-        ("STDHL", "nom du STDHL qui spécifie l'exigence (par défaut, le tome). Vide quand l'exigence n'est pas "
-                  "spécifiée dans un STDHL de la plateforme TOP. Plusieurs valeurs : séparées par , ; / ou un retour "
-                  "à la ligne (stdhl_separator_regex). Vérifié seulement si « Utiliser la colonne STDHL » est coché "
-                  "dans Configuration > STDHL."),
+                    "Seules les exigences de la release de la base sont importées ; les autres sont rejetées."),
         ("IADT", "la méthode de vérification de l'exigence, un seul code : I (inspection), A (analyse), D "
                  "(démonstration) ou T (test). Le fichier d'exigences est la référence : le plan d'acceptation et "
                  "le STDHL sont vérifiés par rapport à lui."),
@@ -195,25 +198,25 @@ def plan():
         ("Nom du fichier", "<AAAA-MM-JJ>_PA_<TOME>_<release>-<texte>.docx, par exemple "
                            "2026-01-01_PA_MODELE_A-modele.docx : le tome est le texte entre « _PA_ » et le "
                            "souligné suivant (plan_tome_regex)."),
-        ("Tableaux lus", "tout tableau dont la première ligne contient les en-têtes Exigence, IADT, MOC et Délégation "
-                         "(headers_plan) ; la colonne Méthode est lue mais non enregistrée. Les autres tableaux du "
+        ("Vérification", "le plan n'est que vérifié : chaque exigence du tome doit y être, avec le même IADT, le "
+                         "même MOC, la même délégation et la même validation que dans le fichier d'exigences. La "
+                         "moindre différence fait refuser le plan."),
+        ("Tableaux lus", "tout tableau dont la première ligne contient les en-têtes Exigence, IADT, MOC, Délégation et "
+                         "Validation (headers_plan) ; la colonne Méthode n'est pas lue. Les autres tableaux du "
                          "document sont ignorés ; un tableau auquel il manque un de ces en-têtes est signalé."),
-        ("Exigence", "le numéro de l'exigence, suivi ou non de son titre : SSS_<TOME>_REQ_<n°> <titre>. Une exigence "
-                     "inconnue du tome, ou hors de la release du plan, est à ignorer au chargement."),
-        ("IADT", "I (inspection), A (analyse), D (démonstration) ou T (test) ; plusieurs codes séparés par , ; + "
-                 "ou un espace (code_separator_regex)."),
-        ("MOC", "le moyen de conformité attendu pour l'IADT (règles IADT / MOC de la configuration) : D et T → MOC4, "
-                "I → MOC7, A → MOC2 ou MOC3. Une valeur hors règle est à corriger au chargement."),
-        ("Délégation", "la plateforme qui teste l'exigence ; vide = la plateforme par défaut (TOP). Une plateforme "
-                       "inconnue de la configuration, ou plusieurs délégations, sont à régler au chargement."),
+        ("Exigence", "le numéro de l'exigence, suivi ou non de son titre : SSS_<TOME>_REQ_<n°> <titre>."),
+        ("IADT, MOC", "un seul code chacun, ceux de l'exigence dans le fichier d'exigences."),
+        ("Délégation", "la plateforme qui teste l'exigence, celle du fichier d'exigences."),
+        ("Validation", "« à qualifier », « déjà qualifiée » ou « hors scope » (textes réglés dans Configuration > Plan "
+                       "d'acceptation), d'après la colonne Validation releases du fichier d'exigences."),
         ("Rattachement", "un plan porte sur un seul tome ; un tableau par thème (feature), sous un titre, est l'usage."),
     ])
-    header = ["Exigence", "Méthodes de test V&V", "IADT", "MOC", "Délégation"]
+    header = ["Exigence", "Méthodes de test V&V", "IADT", "MOC", "Délégation", "Validation"]
     body += [p("Exemple : tome MODELE, release A", "Titre1")]
     for theme, numbers in (("Fonctions de base", REQS[:4]), ("Exploitation", REQS[4:])):
-        # The plan follows the reference of the requirements: one MOC, the delegation always written.
+        # Le plan suit la référence des exigences : un seul MOC, la délégation et la validation de l'exigence.
         rows = [header] + [[f"{r[0]} {r[1]}", f"V&V [{r[6] or 'TOP'}] : méthode de test et moyens", r[4],
-                            r[5].split(",")[0].strip(), r[6] or "TOP"]
+                            r[5].split(",")[0].strip(), r[6] or "TOP", plan_validation(r)]
                            for r in numbers]
         body += [p(theme, "Titre2"), table(rows)]
     write_docx(BASE / "plans" / "2026-01-01_PA_MODELE_A-modele.docx", body)

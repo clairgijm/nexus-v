@@ -8,7 +8,7 @@ Un import dans un tome qui existe déjà est soit un remplacement (le tome reço
 un complément (les nouvelles exigences sont ajoutées, celles déjà présentes sont mises à jour).
 
 Lecture d'un fichier d'exigences (read_excel) : une ligne d'en-tête, puis les colonnes repérées par leur en-tête (ID,
-titre, Specification releases, Validation releases, STDHL, IADT, MOC, délégation). Le fichier est la référence de
+titre, Specification releases, Validation releases, IADT, MOC, délégation). Le fichier est la référence de
 chaque exigence : un code IADT, un code MOC et une délégation (plateforme), valeurs de la configuration ; la
 délégation est obligatoire. Une ligne avec une délégation vide, un code IADT ou MOC inconnu de la configuration,
 plusieurs valeurs, ou un MOC que les règles IADT / MOC n'attendent pas pour l'IADT refuse le fichier ; une délégation
@@ -24,8 +24,7 @@ enregistrement du fichier et de ses exigences (import_file). Les lignes sans la 
 aucune) sont montrées à l'utilisateur groupées par releases : elles sont rejetées à l'import (jamais forcées dans la
 release de la base).
 Avant l'import, l'utilisateur règle les conflits : la ligne gardée pour un numéro présent sur plusieurs lignes du
-fichier, la version gardée pour un numéro déjà dans un autre tome de la base, la valeur gardée pour plusieurs valeurs
-STDHL.
+fichier, la version gardée pour un numéro déjà dans un autre tome de la base.
 
 Une exigence peut être modifiée, ajoutée ou supprimée à la main (edit) : elle est alors marquée (manual = « added » /
 « modified », deleted = 1 : montrée barrée et laissée de côté par la vérification, elle peut être rétablie). Le
@@ -34,8 +33,8 @@ prochain import du tome écrase ces changements : le fichier reste la référenc
 Pour la page, les exigences sont données par tome (to_dict) :
 
     {"tomes": {"fct1": {"description": "...", "files": [3, 7],
-                        "requirements": [{"id", "title", "releases", "stdhl", "iadt", "moc", "delegation", "file_id",
-                                          "manual", "deleted"}, ...]}}}
+                        "requirements": [{"id", "title", "releases", "iadt", "moc", "delegation", "validation",
+                                          "file_id", "manual", "deleted"}, ...]}}}
 """
 import io
 import re
@@ -47,7 +46,7 @@ from configuration import DEFAULT_CONFIG, fold, match_header, plural
 MODES = ("replace", "complement")
 
 # Champs comparés entre les exigences d'un tome et celles d'un fichier.
-DIFF_FIELDS = ("title", "releases", "validation", "stdhl", "iadt", "moc", "delegation")
+DIFF_FIELDS = ("title", "releases", "validation", "iadt", "moc", "delegation")
 QUALIFIED = "QUALIFIE"   # valeur de « Validation releases » : l'exigence est qualifiée
 # Validation d'une exigence dans la release de la base (champ validation), et son libellé.
 VALIDATION_STATES = {"to_qualify": "à qualifier", "qualified": "qualifiée", "out_of_scope": "hors scope"}
@@ -62,8 +61,8 @@ NORMALIZATION = str.maketrans({"\u00a0": " ", "\u202f": " ", "\u2011": "-", "\u2
 class RequirementsDatabase:
     """Exigences, par tome, dans la base SQL.
 
-    Une exigence est un dict : id (str), title (str), releases (liste de str), stdhl (str), iadt, moc, delegation
-    (str), validation (str), file_id (int ou None : numéro du fichier importé d'où elle vient).
+    Une exigence est un dict : id (str), title (str), releases (liste de str), iadt, moc, delegation (str),
+    validation (str), file_id (int ou None : numéro du fichier importé d'où elle vient).
     """
 
     def __init__(self, sql):
@@ -89,7 +88,6 @@ class RequirementsDatabase:
             "id": req_id,
             "title": str(req.get("title") or "").strip(),
             "releases": list(dict.fromkeys(str(r).strip().upper() for r in releases if str(r).strip())),
-            "stdhl": str(req.get("stdhl") or "").strip(),
             # Validation dans la release de la base (voir validation_state).
             "validation": req.get("validation") if req.get("validation") in VALIDATION_STATES else "out_of_scope",
             **{f: str(req.get(f) or "").strip() for f, _, _ in REFERENCE},
@@ -115,15 +113,6 @@ class RequirementsDatabase:
         return "to_qualify" if release and release.upper() in values else "out_of_scope"
 
     @staticmethod
-    def _stdhl_id(db, name):
-        """Id d'une valeur de la colonne STDHL, ajoutée à la table list_stdhl si elle est nouvelle ; None pour une
-        cellule vide."""
-        if not name:
-            return None
-        row = db.execute("SELECT id FROM list_stdhl WHERE name = ?", (name,)).fetchone()
-        return row[0] if row else db.execute("INSERT INTO list_stdhl (name) VALUES (?)", (name,)).lastrowid
-
-    @staticmethod
     def _write_tome(db, tome, reqs):
         """Remplace les exigences d'un tome (dans une transaction)."""
         tome_id = db.execute("SELECT id FROM list_tomes WHERE name = ?", (tome,)).fetchone()[0]
@@ -132,10 +121,10 @@ class RequirementsDatabase:
         db.execute("DELETE FROM requirements WHERE tome_id = ?", (tome_id,))
         for r in reqs:
             db.execute(
-                "INSERT INTO requirements (req_id, file_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
-                "validation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (r["id"], r["file_id"], RequirementsDatabase._stdhl_id(db, r["stdhl"]), tome_id, r["title"],
-                 *RequirementsDatabase._reference_ids(db, r), r["validation"]))
+                "INSERT INTO requirements (req_id, file_id, tome_id, title, iadt_id, moc_id, delegation_id, "
+                "validation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (r["id"], r["file_id"], tome_id, r["title"], *RequirementsDatabase._reference_ids(db, r),
+                 r["validation"]))
 
     @staticmethod
     def _reference_ids(db, req):
@@ -151,15 +140,15 @@ class RequirementsDatabase:
         # Chaque exigence reçoit la release de la base : elle n'est pas enregistrée, toute la base travaille sur une
         # release.
         rows = self.sql.query(
-            f"""SELECT t.name AS tome, r.id, r.req_id, r.title, s.name AS stdhl, r.file_id, r.manual, r.deleted,
+            f"""SELECT t.name AS tome, r.id, r.req_id, r.title, r.file_id, r.manual, r.deleted,
                        i.code AS iadt, m.code AS moc, p.name AS delegation, r.validation
-                FROM requirements r JOIN list_tomes t ON t.id = r.tome_id LEFT JOIN list_stdhl s ON s.id = r.stdhl_id
+                FROM requirements r JOIN list_tomes t ON t.id = r.tome_id
                 LEFT JOIN list_iadt i ON i.id = r.iadt_id LEFT JOIN list_moc m ON m.id = r.moc_id
                 LEFT JOIN list_plateformes p ON p.id = r.delegation_id
                 {where} ORDER BY t.id, r.id""", params)
 
         return [{"id": r["req_id"], "title": r["title"], "releases": [self.sql.release] if self.sql.release else [],
-                 "stdhl": r["stdhl"] or "", "iadt": r["iadt"] or "", "moc": r["moc"] or "",
+                 "iadt": r["iadt"] or "", "moc": r["moc"] or "",
                  "validation": r["validation"],
                  "delegation": r["delegation"] or "",
                  "file_id": r["file_id"], "manual": r["manual"], "deleted": bool(r["deleted"]),
@@ -196,10 +185,8 @@ class RequirementsDatabase:
                     "WHERE f.source = 'requirements' AND t.name = ? ORDER BY f.id", (name,))],
                 "requirements": reqs,
             }
-        # « stdhl_values » : chaque valeur de la table list_stdhl, celles que peut prendre une exigence ajoutée ou
-        # modifiée à la main ;
         # « validation_states » : les valeurs du champ validation et leur libellé.
-        return {"tomes": tomes, "stdhl_values": self.stdhl_names(), "validation_states": VALIDATION_STATES}
+        return {"tomes": tomes, "validation_states": VALIDATION_STATES}
 
     def distribution(self, colors=None):
         """Part des exigences (non supprimées) dans chaque tome, pour la barre cumulée de la page Exigences : [{tome,
@@ -266,10 +253,6 @@ class RequirementsDatabase:
                             {**(colors or {}), qualified: "var(--ok)", out: "var(--muted)"},
                             order=codes + [qualified, out])
 
-    def stdhl_names(self):
-        """Valeurs de la table list_stdhl (colonne STDHL des fichiers importés), triées."""
-        return sorted((r["name"] for r in self.sql.query("SELECT name FROM list_stdhl")), key=str.casefold)
-
     def requirements(self, tomes=None):
         """Exigences des tomes donnés (tous par défaut), chacune avec sa clé « tome »."""
         return [r for r in self._requirements() if tomes is None or r["tome"] in tomes]
@@ -308,14 +291,13 @@ class RequirementsDatabase:
     @classmethod
     def read_excel(cls, content, sheet=None, config=None, rows=None):
         """Lit un classeur d'exigences (octets). Renvoie {"sheets" : noms, "sheet" : feuille lue, "requirements" :
-        [{id, title, releases, stdhl, iadt, moc, delegation, row}], "releases" : releases nommées dans le fichier,
-        "repeated" : [{id, rows: [{row, title, releases, stdhl}], chosen}] numéros trouvés sur plusieurs lignes,
+        [{id, title, releases, iadt, moc, delegation, row}], "releases" : releases nommées dans le fichier,
+        "repeated" : [{id, rows: [{row, title, releases}], chosen}] numéros trouvés sur plusieurs lignes,
         "rejected_numbers" : numéros hors du format des exigences (requirement_regex), laissés de côté}.
 
         La ligne 1 est l'en-tête : elle doit contenir chaque texte attendu (configuration headers_requirements, texte
-        -> champ) ; les colonnes des champs id, title, releases, validation, stdhl, iadt, moc, delegation y sont
-        repérées (stdhl lue seulement avec use_requirement_stdhl : sinon le STDHL de chaque exigence est vide).
-        Sinon, le fichier est refusé (ValueError). La référence des lignes importées est vérifiée après le choix des
+        -> champ) ; les colonnes des champs id, title, releases, validation, iadt, moc, delegation y sont
+        repérées ; une autre colonne du fichier n'est pas lue. Sinon, le fichier est refusé (ValueError). La référence des lignes importées est vérifiée après le choix des
         releases (voir check_reference, dans analyse et import_file).
         Les releases sont mises en majuscules, leur séparateur est dans la configuration. Un numéro trouvé sur
         plusieurs lignes garde la ligne choisie par l'utilisateur, `rows` = {numéro: numéro de ligne} ; tant qu'elle
@@ -335,18 +317,11 @@ class RequirementsDatabase:
             first = next(workbook[name].iter_rows(max_row=1, values_only=True), ())
             cells = [cls._cell_text(v) for v in first]
             cols, missing = match_header(cells, headers)
-            # La colonne STDHL n'est obligatoire que lorsque les STDHL sont vérifiés par rapport à elle
-            # (use_requirement_stdhl).
-            optional = set() if get("use_requirement_stdhl") else {h for h, field in headers.items() if field == "stdhl"}
-            missing = [h for h in missing if h not in optional]
-            if optional:   # l'option désactivée : la colonne STDHL n'est pas lue, même quand elle est là
-                cols.pop("stdhl", None)
             if missing:
                 # Un seul message : l'en-tête n'est pas celui attendu (les colonnes sont trouvées par leur nom,
                 # n'importe où).
                 raise ValueError(f"en-tête non conforme à l'attendu (ligne 1 de la feuille « {name} » : colonnes "
-                                 + ", ".join(f"« {h} »" for h in headers if headers[h] not in ("check", "ignore")
-                                             and h not in optional)
+                                 + ", ".join(f"« {h} »" for h in headers if headers[h] not in ("check", "ignore"))
                                  + ")")
             found, releases, rejected = {}, {}, []
             number_regex = re.compile(get("requirement_regex"))
@@ -355,22 +330,18 @@ class RequirementsDatabase:
             for number, row in enumerate(workbook[name].iter_rows(min_row=2, values_only=True), start=2):
                 value = lambda field: cls._cell_text(row[cols[field]] if field in cols and cols[field] < len(row)
                                                      else None)
-                req_id, title, rels, validation, stdhl, iadt, moc, delegation = (
-                    value(f) for f in ("id", "title", "releases", "validation", "stdhl", "iadt", "moc", "delegation"))
+                req_id, title, rels, validation, iadt, moc, delegation = (
+                    value(f) for f in ("id", "title", "releases", "validation", "iadt", "moc", "delegation"))
                 rels = [r.strip().upper() for r in re.split(get("release_separator_regex"), rels) if r.strip()]
                 releases.update(dict.fromkeys(rels))
                 req_id = req_id.strip()
-                # Une cellule STDHL peut contenir plusieurs valeurs ; une valeur écrite deux fois avec des casses
-                # différentes compte une fois.
-                values = cls.stdhl_values(stdhl, config)
-                stdhl = values[0] if len(values) == 1 else stdhl   # « F1, f1 » est une seule valeur
                 # Un numéro hors du format des exigences est rejeté : les plans et les STDHL ne pourraient pas le citer.
                 if req_id and not number_regex.fullmatch(req_id):
                     rejected.append(req_id)
                 elif req_id:
                     found.setdefault(req_id, []).append(
                         {"id": req_id, "title": title.strip(), "releases": list(dict.fromkeys(rels)),
-                         "stdhl": stdhl.strip(), "stdhl_values": values, "iadt": iadt.strip(), "moc": moc.strip(),
+                         "iadt": iadt.strip(), "moc": moc.strip(),
                          "delegation": delegation.strip(), "row": number,
                          # « Validation releases » telle qu'elle est écrite ; le champ validation est fixé par
                          # check_reference.
@@ -384,7 +355,7 @@ class RequirementsDatabase:
                 requirements.append(chosen or versions[0])
                 if len(versions) > 1:
                     repeated.append({"id": req_id, "chosen": chosen and chosen["row"],
-                                     "rows": [{f: v[f] for f in ("row", "title", "releases", "stdhl")} for v in versions]})
+                                     "rows": [{f: v[f] for f in ("row", "title", "releases")} for v in versions]})
             return {"sheets": names, "sheet": name, "requirements": requirements, "releases": list(releases),
                     "rejected_numbers": list(dict.fromkeys(rejected)),
                     "repeated": repeated}
@@ -458,7 +429,7 @@ class RequirementsDatabase:
                   for key, rs in sorted(outside.items(), key=lambda g: (g[0] == "", g[0]))]
         return kept, groups
 
-    def diff(self, tome, requirements, mode):
+    def diff(self, tome, requirements, mode, config=None):
         """Différences entre les exigences d'un tome (celles supprimées à la main laissées de côté) et celles d'un
         fichier : {"added" : [exigence], "updated" : [{"id", "changes": [{"field", "before", "after"}]}], "removed" :
         [exigence] (remplacement seulement)}."""
@@ -480,18 +451,10 @@ class RequirementsDatabase:
         removed = [r for i, r in old.items() if i not in fresh] if mode == "replace" else []
         return {"added": added, "updated": updated, "removed": removed}
 
-    @staticmethod
-    def stdhl_values(value, config=None):
-        """Valeurs d'une cellule STDHL, sans doublon : une exigence ne peut en avoir qu'une."""
-        separator = (config.get if config is not None else DEFAULT_CONFIG.get)("stdhl_separator_regex")
-        # Lues à l'envers pour que, entre des valeurs égales à la casse près, la première écrite l'emporte.
-        values = {v.strip().casefold(): v.strip() for v in reversed(re.split(separator, value or "")) if v.strip()}
-        return list(reversed(values.values()))
-
     def conflicts(self, requirements, tome, mode, existing=None):
         """Ce que l'utilisateur doit régler avant l'import : {"duplicates" : exigences du fichier déjà dans un autre
-        tome de la base, quel que soit le mode (un numéro, un tome : garder la base ou prendre le fichier) ;
-        "multi_stdhl" : exigences du fichier à plusieurs valeurs STDHL}. Une exigence déjà dans le tome importé n'est
+        tome de la base, quel que soit le mode (un numéro, un tome : garder la base ou prendre le fichier)}. Une
+        exigence déjà dans le tome importé n'est
         pas un conflit : un remplacement ou un complément la met à jour. `existing` : les exigences de la base (avec
         leur tome), lues quand elles ne sont pas données (la vérification avant import donne sa base en mémoire)."""
         # Un numéro déjà dans un autre tome de la base est un conflit ; dans le tome importé, le fichier le met à jour.
@@ -505,30 +468,25 @@ class RequirementsDatabase:
                 duplicates.append({"id": r["id"], "same": all(e[f] == r[f] for f in fields),
                                    "existing": {**{f: e[f] for f in fields}, "tome": e["tome"], "file": names.get(e["file_id"], "")},
                                    "new": {f: r[f] for f in fields}})
-        multi = [{"id": r["id"], "title": r["title"], "values": r["stdhl_values"]} for r in requirements
-                 if len(r["stdhl_values"]) > 1]
-        return {"duplicates": duplicates, "multi_stdhl": multi}
+        return {"duplicates": duplicates}
 
     @staticmethod
     def _resolve(requirements, found, choices, strict):
         """(exigences à importer, numéros pris à un autre tome) avec les choix de l'utilisateur : {"row" : {numéro:
-        ligne du fichier}, "keep" : {numéro: "existing" ou "new"}, "stdhl" : {numéro: valeur}} ; les lignes sont
-        appliquées à la lecture (read_excel). Avec `strict`, ValueError quand quelque chose n'est pas réglé."""
-        # Compte ce qui n'est pas encore réglé : doublons sans choix, cellules STDHL sans valeur choisie, numéros
-        # répétés sans ligne.
-        keep, stdhl = (choices or {}).get("keep") or {}, (choices or {}).get("stdhl") or {}
+        ligne du fichier}, "keep" : {numéro: "existing" ou "new"}} ; les lignes sont appliquées à la lecture
+        (read_excel). Avec `strict`, ValueError quand quelque chose n'est pas réglé."""
+        # Compte ce qui n'est pas encore réglé : doublons sans choix, numéros répétés sans ligne.
+        keep = (choices or {}).get("keep") or {}
         duplicates = [d for d in found["duplicates"] if keep.get(d["id"]) in ("existing", "new")]
-        settled = [m for m in found["multi_stdhl"] if stdhl.get(m["id"]) in m["values"]]
         repeated = sum(r["chosen"] is None for r in found.get("repeated", ()))
-        left = len(found["duplicates"]) - len(duplicates) + len(found["multi_stdhl"]) - len(settled) + repeated
+        left = len(found["duplicates"]) - len(duplicates) + repeated
         if strict and left:
             raise ValueError(f"{plural(left, 'conflit')} à régler avant l'import : choisir la ligne d'une exigence "
-                             "présente plusieurs fois dans le fichier, l'exigence à conserver ou la valeur STDHL")
+                             "présente plusieurs fois dans le fichier, ou l'exigence à conserver")
         # « existing » : l'exigence de la base reste, la ligne du fichier est abandonnée ; « new » : la ligne du fichier
         # est importée et l'exigence quitte son autre tome (`moved`).
         kept = {d["id"] for d in duplicates if keep[d["id"]] == "existing"}
-        values = {m["id"]: stdhl[m["id"]] for m in settled}
-        result = [{**r, "stdhl": values.get(r["id"], r["stdhl"])} for r in requirements if r["id"] not in kept]
+        result = [r for r in requirements if r["id"] not in kept]
         return result, [d["id"] for d in duplicates if keep[d["id"]] == "new"]
 
     def analyse(self, content, sheet=None, tome=None, mode="replace", config=None, releases=None, choices=None):
@@ -553,14 +511,14 @@ class RequirementsDatabase:
         new_platforms = self.check_reference(reqs, config)
         data = {**data, "requirements": reqs, "release_counts": counts, "outside": outside,
                 "new_platforms": new_platforms}
-        found = self.conflicts(reqs, tome, mode) if tome else {"duplicates": [], "multi_stdhl": []}
+        found = self.conflicts(reqs, tome, mode) if tome else {"duplicates": []}
         found["repeated"] = data["repeated"]
         resolved, _ = self._resolve(reqs, found, choices, False)
         current = self.get(tome) if tome else None
         return {**data, **found, "count": len(reqs),
                 "tome_exists": current is not None,
                 "tome_count": len([r for r in current["requirements"] if not r["deleted"]]) if current else 0,
-                "diff": self.diff(tome, resolved, mode) if current else None}
+                "diff": self.diff(tome, resolved, mode, config) if current else None}
 
     def tome_from_name(self, name, config):
         """Tome nommé dans le nom d'un fichier d'exigences (configuration requirements_tome_regex) : un tome existant
@@ -733,23 +691,19 @@ class RequirementsDatabase:
                 # Enregistrée sans aucun changement (releases dans n'importe quel ordre) : rien n'est écrit, pour qu'une
                 # exigence importée ne devienne pas « modified ».
                 current = self._requirements("WHERE r.id = ?", (existing["id"],))[0]
-                if (current["id"], current["title"], current["stdhl"], sorted(current["releases"]),
+                if (current["id"], current["title"], sorted(current["releases"]),
                         current["iadt"], current["moc"], current["delegation"], current["validation"]) == \
-                        (req["id"], req["title"], req["stdhl"], sorted(req["releases"]),
+                        (req["id"], req["title"], sorted(req["releases"]),
                          req["iadt"], req["moc"], req["delegation"], req["validation"]):
                     return current
             if not req["releases"]:
                 raise ValueError("une exigence doit s'appliquer à au moins une release")
-            if len(self.stdhl_values(req["stdhl"], config)) > 1:
-                raise ValueError("une exigence ne peut avoir qu'une seule valeur STDHL")
-            # Les releases et le STDHL sont choisis parmi les valeurs existantes, pas saisis.
+            # Les releases sont choisies parmi celles de la configuration, pas saisies.
             declared = set((config.get if config is not None else DEFAULT_CONFIG.get)("releases") or {})
             unknown = [r for r in req["releases"] if r not in declared]
             if unknown:
                 raise ValueError(f"{'releases inconnues' if len(unknown) > 1 else 'release inconnue'} : {', '.join(unknown)} "
                                  "(choisir parmi les releases de la configuration)")
-            if req["stdhl"] and req["stdhl"] not in self.stdhl_names():
-                raise ValueError(f"valeur STDHL inconnue : « {req['stdhl']} » (choisir parmi les valeurs existantes)")
             # Un ID nouveau ou renommé ne doit exister nulle part dans la base (un numéro, une exigence).
             if action == "add" or req["id"] != old_id:
                 other = self.sql.scalar("SELECT t.name FROM requirements r JOIN list_tomes t ON t.id = r.tome_id WHERE r.req_id = ?",
@@ -757,17 +711,16 @@ class RequirementsDatabase:
                 if other is not None:
                     raise ValueError(f"l'exigence {req['id']} existe déjà dans le tome « {other} »")
             with self.sql.transaction() as db:
-                stdhl_id = self._stdhl_id(db, req["stdhl"])
                 reference = self._reference_ids(db, req)
                 if action == "add":
                     db.execute(
-                        "INSERT INTO requirements (req_id, stdhl_id, tome_id, title, iadt_id, moc_id, delegation_id, "
-                        "validation, manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'added')",
-                        (req["id"], stdhl_id, tome_id, req["title"], *reference, req["validation"]))
+                        "INSERT INTO requirements (req_id, tome_id, title, iadt_id, moc_id, delegation_id, "
+                        "validation, manual) VALUES (?, ?, ?, ?, ?, ?, ?, 'added')",
+                        (req["id"], tome_id, req["title"], *reference, req["validation"]))
                 else:
-                    db.execute("UPDATE requirements SET req_id = ?, stdhl_id = ?, title = ?, iadt_id = ?, moc_id = ?, "
+                    db.execute("UPDATE requirements SET req_id = ?, title = ?, iadt_id = ?, moc_id = ?, "
                                "delegation_id = ?, validation = ?, manual = ? WHERE id = ?",
-                               (req["id"], stdhl_id, req["title"], *reference, req["validation"],
+                               (req["id"], req["title"], *reference, req["validation"],
                                 "added" if existing["manual"] == "added" else "modified", existing["id"]))
             return req
 

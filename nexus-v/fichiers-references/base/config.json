@@ -1,7 +1,10 @@
 {
   "general": {
     "release": "A",
-    "system_platform": "",
+    "system_platform": "TOP",
+    "process_plan": true,
+    "process_stdhl": true,
+    "skip_unknown_req": false,
     "slogan": "Le fil d’Ariane de la traçabilité, de la spécification à la fiche d'essai",
     "server_port": 8000,
     "open_browser": true,
@@ -14,7 +17,6 @@
     "requirement_regex": "\\b(?:SSS_(?:T\\d+_)?[A-Za-z0-9_-]+?_REQ_\\d+|HQ1/2_WF_\\d+(?:_REQ_\\d+)?)\\b",
     "requirements_tome_regex": "(?i)^\\d{4}-\\d{2}-\\d{2}[-_](.+?)(?:[-_]|\\.xls)",
     "release_separator_regex": ",",
-    "stdhl_separator_regex": "[,;/\\n]+",
     "iadt_moc_rules": {
       "D": [
         "MOC4"
@@ -35,7 +37,6 @@
       "Titre": "title",
       "Specification releases": "releases",
       "Validation releases": "validation",
-      "STDHL": "stdhl",
       "IADT": "iadt",
       "MOC": "moc",
       "Délégation": "delegation"
@@ -46,17 +47,20 @@
     "plan_tome_regex": "(?i)_PA_(.+?)_",
     "code_separator_regex": "[,;+\\s]+",
     "delegation_separator_regex": "[,;/+\\n]+",
+    "plan_validation_to_qualify": "à qualifier",
+    "plan_validation_qualified": "déjà qualifiée",
+    "plan_validation_out_of_scope": "hors scope",
     "headers_plan": {
       "Exigence": "exigence",
       "Méthode": "ignore",
       "IADT": "iadt",
       "MOC": "moc",
-      "Délégation": "delegation"
+      "Délégation": "delegation",
+      "Validation": "validation"
     }
   },
   "stdhl": {
     "folder": "stdhl",
-    "use_requirement_stdhl": false,
     "fiche_regex": "^\\s*(?:[\\d.]+\\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\\d+)(?![A-Za-z0-9_])",
     "stdhl_name_regex": "(?i)STDHL_(.+?)_rev",
     "headers_stdhl": {

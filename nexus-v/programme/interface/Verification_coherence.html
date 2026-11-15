@@ -9,6 +9,14 @@
   :root {
     /* Les deux bleus du logo, utilisés pour le nom, le slogan et les icônes de la barre latérale. */
     --brand-light: #10aed6; --brand-dark: #0569a3;
+    /* État d'avancement d'un tome (pastilles sous les boîtes de l'accueil). */
+    --state-none: #8a93a3; --state-requirements: #2563eb; --state-plan: #7c3aed; --state-stdhl: #c99a06;
+    --state-fiches: #ea7a17; --state-done: #1d9a52; --state-gray: #c3c8d1; --state-reject: #e0251b;
+    /* Chevrons des étapes de traçabilité : les mêmes quatre couleurs pour toutes les étapes. */
+    --chev-todo: #c3c8d1; --chev-doing: #e0a800; --chev-done: #1d9a52; --chev-reject: #e0251b;
+    --check-bg: #e3edfb;   /* fond des loupes de vérification avant import */
+    /* Lignes de la page Exigences selon leur validation : hors scope en orange, déjà qualifiée en vert. */
+    --row-scope-bg: #fdebd6; --row-qualified-bg: #ddf3e4;
     --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef0f4; --border: #d8dce3;
     --text: #1c2330; --muted: #5e6878; --accent: #1f5fbf; --accent-text: #ffffff;
     --ok: #1d7a46; --ok-bg: #e2f4ea; --ko: #b42318; --ko-bg: #fde8e6; --not-covered: #e8211a;
@@ -24,7 +32,7 @@
     :root:not([data-theme="light"]) {
       --bg: #12151b; --surface: #1b2029; --surface-2: #242a35; --border: #343c4a;
       --text: #e6e9ef; --muted: #9aa3b2; --accent: #6ea4f5; --accent-text: #0d1320;
-      --ok: #5fd08f; --ok-bg: #173826; --ko: #ff8a7f; --ko-bg: #4a1d1a; --not-covered: #ff3b30;
+      --ok: #5fd08f; --ok-bg: #173826; --ko: #ff8a7f; --ko-bg: #4a1d1a; --not-covered: #ff3b30; --row-scope-bg: #45301a; --row-qualified-bg: #183a26; --check-bg: #182a44;
       --warn: #f0c060; --warn-bg: #3d3014;
       --series-1: #3987e5; --series-2: #8c7ff0; --series-3: #f2b630; --series-4: #22aec4;
       --series-5: #c27a47; --series-6: #d64cbf; --series-7: #7384ea; --series-8: #e8b83a;
@@ -35,7 +43,7 @@
   :root[data-theme="dark"] {
     --bg: #12151b; --surface: #1b2029; --surface-2: #242a35; --border: #343c4a;
     --text: #e6e9ef; --muted: #9aa3b2; --accent: #6ea4f5; --accent-text: #0d1320;
-    --ok: #5fd08f; --ok-bg: #173826; --ko: #ff8a7f; --ko-bg: #4a1d1a; --not-covered: #ff3b30;
+    --ok: #5fd08f; --ok-bg: #173826; --ko: #ff8a7f; --ko-bg: #4a1d1a; --not-covered: #ff3b30; --row-scope-bg: #45301a; --row-qualified-bg: #183a26; --check-bg: #182a44;
     --warn: #f0c060; --warn-bg: #3d3014;
     --series-1: #3987e5; --series-2: #8c7ff0; --series-3: #f2b630; --series-4: #22aec4;
     --series-5: #c27a47; --series-6: #d64cbf; --series-7: #7384ea; --series-8: #e8b83a;
@@ -102,30 +110,71 @@
   /* La boîte Fiches d'Essai termine la chaîne : pas de flèche après elle. Elle prend les fiches XML et les fichiers
      Excel des autres plateformes (traçabilité). */
   .chain .drop[data-slot=xml]::after { content: none; }
-  .drop { position: relative; border: 2px dashed var(--border); border-radius: 10px; padding: 14px;
-          min-height: 118px; cursor: pointer; background: var(--surface-2);
-          display: flex; flex-direction: column; gap: 6px; transition: border-color .15s; }
+  .drop { position: relative; border: 2px dashed var(--border); border-radius: 10px; padding: 10px 12px;
+          cursor: pointer; background: var(--surface-2);
+          display: flex; flex-direction: column; gap: 4px; transition: border-color .15s; }
+  /* Ligne 1 : l'étape à gauche, le type de fichier à droite. */
+  .drop .drop-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  /* Le plan d'acceptation n'est que vérifié (rien n'est importé) : sa boîte a le fond bleu des loupes. */
+  .drop[data-slot=plan] { background: var(--check-bg); }
+  .drop[data-slot=plan] .drop-check { border-right: none; }   /* toute la boîte est la loupe : pas de séparation */
+  .drop .kind .only-check { display: block; font-size: .72rem; font-weight: 400; color: var(--accent); }
+  /* Une boîte garde sa part de la largeur, quel que soit son texte (coupé, entier au survol). */
+  .chain .drop { min-width: 0; }
   .drop:hover, .drop.over { border-color: var(--accent); }
   .drop.loaded { border-style: solid; border-color: var(--ok); }
   .drop.error { border-style: solid; border-color: var(--ko); }
   .drop .step { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
   .drop .kind { font-weight: 600; }
-  .drop .name { font-size: .85rem; color: var(--muted); word-break: break-all; }
-  /* Place fixe pour deux lignes de message, coupées au-delà : les boîtes ne changent pas de taille. */
-  .drop .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
-                min-height: 2.6em; line-height: 1.3; word-break: break-word; }
-  /* Bouton Rapport, toujours présent : gris et inactif sans rapport, bleu quand un rapport est disponible. */
-  .drop .drop-report { display: block; margin-top: 6px; }
-  .drop .drop-report:disabled { background: var(--surface-2); color: var(--muted); border-color: var(--border);
-                                cursor: default; }
+  /* Ligne 2 : la dernière opération, sur une ligne (coupée au-delà) : les boîtes ne changent pas de taille. */
+  .drop .name { font-size: .85rem; color: var(--muted); line-height: 1.3; min-height: 1.3em;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Sous le type de fichier, l'icône de l'étape (la même que dans le menu et les chevrons des tomes). */
+  .drop .step { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .drop .step svg { width: 36px; height: 36px; color: var(--brand-dark); }
+  .process .step-box svg { width: 18px; height: 18px; color: var(--brand-dark); }
   .drop.rejected .name { color: var(--ko); }
   .drop.loaded .name { color: var(--ok); }
   .drop.error .name { color: var(--ko); }
   .drop input { display: none; }
+  /* Processus retenu (Configuration > Paramètres généraux) : les étapes en petites boîtes, vertes si retenues. */
+  .process { display: flex; gap: 10px; align-items: stretch; margin: 6px 0 14px; }
+  .process .step-box { flex: 1 1 0; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 6px;
+                       padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px; background: var(--surface-2);
+                       color: var(--muted); font: inherit; text-align: left; }
+  .process .step-box b { font-size: .9rem; }
+  .process .step-box.on { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+  .process .step-box.on svg { color: var(--ok); }
+  .process .step-box:not(.on) svg { color: var(--muted); }
+  .process button.step-box { cursor: pointer; }
+  .process button.step-box:disabled { cursor: not-allowed; opacity: .6; }
+  .process .arrow { align-self: center; color: var(--muted); }
+  /* Avancement des tomes : une pastille par tome à la couleur de son état, avec une icône par étape franchie. */
+  /* Tous les tomes sur une seule ligne, qui prend toute la largeur de la page : pour chacun, son nom, puis ses étapes
+     en chevrons (EX › PL › ST › FE), de la couleur de l'étape une fois franchie, grises sinon. */
+  .tome-states { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 12px; }
+  .tome-state { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 4px 6px 5px;
+                border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+  .tome-state .label { font-size: .78rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chevrons { display: flex; }
+  .chev { flex: 1 1 0; min-width: 0; height: 20px; margin: 0 0 0 -4px; padding: 0 4px 0 9px; border: none;
+          border-radius: 0; background: var(--chev, var(--chev-todo)); color: #fff; font-size: .65rem; font-weight: 700;
+          letter-spacing: .03em; display: flex; align-items: center; justify-content: center; cursor: default;
+          clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%, 7px 50%); }
+  .chev:first-child { margin-left: 0; }   /* même forme que les autres, encoche comprise */
+  .chev[data-open] { cursor: pointer; }
+  .chev svg { width: 13px; height: 13px; flex: none; }
+  .chev:disabled { opacity: .55; cursor: not-allowed; }   /* étape non atteinte : pas de clic */
+  .chev[data-open]:hover { filter: brightness(1.12); }
+  /* Légende du code couleur, sous les tomes. */
+  .tome-states-keys { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: .8rem; color: var(--muted); }
+  .tome-states-keys span { display: inline-flex; align-items: center; gap: 5px; }
+  .tome-states-keys b { font-weight: 600; color: var(--text); }
+  .tome-states-keys i { width: 12px; height: 12px; border-radius: 2px; }
   /* Carte dont les fichiers peuvent être vérifiés avant import : le bouton de vérification prend son bord gauche. */
   .drop.has-check { padding-left: 46px; }
   .drop-check { position: absolute; left: 0; top: 0; bottom: 0; width: 32px; margin: 0; padding: 0; border: none;
-    border-right: 1px solid var(--border); border-radius: 8px 0 0 8px; background: var(--ok-bg); color: var(--ok);
+    border-right: 1px solid var(--border); border-radius: 8px 0 0 8px; background: var(--check-bg); color: var(--accent);
     cursor: pointer; display: grid; place-items: center; }
   .drop-check:hover, .drop-check:focus-visible { filter: brightness(.94); color: var(--accent); }
   .drop-check svg { width: 16px; height: 16px; }
@@ -219,12 +268,6 @@
   #conflict-body { max-height: 58vh; overflow-y: auto; margin: 10px 0; }
   #conflict-body h3 { margin: 14px 0 6px; }
   #conflict-body .tablewrap { max-height: none; }
-  #plan-check-dialog { width: 980px; }
-  #plan-check-body { max-height: 62vh; overflow-y: auto; margin: 10px 0; }
-  .plan-check { margin: 8px 0 16px; }
-  .plan-check h4 { margin: 12px 0 6px; }
-  .plan-check .ok { color: var(--ok); }
-  .plan-check .ko { color: var(--ko); }
   #diff-body { max-height: 58vh; overflow-y: auto; margin: 10px 0; }
   #diff-body h3 { margin: 14px 0 6px; }
   #diff-body .tablewrap { max-height: none; }
@@ -253,6 +296,9 @@
   button.icon.ok { background: var(--ok); border-color: var(--ok); color: var(--surface); }
   button.icon.ko { background: var(--ko); border-color: var(--ko); color: var(--surface); }
   tr.req-manual td { color: var(--accent); }                              /* ajoutée ou modifiée à la main */
+  /* Validation : hors scope en rouge, déjà qualifiée en vert (texte et fond), quelles que soient les marques. */
+  tr.req-scope td { background: var(--row-scope-bg); color: var(--ko); }
+  tr.req-qualified td { background: var(--row-qualified-bg); color: var(--ok); }
   tr.req-deleted td:not(.actions) { text-decoration: line-through; color: var(--muted); }   /* supprimée à la main */
   /* Une ligne supprimée dont l'exigence n'est plus dans aucun plan : dit une fois, sur la ligne. */
   tr.req-deleted td.actions .absent { color: var(--not-covered); font-size: .8rem; margin-right: 6px; white-space: nowrap; }
@@ -381,12 +427,6 @@
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
     <span class="count" id="tomes-count"></span>
   </button>
-  <button class="nav-item" data-tab="plans" title="Plans d'acceptation" aria-label="Plans d'acceptation">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-      <rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
-    <span class="count" id="plans-count"></span>
-  </button>
   <button class="nav-item" data-tab="stdhl" title="STDHL" aria-label="STDHL">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -415,7 +455,7 @@
         <h1><span class="nexus">NEXUS</span><span class="v">-V</span></h1>
         <p class="slogan" id="slogan">Le fil d’Ariane de la traçabilité, de la spécification à l'essai</p>
       </div>
-      <p class="sub">Exigences → Plan d'acceptation → STDHL → Fiches d'Essai.</p>
+      <p class="sub" id="process-line">Exigences → Plan d'acceptation → STDHL → Fiches d'Essai.</p>
     </div>
     <div class="release-picker">
       <span class="release-name" id="release-name" title="Release de la base : elle se change dans Configuration &gt; Paramètres généraux, quand aucun fichier n'est chargé"></span>
@@ -429,15 +469,17 @@
     <section>
       <h2>1. Fichiers</h2>
       <div class="chain">
-        <div class="drop has-check" data-slot="requirements" data-check="requirements"><span class="step">Excel</span><span class="kind">Exigences</span>
-          <span class="name"></span><input type="file" accept=".xlsx,.xlsm,.xls"></div>
-        <div class="drop has-check" data-slot="plan" data-check="plans"><span class="step">Word</span><span class="kind">Plan d'acceptation</span>
+        <div class="drop has-check" data-slot="requirements" data-check="requirements"><span class="drop-head"><span class="kind">Exigences</span><span class="step">Excel</span></span>
+          <span class="name"></span><input type="file" accept=".xlsx,.xlsm,.xls" multiple></div>
+        <div class="drop has-check" data-slot="plan" data-check="plans"><span class="drop-head"><span class="kind">Plan d'acceptation<small class="only-check">vérification seule</small></span><span class="step">Word</span></span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop has-check" data-slot="stdhl" data-check="stdhl"><span class="step">Word</span><span class="kind">STDHL</span>
+        <div class="drop has-check" data-slot="stdhl" data-check="stdhl"><span class="drop-head"><span class="kind">STDHL</span><span class="step">Word</span></span>
           <span class="name"></span><input type="file" accept=".docx,.docm" multiple></div>
-        <div class="drop has-check" data-slot="xml" data-check="fiches"><span class="step">XML / Excel</span><span class="kind">Fiches d'Essai</span>
+        <div class="drop has-check" data-slot="xml" data-check="fiches"><span class="drop-head"><span class="kind">Fiches d'Essai</span><span class="step">XML / Excel</span></span>
           <span class="name"></span><input type="file" accept=".xml,.xlsx,.xlsm" multiple></div>
       </div>
+      <div class="tome-states" id="tome-states" aria-label="Avancement des tomes"></div>
+      <div class="tome-states-keys" id="tome-states-keys"></div>
       <div class="msg" id="msg" hidden></div>
     </section>
 
@@ -468,7 +510,7 @@
       <div class="subtabs" id="tome-tabs" role="tablist"></div>
       <p class="hint" id="tome-hint"></p>
       <div class="tome-toolbar" id="req-filters" hidden>
-        <input type="search" id="req-search" placeholder="Filtrer : numéro, titre, STDHL, IADT, MOC, délégation, validation"
+        <input type="search" id="req-search" placeholder="Filtrer : numéro, titre, IADT, MOC, délégation, validation"
                aria-label="Filtrer les exigences" spellcheck="false">
         <select id="req-state" aria-label="État des exigences">
           <option value="">Tous les états</option>
@@ -482,8 +524,9 @@
       </div>
       <div class="tome-toolbar" id="tome-toolbar" hidden>
         <button class="small" id="req-add">Ajouter une exigence</button>
-        <span class="hint">En bleu : exigences ajoutées ou modifiées à la main ; barrées : supprimées (ignorées par la
-          vérification). Le prochain import du tome écrase ces modifications.</span>
+        <span class="hint">En rouge : exigences hors scope ; en vert : déjà qualifiées. En bleu : exigences
+          ajoutées ou modifiées à la main ; barrées : supprimées (ignorées par la vérification). Le prochain import du
+          tome écrase ces modifications.</span>
         <span class="cfg-status ko" id="req-status"></span>
       </div>
       <div class="tablewrap"><table id="tome-table"></table></div>
@@ -539,38 +582,15 @@
         <button class="small" id="stdhl-filter-clear" hidden>Effacer le filtre</button>
         <span class="hint" id="stdhl-filter-count"></span>
       </div>
+      <div class="tome-toolbar" id="stdhl-toolbar" hidden>
+        <button class="small" id="stdhl-add">Ajouter une exigence</button>
+        <span class="hint">En bleu : lignes ajoutées ou modifiées à la main ; barrées : supprimées (ignorées par la
+          vérification). Elles restent quand le STDHL est relu.</span>
+        <span class="cfg-status ko" id="stdhl-status"></span>
+      </div>
+      <datalist id="stdhl-req-list"></datalist><datalist id="stdhl-test-list"></datalist>
       <div class="tablewrap"><table id="stdhl-table"></table></div>
       <div class="extras" id="stdhl-issues"></div>
-    </section>
-  </div>
-
-  <div data-panel="plans" hidden>
-    <section>
-      <h2>Plans d'acceptation</h2>
-      <p class="hint">Contenu des Plans d'acceptation chargés, rangés par tome : une ligne par exigence de chaque plan.</p>
-      <div class="subtabs" id="plan-tabs" role="tablist"></div>
-      <p class="hint" id="plan-hint"></p>
-      <div class="tome-toolbar" id="plan-filters" hidden>
-        <input type="search" id="plan-search" placeholder="Filtrer : exigence, titre, STDHL, IADT, MOC, délégation"
-               aria-label="Filtrer les lignes des plans" spellcheck="false">
-        <select id="plan-state" aria-label="État des lignes">
-          <option value="">Tous les états</option>
-          <option value="imported">Lues dans le document</option>
-          <option value="modified">Modifiées (à la main ou à l'import)</option>
-          <option value="added">Ajoutées à la main</option>
-          <option value="deleted">Supprimées ou ignorées</option>
-          <option value="missing">Absentes des plans</option>
-        </select>
-        <button class="small" id="plan-filter-clear" hidden>Effacer le filtre</button>
-        <span class="hint" id="plan-filter-count"></span>
-      </div>
-      <div class="tome-toolbar" id="plan-toolbar" hidden>
-        <button class="small" id="plan-add">Ajouter une ligne</button>
-        <span class="hint">En bleu : lignes ajoutées ou modifiées (à la main ou à l'import) ; barrées : supprimées ou ignorées
-          à l'import (sans effet). Elles restent quand le plan est relu ; un nouveau chargement du plan les remplace.</span>
-        <span class="cfg-status ko" id="plan-status"></span>
-      </div>
-      <div id="plan-body"></div>
     </section>
   </div>
 
@@ -585,12 +605,12 @@
       <div data-stats-panel="tome">
       <h3>Répartition des exigences par tome</h3>
       <div class="share" id="tome-share"></div>
+      <h3>Délégation par tome et par plateforme</h3>
+      <p class="hint">Exigences (hors supprimées) de chaque tome, par plateforme de délégation, selon le fichier d'exigences. Un clic ouvre le tome dans la page Exigences par tome.</p>
+      <div class="deleg" id="plan-deleg"></div>
       <h3>IADT par tome</h3>
       <p class="hint">Exigences (hors supprimées) de chaque tome : par IADT pour celles à qualifier dans la release, puis celles déjà qualifiées et celles hors scope (colonne « Validation releases »).</p>
       <div class="deleg" id="tome-iadt"></div>
-      <h3>Délégation par tome et par plateforme</h3>
-      <p class="hint">Exigences (hors supprimées) de chaque tome, par plateforme de délégation, selon le fichier d'exigences. Un clic ouvre le tome dans la page Plans d'acceptation.</p>
-      <div class="deleg" id="plan-deleg"></div>
       </div>
       <div data-stats-panel="platform" hidden>
       <h3>Tomes par plateforme</h3>
@@ -664,6 +684,21 @@
         <span class="cfg-status" id="storage-status"></span>
       </div>
 
+      <h3>Processus retenu pour la release</h3>
+      <p class="hint">Cliquer sur Plan d'acceptation ou STDHL pour le retenir (vert) ou non (gris) ; les Exigences et
+        les Fiches d'essai font toujours partie du processus. NEXUS-V ne vérifie que les étapes retenues. Enregistré avec
+        le bouton « Enregistrer la configuration ». Le STDHL ne peut plus être retenu une fois des fiches d'essai
+        chargées.</p>
+      <div class="process" id="cfg-process"></div>
+
+      <h3>Exigences inconnues</h3>
+      <div class="params">
+        <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
+          <input type="checkbox" data-var="skip_unknown_req"> Ignorer les exigences inconnues : lors de l'import,
+          un fichier qui cite une exigence inconnue n'est plus refusé ;
+          les données liées à cette exigence est ignorée, avec un avertissement dans le rapport de vérification</label>
+      </div>
+
       <h3>Autres paramètres</h3>
       <p class="hint">Enregistrés avec le bouton « Enregistrer la configuration ». Le port et l'ouverture du navigateur
         s'appliquent au prochain démarrage du serveur.</p>
@@ -709,8 +744,6 @@
           <input type="text" class="mono" data-var="requirements_tome_regex" spellcheck="false"></label>
         <label class="wide">Séparateur des releases d'une exigence
           <input type="text" class="mono" data-var="release_separator_regex" spellcheck="false"></label>
-        <label class="wide">Séparateur des valeurs STDHL d'une exigence (plusieurs valeurs : choix demandé à l'import)
-          <input type="text" class="mono" data-var="stdhl_separator_regex" spellcheck="false"></label>
       </div>
       <h3>Règles IADT / MOC</h3>
       <p class="hint">Pour chaque IADT, les MOC attendus : le MOC d'une exigence doit être l'un d'eux. Les plans
@@ -731,25 +764,30 @@
         (« Méthode » reconnaît « Méthodes de test V&amp;V »). Seule la première ligne d'un tableau est lue comme en-tête.</p>
       <div data-headers="headers_plan"></div>
       <h3>Expressions régulières</h3>
-      <p class="hint">Syntaxe des expressions régulières de Python ; <code>(?i)</code> au début ignore les majuscules. Quand le séparateur change, les plans déjà chargés sont relus.</p>
+      <p class="hint">Syntaxe des expressions régulières de Python ; <code>(?i)</code> au début ignore les majuscules. Un plan déjà vérifié n'est pas relu : le recharger après un changement.</p>
       <div class="params">
         <label class="wide">Tome (fonction) dans le nom du fichier d'un plan, présélectionné au chargement (par exemple <code>(?i)_PA_(.+?)_</code>)
           <input type="text" class="mono" data-var="plan_tome_regex" spellcheck="false"></label>
         <label class="wide">Séparateur des codes IADT et MOC d'un plan
           <input type="text" class="mono" data-var="code_separator_regex" spellcheck="false"></label>
-        <label class="wide">Séparateur de plusieurs plateformes dans la cellule Délégation (une seule est admise : choix demandé à l'import)
+        <label class="wide">Séparateur de plusieurs plateformes dans la cellule Délégation (une seule est admise : plusieurs sont une différence avec l'exigence)
           <input type="text" class="mono" data-var="delegation_separator_regex" spellcheck="false"></label>
+      </div>
+      <h3>Colonne Validation</h3>
+      <p class="hint">Texte attendu dans la colonne Validation d'un plan pour chaque validation d'exigence (colonne
+        « Validation releases » des exigences), sans tenir compte des majuscules ni des accents. Réglages provisoires, à
+        retirer quand les valeurs seront figées.</p>
+      <div class="params">
+        <label>Exigence à qualifier
+          <input type="text" data-var="plan_validation_to_qualify" spellcheck="false"></label>
+        <label>Exigence déjà qualifiée
+          <input type="text" data-var="plan_validation_qualified" spellcheck="false"></label>
+        <label>Exigence hors scope
+          <input type="text" data-var="plan_validation_out_of_scope" spellcheck="false"></label>
       </div>
       </div>
 
       <div data-config-pane="stdhl" hidden>
-      <h3>Rattachement aux exigences</h3>
-      <div class="params">
-        <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
-          <input type="checkbox" data-var="use_requirement_stdhl"> Prendre en compte la colonne STDHL des exigences : une
-          exigence sans valeur n'est pas contrôlée à l'étape STDHL (NON DEMANDÉ). Sinon, toute exigence déléguée à la
-          plateforme de niveau système doit être dans un STDHL de son tome (ou sans tome)</label>
-      </div>
       <h3>Sous-dossier des fichiers</h3>
       <div class="params">
         <label class="wide">Nom du sous-dossier des STDHL, dans le dossier des fichiers importés (onglet Paramètres généraux).
@@ -908,14 +946,6 @@
   </div>
 </dialog>
 
-<dialog id="plan-check-dialog" aria-labelledby="plan-check-title">
-  <h2 id="plan-check-title">Contrôle des Plans d'acceptation</h2>
-  <div id="plan-check-body"></div>
-  <div class="toolbar dialog-actions">
-    <button class="primary" id="plan-check-close">Fermer</button>
-  </div>
-</dialog>
-
 <dialog id="plan-dialog" aria-labelledby="plan-title">
   <h2 id="plan-title">Chargement de <span id="plan-file"></span></h2>
   <div id="plan-tome-part">
@@ -971,7 +1001,7 @@ const STAGE_NAMES = { plan: "Plan d'acceptation", stdhl: "STDHL", xml: "Fiches d
 // Fichiers de traçabilité des autres plateformes : une sortie juste après le plan, en parallèle des STDHL et des fiches
 // ; pas encore une étape de la vérification.
 const SLOT_NAMES = { requirements: SOURCE_NAME, ...STAGE_NAMES, traceability: "Traçabilité des autres plateformes" };
-const MULTI_SLOTS = new Set(["plan", "stdhl", "xml", "traceability"]);   // plusieurs fichiers utilisés en même temps
+const MULTI_SLOTS = new Set(["requirements", "plan", "stdhl", "xml", "traceability"]);   // plusieurs fichiers à la fois
 // Fichiers rattachés, au chargement, à un tome (avec des exigences) et à des releases ; ils sont tous utilisés (pas de
 // « Utilisé »).
 const ATTACHED = new Set(["plan", "stdhl", "xml", "traceability"]);
@@ -1001,13 +1031,12 @@ const state = {
   errors: {},          // emplacement -> erreur du dernier envoi
   reqDb: { tomes: {} },   // exigences enregistrées par tome (voir requirements_db.py)
   plansDb: { plans: {} },   // contenu des plans d'acceptation, par n° de fichier (voir plans_db.py)
-  planChecks: {},          // vérifications des tomes données par le serveur, par tome et releases sélectionnées
   lostStage: "",           // page d'accueil : étape où les exigences montrées sont perdues ("" = toutes)
   chartSlots: {},          // emplacement de couleur de chaque catégorie, par camembert
   stdhlDb: { stdhl: {} },   // contenu des STDHL, par n° de fichier (voir stdhl_db.py)
   fichesDb: { fiches: {} }, // numéros d'exigence des fichiers de fiches, par n° de fichier (voir fiches_db.py)
   traceDb: { traceability: {} },   // numéros des fichiers de traçabilité (traceability_db.py)
-  requirements: [],    // chaque exigence de la base : { id, title, releases, stdhl, file_id, tome }
+  requirements: [],    // chaque exigence de la base : { id, title, releases, iadt, moc, delegation, validation, tome }
   plans: [],           // plans d'acceptation utilisés : { name, text, rows }
   stdhl: [],           // documents STDHL utilisés : { name, stdhlName, rows, issues }
   xml: null,           // Fiches d'Essai utilisées : { name, text }
@@ -1059,7 +1088,7 @@ const jsonOptions = (method, data) => ({ method, headers: { "Content-Type": "app
 
 // Corps d'une requête d'exigences : les choix de l'utilisateur en JSON, puis le fichier.
 function withChoices(buffer, choices) {
-  // Tout choix (ligne d'un numéro répété, version gardée, valeur STDHL) vient en premier.
+  // Tout choix (ligne d'un numéro répété, version gardée) vient en premier.
   const text = new TextEncoder().encode(choices && Object.keys(choices).length ? JSON.stringify(choices) : "");
   return { body: new Blob([text, buffer]), size: text.length };
 }
@@ -1090,8 +1119,7 @@ const serverStore = {
   getStdhl: () => request("api/stdhl").then(r => r.json()),
   getFiches: () => request("api/fiches").then(r => r.json()),
   getTraceability: () => request("api/traceability").then(r => r.json()),
-  checkPlans: (tome, releases) =>
-    request(`api/plans/check?${new URLSearchParams({ tome, releases: releases.join(",") })}`).then(r => r.json()),
+  getRejects: () => request("api/rejects").then(r => r.json()),
   // Fichier d'exigences envoyé tel quel : le serveur le lit (RequirementsDatabase.analyse / import_file).
   analyseRequirements: (buffer, params, choices) => {
     const { body, size } = withChoices(buffer, choices);
@@ -1104,7 +1132,6 @@ const serverStore = {
                    { method: "POST", body }).then(r => r.json());
   },
   editRequirement: body => request("api/requirements/edit", jsonOptions("POST", body)).then(r => r.json()),
-  editPlan: body => request("api/plans/edit", jsonOptions("POST", body)).then(r => r.json()),
 };
 
 const store = serverStore;
@@ -1134,6 +1161,7 @@ async function check() {
     return showMessage("Vérification indisponible : " + (e.message || e));
   }
   if (ticket !== checkTicket) return;
+  renderTomeStates(result.tome_states ?? [], result.tome_state_labels ?? {});
   if (!result.rows) {
     $results.hidden = true;
     return result.message && showMessage(result.message);
@@ -1141,6 +1169,65 @@ async function check() {
   // La page ne montre que ce que le serveur a calculé : statuts, tuiles, camemberts et verdict arrivent prêts.
   state.result = result;
   showResults();
+}
+
+// Avancement des tomes, sous les boîtes : pour chaque tome, ses étapes retenues en chevrons (exigences, plan,
+// STDHL, fiches), chacun avec l'icône de son étape et la couleur de son état (gris à faire, jaune en cours, vert validé,
+// rouge rejeté). Un chevron validé, en cours ou rejeté ouvre le rapport du dernier fichier de son étape pour ce tome ;
+// un chevron à faire ne s'ouvre pas.
+const TOME_STEPS = [   // [code, état à partir duquel l'étape est franchie, boîte du fichier, nom, réglage qui la retient,
+                      //  types de fichier de l'étape (rapports de rejet)]
+  ["EX", "requirements", "requirements", "Exigences", null, ["requirements"]],
+  ["PL", "plan", "plan", "Plan d'acceptation", "process_plan", ["plans"]],
+  ["ST", "stdhl", "stdhl", "STDHL", "process_stdhl", ["stdhl"]],
+  ["FE", "fiches", "xml", "Fiches d'essai", null, ["fiches", "traceability"]]];
+const STATE_ORDER = ["", "requirements", "plan", "stdhl", "fiches", "done"];
+// Icône de chaque étape dans son chevron : celle de sa page dans le menu ; le plan d'acceptation n'a plus de page.
+const PLAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>';
+const STEP_TABS = { EX: "requirements", ST: "stdhl", FE: "fiches" };
+const SLOT_STEP = { requirements: "EX", plan: "PL", stdhl: "ST", xml: "FE" };   // boîte de l'accueil -> étape
+const stepIcon = code => code === "PL" ? PLAN_ICON
+  : document.querySelector(`.nav-item[data-tab="${STEP_TABS[code]}"] svg`)?.outerHTML ?? code;
+function renderTomeStates(states, labels) {
+  const steps = TOME_STEPS.filter(([, , , , key]) => !key || state.config?.[key]);
+  // Légende : quatre couleurs, les mêmes pour toutes les étapes.
+  $("#tome-states-keys").innerHTML = states.length ? "<b>Étapes de traçabilité :</b>"
+    + [["todo", "à faire"], ["doing", "en cours"], ["done", "validé"], ["reject", "rejeté"]].map(([c, text]) =>
+      `<span><i style="background: var(--chev-${c})"></i>${escapeHtml(text)}</span>`).join("") : "";
+  // Dernier fichier d'une étape qui s'applique au tome (son tome, ou aucun pour un STDHL ou des fiches) et qui a un
+  // rapport.
+  const reportOf = (slot, tome) => state.records
+    .filter(r => r.slot === slot && r.report && (!r.tome || r.tome.toLowerCase() === tome.toLowerCase()))
+    .sort((a, b) => b.id - a.id)[0];
+  $("#tome-states").innerHTML = states.map(({ tome, state: s, label }) => {
+    let started = false;   // une étape pas faite a déjà été rencontrée : les suivantes ne peuvent pas être en cours
+    const chevrons = steps.map(([code, from, slot, name, , kinds]) => {
+      // Dernier import de l'étape rejeté pour ce tome : rouge, et le chevron ouvre le rapport de rejet.
+      const reject = (state.rejects ?? []).find(x => kinds.includes(x.kind) && x.tome.toLowerCase() === tome.toLowerCase());
+      if (reject) {
+        const title = `${name} : rejeté — cliquer pour le rapport`;
+        return `<button type="button" class="chev" style="--chev: var(--chev-reject)"
+          data-open="api/rejects/${reject.kind}?tome=${encodeURIComponent(tome)}" title="${escapeHtml(title)}"
+          aria-label="${escapeHtml(title)}">${stepIcon(code)}</button>`;
+      }
+      // Fait (vert) : l'étape est complète pour le tome ; les fiches seulement quand la couverture est complète.
+      const done = from === "fiches" ? s === "done" : STATE_ORDER.indexOf(s) >= STATE_ORDER.indexOf(from);
+      // En cours (jaune) : la première étape pas faite, quand un fichier y est déjà chargé pour le tome.
+      const current = !done && !started;
+      if (!done) started = true;
+      const file = done || current ? reportOf(slot, tome) : null;
+      const doing = current && !!file;
+      const status = done ? "done" : doing ? "doing" : "todo";
+      const title = `${name} : ${done ? (file ? `validé — rapport de ${file.name}` : "validé")
+        : doing ? `en cours, pas encore complète — rapport de ${file.name}`
+        : current ? "à faire" : "à faire : l'étape précédente n'est pas complète"}`;
+      return `<button type="button" class="chev" style="--chev: var(--chev-${status})"
+        ${status === "todo" ? "disabled" : file ? `data-open="api/files/${file.id}/rapport"` : ""}
+        title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${stepIcon(code)}</button>`;
+    }).join("");
+    return `<div class="tome-state" title="${escapeHtml(tome)} : ${escapeHtml(label)}">
+      <span class="label">${escapeHtml(tome)}</span><span class="chevrons">${chevrons}</span></div>`;
+  }).join("");
 }
 
 // Montre un message au-dessus des résultats.
@@ -1197,6 +1284,7 @@ function showResults() {
   $verdict.className = "verdict " + verdict.kind;
   $verdict.textContent = verdict.text;
 
+  $("#tiles").style.gridTemplateColumns = `repeat(${tiles.length}, 1fr)`;   // une tuile par étape retenue
   $("#tiles").innerHTML = tiles.map(t => t.waiting
     ? `<div class="tile"><div class="lbl">${escapeHtml(t.label)}</div><div class="val">—<small> à charger</small></div></div>`
     : t.expected === undefined
@@ -1215,20 +1303,20 @@ function showResults() {
     lost.map(([name, n]) => `<option value="${escapeHtml(name)}" ${name === state.lostStage ? "selected" : ""}>Perdues à : ${escapeHtml(name)} (${n})</option>`).join("");
   // Seules les exigences qui ont un problème sont montrées.
   const visible = rows.filter(r => r.lost_at && (!state.lostStage || r.lost_at === state.lostStage) &&
-    (!query || [r.id, r.stdhl, r.delegation].some(v => v.toUpperCase().includes(query))));
+    (!query || [r.id, r.delegation].some(v => v.toUpperCase().includes(query))));
 
   const fileTitles = { plan: state.plans.map(p => p.name).join(", "), stdhl: state.stdhl.map(d => d.name).join(", "),
                        xml: state.xmls.map(x => x.name).join(", ") };
   const badge = s => `<span class="badge ${s}">${labels[s]}</span>`;
   $("#table").innerHTML =
-    `<thead><tr><th>Exigence</th><th>Tome</th><th>STDHL</th><th>Délégation</th>` +
-    names.map((n, k) => `<th title="${escapeHtml(fileTitles[STAGES[k]])}">${escapeHtml(n)}</th>`).join("") +
+    `<thead><tr><th>Exigence</th><th>Tome</th><th>Délégation</th>` +
+    names.map(n => `<th title="${escapeHtml(fileTitles[STAGES.find(k => STAGE_NAMES[k] === n)] ?? "")}">${escapeHtml(n)}</th>`).join("") +
     `<th>Perdue à l'étape</th></tr></thead>` +
     `<tbody>${visible.map(r => `<tr><td class="id" title="${escapeHtml(r.title)}">${escapeHtml(r.id)}</td><td>${escapeHtml(r.tome)}</td>
-        <td>${escapeHtml(r.stdhl)}</td><td>${escapeHtml(r.delegation)}</td>
+        <td>${escapeHtml(r.delegation)}</td>
         ${r.statuses.map(s => `<td class="c" ${testsTitle(r, s)}>${badge(s)}</td>`).join("")}
         <td class="lost">${escapeHtml(r.lost_at)}</td></tr>`).join("") ||
-      `<tr><td colspan="${names.length + 6}" class="empty">Aucune exigence en défaut.</td></tr>`}</tbody>`;
+      `<tr><td colspan="${names.length + 4}" class="empty">Aucune exigence en défaut.</td></tr>`}</tbody>`;
 }
 
 // Info-bulle d'un statut TEST MANQUANT : les tests demandés par le STDHL et ceux trouvés dans les fiches.
@@ -1275,6 +1363,12 @@ function checkButton(step) {
 
 for (const card of document.querySelectorAll(".drop[data-check]")) {
   card.insertAdjacentHTML("afterbegin", checkButton(card.dataset.check));
+  // Plan d'acceptation : il n'est que vérifié, le charger c'est le vérifier ; sa loupe fait comme le reste de la boîte.
+  if (card.dataset.slot === "plan") {
+    const loupe = card.querySelector(".drop-check");
+    loupe.title = loupe.ariaLabel = "Vérifier un plan d'acceptation par rapport aux exigences de son tome";
+    continue;
+  }
   // Sur le bouton lui-même : la carte en dessous importe sur un clic, la vérification ne fait que lire.
   card.querySelector(".drop-check").addEventListener("click", e => {
     e.stopPropagation();
@@ -1482,7 +1576,8 @@ function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName 
 }
 
 // Différences entre les exigences d'un tome et celles d'un fichier, pour un import « complement » ou « replace ».
-const DIFF_FIELDS = { title: "Titre", releases: "Releases", stdhl: "STDHL" };
+const DIFF_FIELDS = { title: "Titre", releases: "Releases", validation: "Validation", iadt: "IADT", moc: "MOC",
+                      delegation: "Délégation" };
 
 
 // Fenêtre d'approbation de l'import, montrée avant d'enregistrer un fichier d'exigences dans un tome qui a déjà des
@@ -1494,9 +1589,9 @@ function approveImport(fileName, { tome, mode }, analysis) {
   const dialog = $("#diff-dialog");
   const modeLabel = !analysis.tome_exists ? "nouveau tome" : mode === "replace" ? "remplacement" : "complément";
   $("#diff-title").textContent = `Import de ${fileName} dans ${tome} (${modeLabel})`;
-  const list = (rows, cls) => `<div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre</th><th>Releases</th><th>STDHL</th></tr></thead>
+  const list = (rows, cls) => `<div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre</th><th>Releases</th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${cls}"><td class="id">${escapeHtml(r.id)}</td><td class="wrap">${escapeHtml(r.title)}</td>
-      <td>${escapeHtml(r.releases.join(", "))}</td><td>${escapeHtml(r.stdhl)}</td></tr>`).join("")}</tbody></table></div>`;
+      <td>${escapeHtml(r.releases.join(", "))}</td></tr>`).join("")}</tbody></table></div>`;
   const diff = analysis.diff;
   $("#diff-summary").textContent = (diff
     ? `${plural(diff.added.length, "exigence ajoutée", "exigences ajoutées")}, ${plural(diff.updated.length, "modifiée")}, ${plural(diff.removed.length, "retirée")}.`
@@ -1525,19 +1620,18 @@ function approveImport(fileName, { tome, mode }, analysis) {
 
 // Conflits trouvés par le serveur. Un numéro sur plusieurs lignes du fichier est réglé d'abord, seul : les autres
 // conflits dépendent de la ligne gardée. Puis l'utilisateur garde une version d'une exigence déjà dans un autre tome de
-// la base, et une valeur quand la colonne STDHL en a plusieurs. Renvoie les choix, null en cas d'annulation ; rien
-// n'est demandé sans conflit.
+// la base. Renvoie les choix, null en cas d'annulation ; rien n'est demandé sans conflit.
 // Dans un complément d'un tome (`mode` « complement »), la version du nouveau fichier est cochée par défaut ; sinon
 // seule une exigence identique est cochée, sur sa version existante.
 function chooseConflicts(fileName, analysis, mode = "replace") {
   const $conflictOk = $("#conflict-ok");
   const $conflictBody = $("#conflict-body");
   const repeated = (analysis.repeated ?? []).filter(r => r.chosen === null);
-  const duplicates = repeated.length ? [] : analysis.duplicates, multi = repeated.length ? [] : analysis.multi_stdhl;
-  if (!repeated.length && !duplicates.length && !multi.length) return Promise.resolve({});
+  const duplicates = repeated.length ? [] : analysis.duplicates;
+  if (!repeated.length && !duplicates.length) return Promise.resolve({});
   const dialog = $("#conflict-dialog");
   $("#conflict-title").textContent = `Conflits dans ${fileName}`;
-  const version = v => `<div class="wrap">${escapeHtml(v.title)}</div><div class="hint">${escapeHtml(v.releases.join(", ")) || "sans release"}${v.stdhl ? ` — ${escapeHtml(v.stdhl)}` : ""}</div>`;
+  const version = v => `<div class="wrap">${escapeHtml(v.title)}</div><div class="hint">${escapeHtml(v.releases.join(", ")) || "sans release"}</div>`;
   $conflictBody.innerHTML =
     (repeated.length ? `<h3>Exigences présentes plusieurs fois dans ce fichier (${repeated.length})</h3>
       <p class="hint">Une exigence ne peut être importée qu'une fois : choisir la ligne à conserver.
@@ -1555,17 +1649,11 @@ function chooseConflicts(fileName, analysis, mode = "replace") {
         <td class="wrap"><label class="check"><input type="radio" name="keep:${escapeHtml(d.id)}" value="existing" ${mode !== "complement" && d.same ? "checked" : ""}>
           tome ${escapeHtml(d.existing.tome)}${d.existing.file ? `, ${escapeHtml(d.existing.file)}` : ""}</label>${version(d.existing)}</td>
         <td class="wrap"><label class="check"><input type="radio" name="keep:${escapeHtml(d.id)}" value="new" ${mode === "complement" ? "checked" : ""}> ce fichier</label>${version(d.new)}</td>
-      </tr>`).join("")}</tbody></table></div>` : "") +
-    (multi.length ? `<h3>Exigences avec plusieurs valeurs STDHL (${multi.length})</h3>
-      <p class="hint">Une exigence n'a qu'une valeur STDHL : choisir celle à garder.</p>
-      <div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre</th><th>STDHL</th></tr></thead>
-      <tbody>${multi.map(m => `<tr><td class="id">${escapeHtml(m.id)}</td><td class="wrap">${escapeHtml(m.title)}</td><td>${m.values.map(v =>
-        `<label class="check"><input type="radio" name="stdhl:${escapeHtml(m.id)}" value="${escapeHtml(v)}"> ${escapeHtml(v)}</label>`).join(" ")}</td></tr>`).join("")}
-      </tbody></table></div>` : "");
+      </tr>`).join("")}</tbody></table></div>` : "");
   const picked = prefix => Object.fromEntries([...document.querySelectorAll(`#conflict-body input[name^="${prefix}:"]:checked`)]
     .map(box => [box.name.slice(prefix.length + 1), box.value]));
-  const left = () => repeated.length + duplicates.length + multi.length
-    - Object.keys(picked("row")).length - Object.keys(picked("keep")).length - Object.keys(picked("stdhl")).length;
+  const left = () => repeated.length + duplicates.length
+    - Object.keys(picked("row")).length - Object.keys(picked("keep")).length;
   // Continuer est cliquable une fois chaque choix fait.
   const update = () => {
     const n = left();
@@ -1584,7 +1672,7 @@ function chooseConflicts(fileName, analysis, mode = "replace") {
     let choices = null;
     $conflictOk.onclick = () => {
       if (left()) return;
-      choices = repeated.length ? { row: picked("row") } : { keep: picked("keep"), stdhl: picked("stdhl") };
+      choices = repeated.length ? { row: picked("row") } : { keep: picked("keep") };
       dialog.close();
     };
     $("#conflict-cancel").onclick = () => dialog.close();
@@ -1722,6 +1810,17 @@ const stored = r => r.slot === "plan" ? state.plansDb.plans[r.id] : r.slot === "
 
 // Dessine les boîtes de chargement de la page d'accueil : nombre de fichiers et dernier message.
 function renderCards() {
+  // Étapes du processus retenu : les boîtes Plan d'acceptation et STDHL (et la page STDHL) n'existent que si elles
+  // sont retenues.
+  const retained = { plan: !!state.config?.process_plan, stdhl: !!state.config?.process_stdhl };
+  for (const [slot, on] of Object.entries(retained)) {
+    document.querySelector(`.drop[data-slot="${slot}"]`).hidden = !on;
+  }
+  document.querySelector('.nav-item[data-tab="stdhl"]').hidden = !retained.stdhl;
+  // La ligne sous le nom NEXUS-V : les étapes du processus retenu.
+  $("#process-line").textContent = ["Exigences", retained.plan && "Plan d'acceptation", retained.stdhl && "STDHL",
+                                    "Fiches d'Essai"].filter(Boolean).join(" → ") + ".";
+  $(".chain").style.gridTemplateColumns = `repeat(${2 + retained.plan + retained.stdhl}, 1fr)`;
   for (const card of document.querySelectorAll(".drop")) {
     const slot = card.dataset.slot, slots = SLOTS_OF_CARD[slot] ?? [slot];
     const count = slot === "requirements" ? Object.keys(state.reqDb.tomes).length
@@ -1729,34 +1828,28 @@ function renderCards() {
     const error = slots.map(s => state.errors[s]).filter(Boolean).join(" ; ");
     card.classList.toggle("loaded", count > 0 && !error);
     card.classList.toggle("error", !!error);
-    // Seul le dernier chargement, « fichier → tome » ou « fichier : chargement rejeté », avec le bouton de son
-    // rapport : le détail est dans le rapport et dans les autres pages.
+    // Seule la dernière opération (« import fct1 », « import rejeté »…) : les rapports s'ouvrent par les chevrons des
+    // tomes, le détail est dans les autres pages.
     const last = prefs.lastLoad?.[slot];
-    const { text = "", report = null, rejected = false } = typeof last === "object" && last ? last : { text: last ?? "" };
+    const { text = "", report = null, rejected = false, file = "" } = typeof last === "object" && last ? last : { text: last ?? "" };
     card.classList.toggle("rejected", !error && rejected);
     if (rejected) card.classList.remove("loaded");   // un rejet s'affiche en rouge, pas en vert
     const shown = error || (count || rejected ? text || plural(count, "chargé") : "")
       || (MULTI_SLOTS.has(slot) ? "Déposer un ou plusieurs documents…" : "Déposer ou cliquer…");
     const name = card.querySelector(".name");
     name.textContent = shown;
-    name.title = shown;   // le message entier au survol, s'il est coupé
-    const button = card.querySelector(".drop-report");
-    if (!button) continue;   // pas encore ajouté (premier dessin)
-    const open = !error && report;
-    button.disabled = !open;
-    if (open) button.dataset.open = report;
-    else delete button.dataset.open;
-    button.title = open ? "Ouvrir le rapport du dernier chargement" : "Pas de rapport pour l'instant";
+    name.title = !error && file ? `${file} : ${shown}` : shown;   // le fichier et le message entier au survol
   }
 }
 
 // « 1 ligne », « 3 lignes » (singulier jusqu'à 1, comme en français).
 const plural = (n, singular, several = singular + "s") => `${n} ${n > 1 ? several : singular}`;
 
-// Mémorise le dernier chargement d'une boîte (gardé dans ce navigateur seulement) : son texte, l'adresse de son
-// rapport, et s'il a été rejeté.
-function setLastLoad(slot, text, report = null, rejected = false) {
-  prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: { text, report, rejected } };
+// Mémorise le dernier chargement d'une boîte (gardé dans ce navigateur seulement) : son texte (« import fct1 »,
+// « complément fct1 », « import rejeté »), l'adresse de son rapport, s'il a été rejeté, et le nom du fichier (montré au
+// survol).
+function setLastLoad(slot, text, report = null, rejected = false, file = "") {
+  prefs.lastLoad = { ...prefs.lastLoad, [CARD_OF[slot] ?? slot]: { text, report, rejected, file } };
   writePrefs();
 }
 // Le bouton Rapport d'une boîte ouvre le rapport dans une nouvelle fenêtre (sans ouvrir le choix de fichiers).
@@ -1791,7 +1884,7 @@ function renderTomes() {
   const words = fold($("#req-search").value).split(" ").filter(Boolean), wanted = $("#req-state").value;
   const stateOf = r => r.deleted ? "deleted" : r.manual === "added" ? "added" : r.manual ? "modified" : "imported";
   const validationLabel = v => state.reqDb.validation_states?.[v] ?? v ?? "";
-  const text = r => fold([r.id, r.title, r.releases.join(" "), r.stdhl, r.iadt, r.moc, r.delegation,
+  const text = r => fold([r.id, r.title, r.releases.join(" "), r.iadt, r.moc, r.delegation,
                           validationLabel(r.validation)].join(" "));
   const filtering = words.length > 0 || wanted !== "";
   const before = tome ? tome.requirements.length : 0;
@@ -1808,8 +1901,6 @@ function renderTomes() {
   if (reqEdit && reqEdit.tome !== tomeTab) reqEdit = null;
   // Les releases et le STDHL d'une ligne en cours de modification sont choisis parmi les valeurs existantes : les
   // releases de la configuration (une case chacune) et les valeurs de la table list_stdhl (une liste, vide admis).
-  const stdhlChoices = current => [`<option value="">(aucune)</option>`,
-    ...(state.reqDb.stdhl_values ?? []).map(v => `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(v)}</option>`)].join("");
   // IADT, MOC, délégation et validation : choisis parmi les valeurs de la configuration (et du serveur).
   const choices = (values, current, labels = {}) => values.map(v =>
     `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(labels[v] ?? v)}</option>`).join("");
@@ -1823,11 +1914,13 @@ function renderTomes() {
   const editRow = r => `<tr class="req-manual" data-req="${escapeHtml(r.id ?? "")}">
       <td><input type="text" class="mono" data-field="id" value="${escapeHtml(r.id ?? "")}" placeholder="ID"></td>
       <td><input type="text" data-field="title" value="${escapeHtml(r.title ?? "")}" placeholder="Titre"></td>
-      <td><select data-field="stdhl" aria-label="STDHL">${stdhlChoices(r.stdhl ?? "")}</select></td>${referenceCells(r)}
+${referenceCells(r)}
       <td class="actions"><button class="small icon ok" data-req-save title="Enregistrer" aria-label="Enregistrer">✓</button>
         <button class="small icon ko" data-req-cancel title="Annuler" aria-label="Annuler">✕</button></td></tr>`;
   const viewRow = r => {
-    const cls = r.deleted ? "req-deleted" : r.manual ? "req-manual" : "";
+    // Le fond suit la validation (hors scope orange, déjà qualifiée vert), le texte les changements à la main.
+    const cls = [r.deleted ? "req-deleted" : r.manual ? "req-manual" : "",
+                 { out_of_scope: "req-scope", qualified: "req-qualified" }[r.validation] ?? ""].join(" ").trim();
     const title = r.deleted ? "supprimée à la main" : r.manual === "added" ? "ajoutée à la main" : r.manual ? "modifiée à la main" : "";
     const actions = r.deleted ? `<button class="small" data-req-restore title="Rétablir">Rétablir</button>`
       : reqConfirm === r.id ? `<button class="small icon ok" data-req-delete-ok title="Confirmer la suppression" aria-label="Confirmer la suppression">✓</button>
@@ -1835,13 +1928,13 @@ function renderTomes() {
       : `<button class="small" data-req-edit title="Modifier">✎</button>
          <button class="small" data-req-delete title="Supprimer">✕</button>`;
     return `<tr class="${cls}" data-req="${escapeHtml(r.id)}" title="${title}"><td class="id">${escapeHtml(r.id)}</td>
-      <td class="wrap">${escapeHtml(r.title)}</td><td>${escapeHtml(r.stdhl)}</td>
+      <td class="wrap">${escapeHtml(r.title)}</td>
       <td>${escapeHtml(r.iadt ?? "")}</td><td>${escapeHtml(r.moc ?? "")}</td><td>${escapeHtml(r.delegation ?? "")}</td>
       <td>${escapeHtml(validationLabel(r.validation))}</td>
       <td class="actions">${actions}</td></tr>`;
   };
   $("#tome-table").innerHTML = tome
-    ? `<thead><tr><th>Exigence</th><th>Titre</th><th>STDHL</th><th>IADT</th><th>MOC</th><th>Délégation</th><th>Validation</th><th></th></tr></thead>` +
+    ? `<thead><tr><th>Exigence</th><th>Titre</th><th>IADT</th><th>MOC</th><th>Délégation</th><th>Validation</th><th></th></tr></thead>` +
       `<tbody>${reqEdit?.id === null ? editRow({}) : ""}${tome.requirements.map(r =>
         reqEdit?.id === r.id ? editRow(r) : viewRow(r)).join("")}</tbody>`
     : "";
@@ -1938,9 +2031,9 @@ $("#platform-tomes").addEventListener("click", e => {
 $("#plan-deleg").addEventListener("click", e => {
   const seg = e.target.closest("[data-plan-tab]");
   if (!seg) return;
-  planTab = seg.dataset.planTab;
-  document.querySelector('.nav-item[data-tab="plans"]').click();
-  renderPlans();
+  tomeTab = seg.dataset.planTab;
+  document.querySelector('.nav-item[data-tab="requirements"]').click();
+  renderTomes();
 });
 
 // Un onglet, ou un segment de la barre cumulée, montre son tome.
@@ -1952,94 +2045,6 @@ const chooseTome = e => {
   renderTomes();
 };
 $("#tome-tabs").addEventListener("click", chooseTome);
-
-// HTML de la vérification d'un tome (partagé par la fenêtre montrée après le chargement de plans et la page Plans).
-// Dans la page Plans (`inPage`), seulement le résumé et les exigences trouvées dans un plan d'une autre release ou sans
-// release : les exigences absentes et les anomalies sont dans le tableau du tome.
-function planCheckHtml(c, inPage = false) {
-  if (c.error) return `<p class="hint ko">Contrôle indisponible : ${escapeHtml(c.error)}</p>`;
-  if (!c.requirements) return `<p class="hint ko">Le tome « ${escapeHtml(c.tome)} » ne contient aucune exigence.</p>`;
-  if (inPage) {
-    const fine = !c.missing.length && !c.misplaced.length;
-    // Seulement ce qui demande de l'attention : pas de « 0 absente ».
-    const notes = [
-      c.missing.length && `${plural(c.missing.length, "exigence absente", "exigences absentes")} des plans (en rouge dans le tableau)`,
-      c.misplaced.length && `${plural(c.misplaced.length, "exigence citée", "exigences citées")} seulement dans un plan qui ne s'applique pas à ${c.misplaced.length > 1 ? "leurs" : "ses"} releases (détail ci-dessous)`,
-      c.no_release.length && `${plural(c.no_release.length, "exigence")} sans release`,
-    ].filter(Boolean);
-    return `<div class="plan-check">
-      <p class="${fine ? "ok" : "ko"}"><strong>${fine
-        ? `✓ Toutes les exigences du tome « ${escapeHtml(c.tome)} » (${c.with_release}) sont dans un plan`
-        : `⚠ ${plural(c.covered, "exigence")} sur ${c.with_release} du tome « ${escapeHtml(c.tome)} » dans un plan`}</strong>${
-        notes.length ? ` — ${notes.join(" ; ")}` : ""}.</p>
-      ${c.misplaced.length ? `<h4 class="ko">Exigences citées seulement dans un plan qui ne s'applique pas à leur release (${c.misplaced.length})</h4>
-        <p class="hint">Le plan est rattaché à d'autres releases que celles de l'exigence : il ne la couvre pas, elle reste à couvrir.</p>
-        <div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Releases de l'exigence</th><th>Plans</th></tr></thead>
-        <tbody>${c.misplaced.map(m => `<tr><td class="id">${escapeHtml(m.requirement.id)}</td><td>${escapeHtml(m.requirement.releases.join(", "))}</td>
-          <td>${escapeHtml(m.plans.join(", "))}</td></tr>`).join("")}</tbody></table></div>` : ""}
-      ${c.no_release.length ? `<h4>Exigences sans release, qu'aucun plan ne peut couvrir (${c.no_release.length})</h4>
-        <div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre</th></tr></thead>
-        <tbody>${c.no_release.map(r => `<tr><td class="id">${escapeHtml(r.id)}</td><td class="wrap">${escapeHtml(r.title)}</td></tr>`).join("")}
-        </tbody></table></div>` : ""}
-    </div>`;
-  }
-  const ok = !c.missing.length && !c.misplaced.length && !c.anomalies.length;
-  const reqTable = (rows, cls) => `<div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre</th><th>Releases</th><th>STDHL</th></tr></thead>
-    <tbody>${rows.map(r => `<tr class="${cls}"><td class="id">${escapeHtml(r.id)}</td><td class="wrap">${escapeHtml(r.title)}</td>
-      <td>${escapeHtml(r.releases.join(", "))}</td><td>${escapeHtml(r.stdhl)}</td></tr>`).join("")}</tbody></table></div>`;
-  return `<div class="plan-check">
-    <p class="${ok ? "ok" : "ko"}"><strong>${ok ? "✓" : "⚠"} ${plural(c.covered, "exigence")} sur ${c.with_release} du tome
-      « ${escapeHtml(c.tome)} » ${c.covered > 1 ? "retrouvées" : "retrouvée"} dans un plan</strong>
-      — ${plural(c.missing.length, "absente")}, ${c.misplaced.length} dans un plan d'une autre release,
-      ${plural(c.anomalies.length, "ligne")} en anomalie${c.no_release.length ? `, ${plural(c.no_release.length, "exigence")} sans release` : ""}.</p>
-    <div class="tablewrap"><table><thead><tr><th>Release</th><th>Plans de cette release</th><th>Exigences</th><th>Absentes</th></tr></thead>
-      <tbody>${c.releases.map(x => `<tr><td><strong>${escapeHtml(x.release)}</strong></td>
-        <td class="wrap">${x.plans.length ? escapeHtml(x.plans.join(", ")) : `<span class="ko">aucun plan</span>`}</td>
-        <td class="c">${x.expected}</td><td class="c ${x.missing ? "ko" : "ok"}">${x.missing}</td></tr>`).join("")}
-      </tbody></table></div>
-    ${c.missing.length ? `<h4 class="ko">Exigences absentes des plans (${c.missing.length})</h4>
-      ${reqTable(c.missing, "diff-removed")}` : ""}
-    ${c.misplaced.length ? `<h4 class="ko">Exigences trouvées dans un plan qui ne s'applique pas à leur release (${c.misplaced.length})</h4>
-      <div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Releases de l'exigence</th><th>Plans</th></tr></thead>
-      <tbody>${c.misplaced.map(m => `<tr><td class="id">${escapeHtml(m.requirement.id)}</td><td>${escapeHtml(m.requirement.releases.join(", "))}</td>
-        <td>${escapeHtml(m.plans.join(", "))}</td></tr>`).join("")}</tbody></table></div>` : ""}
-    ${c.anomalies.length ? `<h4 class="ko">Lignes des plans en anomalie (${c.anomalies.length})</h4>
-      <div class="tablewrap"><table><thead><tr><th>Plan</th><th>Exigence</th><th>Anomalies</th></tr></thead>
-      <tbody>${c.anomalies.map(a => `<tr><td>${escapeHtml(a.plan)}</td><td class="id">${escapeHtml(a.ids)}</td>
-        <td class="wrap">${a.errors.map(e => `<span class="badge ko">${escapeHtml(e)}</span>`).join(" ")}</td></tr>`).join("")}
-      </tbody></table></div>` : ""}
-    ${c.no_release.length ? `<h4>Exigences sans release, qu'aucun plan ne peut couvrir (${c.no_release.length})</h4>
-      ${reqTable(c.no_release, "")}` : ""}
-  </div>`;
-}
-
-// Vérification d'un tome par le serveur (PlansDatabase.check_tome), pour les releases sélectionnées dans l'en-tête ;
-// gardée jusqu'au prochain rafraîchissement. Résout en la vérification, ou { tome, error }.
-function planCheck(tome) {
-  const releases = [...selectedReleases].sort(byName);
-  const key = `${tome}|${releases.join(",")}`;
-  state.planChecks[key] ??= store.checkPlans(tome, releases).catch(e => ({ tome, error: e.message || String(e) }));
-  return state.planChecks[key];
-}
-
-// Fenêtre montrée après le chargement de plans : la vérification de chaque tome concerné. Elle attend la fermeture des
-// fenêtres de configuration (plateformes trouvées dans les plans), puisque l'ajout d'une plateforme change les
-// anomalies.
-async function showPlanCheck(tomes, skipped = []) {
-  const $planCheckDialog = $("#plan-check-dialog");
-  const $planCheckBody = $("#plan-check-body");
-  const $itemsDialog = $("#items-dialog");
-  while ($itemsDialog.open) await new Promise(r => $itemsDialog.addEventListener("close", r, { once: true }));
-  const checks = await Promise.all(unique(tomes).map(planCheck));
-  if (!checks.length) return;
-  $("#plan-check-title").textContent = `Contrôle des Plans d'acceptation — ${checks.map(c => `tome « ${c.tome} »`).join(", ")}`;
-  $planCheckBody.innerHTML = (skipped.length ? `<div class="banner"><strong>${plural(skipped.length, "tableau ignoré", "tableaux ignorés")}</strong>
-      (colonnes attendues absentes) :<br>${skipped.slice(0, 20).map(escapeHtml).join("<br>")}${skipped.length > 20 ? "<br>…" : ""}</div>` : "")
-    + checks.map(planCheckHtml).join("");
-  $planCheckBody.scrollTop = 0;
-  $("#plan-check-close").onclick = () => $planCheckDialog.close();
-  $planCheckDialog.showModal();
-}
 
 // Modifications à la main des exigences du tome ouvert (écrasées par le prochain import du tome).
 let reqEdit = null;      // { tome, id } de la ligne en cours de modification ; id null : nouvelle exigence
@@ -2067,6 +2072,14 @@ $("#req-add").addEventListener("click", () => {
   $("#tome-table [data-field=id]")?.focus();
 });
 
+// Ligne en cours de modification : amenée à l'écran, le curseur dans son premier champ.
+function showEditedRow(selector) {
+  const row = document.querySelector(selector);
+  if (!row) return;
+  row.scrollIntoView({ block: "nearest" });
+  row.querySelector("input, select")?.focus();
+}
+
 $("#tome-table").addEventListener("click", e => {
   const row = e.target.closest("tr[data-req]");
   if (!row) return;
@@ -2084,7 +2097,7 @@ $("#tome-table").addEventListener("click", e => {
   else if (e.target.matches("[data-req-save]")) {
     const value = f => row.querySelector(`[data-field=${f}]`).value;
     saveRequirementChange({ action: reqEdit.id === null ? "add" : "update", id: reqEdit.id,
-                            requirement: { id: value("id"), title: value("title"), stdhl: value("stdhl"), iadt: value("iadt"),
+                            requirement: { id: value("id"), title: value("title"), iadt: value("iadt"),
                                            moc: value("moc"), delegation: value("delegation"), validation: value("validation") } });
   }
 });
@@ -2095,258 +2108,6 @@ $("#tome-table").addEventListener("keydown", e => {
   if (e.key === "Enter") e.target.closest("tr").querySelector("[data-req-save]").click();
   if (e.key === "Escape") e.target.closest("tr").querySelector("[data-req-cancel]").click();
 });
-
-// Page des plans d'acceptation, construite comme celle des exigences : un onglet par tome, puis les plans de ce tome
-// (avec leurs releases), le dernier onglet ouvert étant mémorisé.
-const PLAN_TAB_KEY = "nexus-v-plan-tab";
-const NO_TOME = "(sans tome)";   // plans chargés avant que les plans soient rattachés à un tome
-let planTab = (() => { try { return localStorage.getItem(PLAN_TAB_KEY); } catch { return null; } })();
-
-let planEdit = null;      // { tome, file, requirement } de la ligne modifiée ; requirement null : nouvelle
-let planConfirm = null;   // { file, requirement } dont la suppression attend une confirmation
-const planMissing = {};   // exigences absentes des plans de leur release, par tome (d'après la vérification)
-
-// Dessine la page Plans d'acceptation : un onglet par plan, puis la vérification de son tome.
-// Onglet d'un tome : ses exigences dans les plans (lignes non supprimées), puis si chaque exigence du tome (release
-// sélectionnée) est déclinée dans ses plans : ✓, ou ⚠ et le nombre manquant ; le détail au survol.
-function planTabCount(tome, plans) {
-  const rows = plans.flatMap(p => p.rows.filter(r => !r.deleted));
-  const declined = new Set(rows.map(r => r.key));
-  const valid = declined.size;
-  const expected = (state.reqDb.tomes[tome]?.requirements ?? []).filter(r => !r.deleted && inSelection(r.releases));
-  const missing = expected.filter(r => !declined.has(r.id)).length;
-  const title = `${plural(valid, "exigence", "exigences")} dans les plans ; `
-    + `${declined.size} déclinées dans les plans sur ${expected.length} du tome`
-    + (missing ? ` : ${plural(missing, "exigence manquante", "exigences manquantes")}` : " : toutes déclinées");
-  const mark = !expected.length ? "" : missing ? `<span class="decl ko">⚠ ${missing}</span>` : `<span class="decl ok">✓</span>`;
-  return { html: `<span class="n">(${valid})</span>${mark}`, title };
-}
-
-function renderPlans() {
-  const $planCheckHere = $("#plan-check-here");
-  const plans = state.plans.filter(p => inSelection(p.releases));
-  const byTome = Object.groupBy(plans, p => p.tome || NO_TOME);
-  const tomes = Object.keys(byTome).sort((a, b) => (a === NO_TOME) - (b === NO_TOME) || byName(a, b));
-  const total = plans.reduce((n, p) => n + p.rows.length, 0);
-  $("#plans-count").textContent = plans.length || "";
-  document.querySelector('.nav-item[data-tab="plans"]').title =
-    "Plans d'acceptation" + (plans.length ? ` : ${plural(plans.length, "plan")}, ${plural(total, "ligne")}` : "");
-  if (!tomes.includes(planTab)) planTab = tomes[0] ?? null;
-  $("#plan-tabs").innerHTML = tomes.map(t => {
-    const count = t === NO_TOME ? { html: "", title: "" } : planTabCount(t, byTome[t]);
-    return `<button class="subtab ${t === planTab ? "active" : ""}" role="tab" aria-selected="${t === planTab}" ` +
-      `data-plan-tab="${escapeHtml(t)}" title="${escapeHtml(count.title)}">${escapeHtml(t)}${count.html}</button>`;
-  }).join("");
-  const list = planTab ? byTome[planTab] : [];
-  $("#plan-hint").textContent = !planTab
-    ? "Aucun Plan d'acceptation : en charger depuis la page Vérification (après les Exigences)."
-    : planTab === NO_TOME ? "Plans chargés sans tome ni release : les supprimer puis les recharger pour les rattacher à un tome."
-    : !state.reqDb.tomes[planTab] ? `Le tome « ${planTab} » ne contient plus d'exigences.`
-    : `${plural(list.length, "plan")} : ${[...list].sort((a, b) => byName(a.name, b.name))
-        .map(p => p.name).join(", ")}`
-      + selectionNote(plans.length, state.plans.length, "plan") + ".";
-  $("#plan-filters").hidden = $("#plan-toolbar").hidden = !planTab || planTab === NO_TOME;
-  const tab = planTab;
-  const checked = tab && tab !== NO_TOME;
-  if (planEdit && planEdit.tome !== tab) planEdit = null;
-  $("#plan-body").innerHTML = (checked ? `<div id="plan-check-here"><p class="hint">Contrôle du tome en cours…</p></div>` : "")
-    + `<div id="plan-table"></div>`;
-  drawPlanTable();
-  if (checked) planCheck(tab).then(c => {
-    if (planTab !== tab || !$planCheckHere) return;
-    $planCheckHere.innerHTML = planCheckHtml(c, true);
-    planMissing[tab] = !c.error && c.missing ? c.missing : [];
-    drawPlanTable();
-  });
-}
-
-// Page Plans : le tableau du tome montré, son filtre et ses modifications à la main.
-
-// MOC proposés pour un IADT : ceux attendus (et tous ensemble), chaque MOC quand l'IADT n'a pas de règle.
-function expectedMocs(iadt) {
-  const rules = state.config.iadt_moc_rules ?? {};
-  if (!(iadt in rules)) return Object.keys(state.config.mocs ?? {});
-  const allowed = rules[iadt];
-  return allowed.length > 1 ? [...allowed, allowed.join(", ")] : allowed;
-}
-
-// Dessine le tableau du tome : les lignes de ses plans (avec leur release) et ses exigences absentes, filtrées.
-function drawPlanTable() {
-  const tab = planTab, here = $("#plan-table");
-  if (!here) return;
-  if (!tab) { here.innerHTML = ""; return; }   // pas de plan : seulement le message de la page
-  const plans = state.plans.filter(p => inSelection(p.releases) && (p.tome || NO_TOME) === tab);
-  const reqs = state.reqDb.tomes[tab]?.requirements ?? [];
-  const titleOf = id => reqs.find(x => x.id === id)?.title ?? "";
-  // STDHL demandé pour l'exigence (colonne STDHL des exigences) : seules celles déléguées à la plateforme de niveau
-  // système en ont un ; une différence est montrée en rouge.
-  const stdhlOf = id => reqs.find(x => x.id === id)?.stdhl ?? "";
-  const stdhlCell = (id, r) => {
-    // La colonne STDHL est facultative : seul un STDHL demandé pour une exigence déléguée à une autre plateforme est
-    // faux.
-    const value = stdhlOf(id), top = r && r.effective_delegation === state.config.system_platform;
-    const wrong = r && !r.deleted && !top && !!value;
-    const why = wrong ? `STDHL demandé mais déléguée à ${r.effective_delegation}` : "";
-    return `<td class="${wrong ? "stdhl-wrong" : ""}" ${why ? `title="${escapeHtml(why)}"` : ""}>${escapeHtml(value) || (wrong ? "—" : "")}</td>`;
-  };
-  const stateOf = r => r.deleted ? "deleted" : r.manual === "added" ? "added" : r.manual ? "modified" : "imported";
-  // Une exigence absente des plans parce que ses lignes ont été supprimées : ses lignes supprimées le disent, pas de
-  // ligne à elle.
-  const missingIds = new Set((planMissing[tab] ?? []).map(m => m.id));
-  const deletedIds = new Set(plans.flatMap(plan => plan.rows.filter(r => r.deleted).map(r => r.key)));
-  const all = [
-    ...plans.flatMap(plan => plan.rows.map(r => ({ release: plan.name, id: r.key, plan, r, state: stateOf(r),
-                                                  absent: r.deleted && missingIds.has(r.key) }))),
-    ...(planMissing[tab] ?? []).filter(m => !deletedIds.has(m.id))
-      .map(m => ({ release: "", id: m.id, missing: m, state: "missing" })),
-  ].sort((a, b) => byName(a.id, b.id) || byName(a.release, b.release));
-  // Filtre : tous les mots de la recherche trouvés, et l'état choisi ; la ligne en cours de modification reste.
-  const words = fold($("#plan-search").value).split(" ").filter(Boolean), wanted = $("#plan-state").value;
-  const text = x => fold([x.release, x.id, x.missing ? x.missing.title : titleOf(x.id), stdhlOf(x.id),
-                           ...(x.r ? [x.r.iadt, x.r.moc, x.r.effective_delegation] : [])].join(" "));
-  const editing = x => planEdit && x.plan?.id === planEdit.file && x.id === planEdit.requirement;
-  const filtering = words.length > 0 || wanted !== "";
-  const rows = all.filter(x => editing(x) || ((!wanted || x.state === wanted || (wanted === "missing" && x.absent))
-    && words.every(w => text(x).includes(w))));
-  $("#plan-filter-clear").hidden = !filtering;
-  $("#plan-filter-count").textContent = filtering ? `${plural(rows.length, "ligne affichée", "lignes affichées")} sur ${all.length}` : "";
-  const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
-  const mocOptions = (iadt, current) => (iadt ? expectedMocs(iadt) : []).map(m => option(m, m, m === current)).join("");
-  // Ligne en cours de modification (requirement null : nouvelle ligne ; `preset` : exigence absente des plans, ajoutée
-  // depuis sa ligne).
-  const editRow = (x, preset) => {
-    const r = x?.r, adding = !r;
-    const plansOf = plans.filter(pl => !preset || pl.releases.some(rel => preset.releases.includes(rel)));
-    const iadt = r ? r.iadt_codes.join(", ") : "";
-    // Une nouvelle ligne va dans le plan du tome ; avec plusieurs plans, l'utilisateur le choisit.
-    const planField = !adding ? "" : plansOf.length > 1
-      ? `<select data-plan-field="file" aria-label="Plan">${plansOf.map(pl => option(pl.id, pl.name, pl.id === planEdit.file)).join("")}</select>`
-      : `<input type="hidden" data-plan-field="file" value="${plansOf[0]?.id ?? ""}">`;
-    return `<tr class="req-manual" data-plan-edit>
-      <td class="id">${planField}${adding ? `<select data-plan-field="requirement" aria-label="Exigence">${preset ? option(preset.id, preset.id, true)
-          : `<option value="">Exigence…</option>` + reqs.filter(q => !q.deleted).map(q => option(q.id, q.id, false)).join("")}</select>` : escapeHtml(x.id)}</td>
-      <td class="wrap">${escapeHtml(preset ? preset.title : r ? titleOf(x.id) : "")}</td>
-      <td>${escapeHtml(preset ? stdhlOf(preset.id) : r ? stdhlOf(x.id) : "")}</td>
-      <td><select data-plan-field="iadt" aria-label="IADT"><option value="">IADT…</option>${Object.keys(state.config.iadt ?? {}).map(c =>
-          option(c, c, c === iadt)).join("")}</select></td>
-      <td><select data-plan-field="moc" aria-label="MOC">${iadt ? mocOptions(iadt, r.moc_codes.join(", ")) : `<option value="">MOC…</option>`}</select></td>
-      <td><select data-plan-field="delegation" aria-label="Délégation">${option("", "— choisir —", !r?.delegation)}
-          ${(state.config.platforms ?? []).map(pl => option(pl, pl, r && fold(pl) === fold(r.delegation))).join("")}</select></td>
-      <td class="actions"><button class="small icon ok" data-plan-save title="Enregistrer" aria-label="Enregistrer">✓</button>
-        <button class="small icon ko" data-plan-cancel title="Annuler" aria-label="Annuler">✕</button></td></tr>`;
-  };
-  const viewRow = x => {
-    if (x.missing) return `<tr class="diff-removed" title="Exigence absente des plans">
-        <td class="id">${escapeHtml(x.id)}</td><td class="wrap">${escapeHtml(x.missing.title)}</td>
-        <td>${escapeHtml(stdhlOf(x.id))}</td><td colspan="3" class="hint">absente des plans</td>
-        <td class="actions"><button class="small icon" data-plan-add-missing="${escapeHtml(x.id)}" title="Ajouter à un plan du tome"
-          aria-label="Ajouter au plan">＋</button></td></tr>`;
-    const r = x.r, key = `data-plan-file="${x.plan.id}" data-plan-req="${escapeHtml(x.id)}"`;
-    const cls = r.deleted ? "req-deleted" : r.manual ? "req-manual" : "";
-    const title = { deleted: "supprimée à la main ou ignorée à l'import", added: "ajoutée à la main", modified: "modifiée à la main ou à l'import" }[x.state] ?? "";
-    const confirming = planConfirm && planConfirm.file === x.plan.id && planConfirm.requirement === x.id;
-    const actions = r.deleted
-      ? `${x.absent ? `<span class="absent">absente des plans</span>` : ""}<button class="small" data-plan-restore title="Rétablir">Rétablir</button>
-         <button class="small" data-plan-modify title="Modifier (et rétablir)">✎</button>`
-      : confirming ? `<button class="small icon ok" data-plan-delete-ok title="Confirmer la suppression" aria-label="Confirmer la suppression">✓</button>
-          <button class="small icon ko" data-plan-cancel title="Annuler" aria-label="Annuler">✕</button>`
-      : `<button class="small" data-plan-modify title="Modifier">✎</button>
-         <button class="small" data-plan-delete title="Supprimer">✕</button>`;
-    return `<tr class="${cls}" ${key} title="${title}${x.absent ? " : l'exigence est absente des plans" : ""}"><td class="id">${escapeHtml(x.id)}</td>
-        <td class="wrap">${escapeHtml(titleOf(x.id))}</td>${stdhlCell(x.id, r)}<td>${escapeHtml(r.iadt_codes.join(", "))}</td>
-        <td>${escapeHtml(r.moc_codes.join(", "))}</td><td>${escapeHtml(r.effective_delegation)}</td><td class="actions">${actions}</td></tr>`;
-  };
-  const adding = planEdit && planEdit.requirement === null;
-  const preset = adding && planEdit.preset ? (planMissing[tab] ?? []).find(m => m.id === planEdit.preset) : null;
-  here.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Exigence</th><th>Titre (base des exigences)</th><th>STDHL</th>
-      <th>IADT</th><th>MOC</th><th>Délégation</th><th></th></tr></thead>
-    <tbody>${adding ? editRow(null, preset) : ""}${rows.map(x => editing(x) ? editRow(x) : viewRow(x)).join("") ||
-      `<tr><td colspan="7" class="empty">${filtering ? "Aucune ligne ne correspond au filtre." : "Aucune ligne dans les plans de ce tome."}</td></tr>`}</tbody></table></div>`;
-}
-
-// Amène la ligne en cours de modification à l'écran : ses listes de choix élargissent les colonnes, ce qui peut la
-// pousser hors du tableau.
-function showEditedRow(selector) {
-  requestAnimationFrame(() => document.querySelector(selector)?.scrollIntoView({ block: "center", inline: "nearest" }));
-}
-
-// Envoie une modification à la main d'une ligne de plan, puis recharge tout.
-async function savePlanChange(body) {
-  const $planStatus = $("#plan-status");
-  try {
-    await store.editPlan(body);
-    $planStatus.textContent = "";
-    planEdit = planConfirm = null;
-    await refresh();
-  } catch (e) {
-    $planStatus.textContent = (e.message || String(e)).replace(/^serveur : \d+ /, "");
-  }
-}
-
-$("#plan-search").addEventListener("input", () => drawPlanTable());
-$("#plan-state").addEventListener("change", () => drawPlanTable());
-$("#plan-filter-clear").addEventListener("click", () => { $("#plan-search").value = ""; $("#plan-state").value = ""; drawPlanTable(); });
-$("#plan-add").addEventListener("click", () => {
-  const first = state.plans.find(p => (p.tome || NO_TOME) === planTab && inSelection(p.releases));
-  planEdit = { tome: planTab, file: first?.id ?? null, requirement: null };
-  planConfirm = null;
-  $("#plan-status").textContent = "";
-  drawPlanTable();
-  showEditedRow("#plan-table [data-plan-edit]");
-});
-$("#plan-body").addEventListener("change", e => {
-  // Les MOC proposés dépendent de l'IADT choisi.
-  if (e.target.dataset.planField !== "iadt") return;
-  const moc = e.target.closest("tr").querySelector('[data-plan-field="moc"]');
-  const values = e.target.value ? expectedMocs(e.target.value) : [];
-  moc.innerHTML = values.length === 1 ? `<option value="${escapeHtml(values[0])}" selected>${escapeHtml(values[0])}</option>`
-    : `<option value="">MOC…</option>` + values.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
-});
-const $planBody = $("#plan-body");
-$planBody.addEventListener("click", e => {
-  const button = e.target.closest("button");
-  if (!button || !$planBody.contains(button)) return;
-  const row = button.closest("tr");
-  const file = Number(row.dataset.planFile), requirement = row.dataset.planReq;
-  if (button.matches("[data-plan-add-missing]")) {
-    const m = (planMissing[planTab] ?? []).find(x => x.id === button.dataset.planAddMissing);
-    const plan = state.plans.find(p => (p.tome || NO_TOME) === planTab && p.releases.some(r => m.releases.includes(r)));
-    planEdit = { tome: planTab, file: plan?.id ?? null, requirement: null, preset: m.id };
-    planConfirm = null;
-    drawPlanTable();
-    showEditedRow("#plan-table [data-plan-edit]");
-  } else if (button.matches("[data-plan-modify]")) {
-    planEdit = { tome: planTab, file, requirement };
-    planConfirm = null;
-    drawPlanTable();
-    showEditedRow("#plan-table [data-plan-edit]");
-  }
-  else if (button.matches("[data-plan-cancel]")) { planEdit = planConfirm = null; $("#plan-status").textContent = ""; drawPlanTable(); }
-  else if (button.matches("[data-plan-delete]")) { planConfirm = { file, requirement }; drawPlanTable(); }
-  else if (button.matches("[data-plan-delete-ok]")) savePlanChange({ file_id: file, action: "delete", requirement });
-  else if (button.matches("[data-plan-restore]")) savePlanChange({ file_id: file, action: "restore", requirement });
-  else if (button.matches("[data-plan-save]")) {
-    const value = f => row.querySelector(`[data-plan-field="${f}"]`)?.value ?? "";
-    const adding = planEdit.requirement === null;
-    savePlanChange({ file_id: adding ? Number(value("file")) : planEdit.file, action: adding ? "add" : "update",
-                     requirement: adding ? value("requirement") : planEdit.requirement,
-                     values: { iadt: value("iadt"), moc: value("moc"), delegation: value("delegation") } });
-  }
-});
-// Échap annule la ligne en cours de modification.
-$("#plan-body").addEventListener("keydown", e => {
-  if (e.key === "Escape" && e.target.closest("[data-plan-edit]")) e.target.closest("tr").querySelector("[data-plan-cancel]").click();
-});
-
-// Un onglet, ou une barre des délégations, montre son tome.
-const choosePlanTab = e => {
-  const tab = e.target.closest("[data-plan-tab]");
-  if (!tab) return;
-  planTab = tab.dataset.planTab;
-  try { localStorage.setItem(PLAN_TAB_KEY, planTab); } catch { /* stockage indisponible */ }
-  renderPlans();
-};
-$("#plan-tabs").addEventListener("click", choosePlanTab);
 
 // Page STDHL : un onglet par STDHL, le dernier ouvert étant mémorisé.
 const STDHL_TAB_KEY = "nexus-v-stdhl-tab";
@@ -2372,19 +2133,36 @@ function renderStdhl() {
   // Les titres ne sont pas enregistrés avec le STDHL : ils sont pris dans les exigences.
   const titles = new Map(state.requirements.map(r => [r.id, r.title]));
   const all = doc ? doc.rows.flatMap(row => row.requirements.map(id => ({ id, title: titles.get(id) ?? "", test: row.test,
-                                                                            deleted: row.deleted }))) : [];
+                                                                            deleted: row.deleted, manual: row.manual }))) : [];
   const shown = searched(all, "stdhl", l => [l.id, l.title, l.test]);
-  $("#stdhl-table").innerHTML = doc
-    ? `<thead><tr><th>Exigence</th><th>Titre (base des exigences)</th><th>Test demandé</th><th></th></tr></thead>` +
-      `<tbody>${shown.map(l => `<tr class="${l.deleted ? "req-deleted" : ""}" data-stdhl-req="${escapeHtml(l.id)}"
-          data-stdhl-test="${escapeHtml(l.test)}" title="${l.deleted ? "supprimée à la main" : ""}"><td class="id">${escapeHtml(l.id)}</td>
-        <td class="wrap">${escapeHtml(l.title)}</td><td class="test-cell">${escapeHtml(l.test)}${l.test
-          ? ` <button class="small" data-rename-test="${escapeHtml(l.test)}" title="Modifier le nom du test (pour tous les STDHL et fiches qui le citent)"
-               aria-label="Modifier le nom du test ${escapeHtml(l.test)}">✎</button>` : ""}</td>
+  $("#stdhl-toolbar").hidden = !doc;
+  if (stdhlEdit && stdhlEdit.doc !== doc?.name) stdhlEdit = null;
+  // Choix proposés à la saisie : les exigences du tome du STDHL (toutes sans tome), et les tests déjà connus.
+  $("#stdhl-req-list").innerHTML = state.requirements.filter(r => !doc?.tome || r.tome === doc.tome)
+    .map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.title)}</option>`).join("");
+  $("#stdhl-test-list").innerHTML = [...new Set(state.stdhl.flatMap(d => d.rows.map(r => r.test)).filter(Boolean))].sort(byName)
+    .map(t => `<option value="${escapeHtml(t)}"></option>`).join("");
+  const key = l => `${l.id}|${l.test}`;
+  // Ligne en cours de modification (ou d'ajout) : champs de saisie, comme dans la page Exigences.
+  const editRow = l => `<tr class="req-manual" data-stdhl-req="${escapeHtml(l.id ?? "")}" data-stdhl-test="${escapeHtml(l.test ?? "")}">
+      <td><input type="text" class="mono" data-stdhl-field="requirement" list="stdhl-req-list" value="${escapeHtml(l.id ?? "")}"
+        placeholder="Exigence" spellcheck="false"></td>
+      <td class="wrap">${escapeHtml(l.title ?? "")}</td>
+      <td><input type="text" class="mono" data-stdhl-field="test" list="stdhl-test-list" value="${escapeHtml(l.test ?? "")}"
+        placeholder="Test demandé (fiche SYS_)" spellcheck="false"></td>
+      <td class="actions"><button class="small icon ok" data-stdhl-save title="Enregistrer" aria-label="Enregistrer">✓</button>
+        <button class="small icon ko" data-stdhl-cancel title="Annuler" aria-label="Annuler">✕</button></td></tr>`;
+  const viewRow = l => `<tr class="${l.deleted ? "req-deleted" : l.manual ? "req-manual" : ""}" data-stdhl-req="${escapeHtml(l.id)}"
+          data-stdhl-test="${escapeHtml(l.test)}" title="${l.deleted ? "supprimée à la main" : l.manual ? "ajoutée à la main" : ""}">
+        <td class="id">${escapeHtml(l.id)}</td><td class="wrap">${escapeHtml(l.title)}</td><td>${escapeHtml(l.test)}</td>
         <td class="actions">${l.deleted
           ? `<button class="small" data-stdhl-action="restore" title="Rétablir la ligne">Rétablir</button>`
-          : `<button class="small" data-stdhl-action="delete" title="Supprimer la ligne (gardée barrée, non vérifiée)"
-               aria-label="Supprimer la ligne ${escapeHtml(l.id)}">✕</button>`}</td></tr>`).join("") ||
+          : `<button class="small" data-stdhl-edit title="Modifier" aria-label="Modifier la ligne ${escapeHtml(l.id)}">✎</button>
+             <button class="small" data-stdhl-action="delete" title="Supprimer la ligne (gardée barrée, non vérifiée)"
+               aria-label="Supprimer la ligne ${escapeHtml(l.id)}">✕</button>`}</td></tr>`;
+  $("#stdhl-table").innerHTML = doc
+    ? `<thead><tr><th>Exigence</th><th>Titre (base des exigences)</th><th>Test demandé</th><th></th></tr></thead>` +
+      `<tbody>${stdhlEdit?.key === null ? editRow({}) : ""}${shown.map(l => stdhlEdit?.key === key(l) ? editRow(l) : viewRow(l)).join("") ||
         `<tr><td colspan="4" class="empty">${all.length ? "Aucune ligne pour ce filtre." : "Aucune exigence de la base dans ce STDHL."}</td></tr>`}</tbody>`
     : "";
   $("#stdhl-issues").innerHTML = doc?.issues.length
@@ -2392,50 +2170,51 @@ function renderStdhl() {
     : "";
 }
 
-// Nom d'un test modifié sur place : la cellule devient un champ ; le nouveau nom va dans le référentiel des tests
-// (fe_tests), pour chaque STDHL et chaque fiche qui le citent. Le document lui-même est à corriger aussi.
-$("#stdhl-table").addEventListener("click", async e => {
-  // Une ligne supprimée (gardée barrée, laissée de côté par la vérification) ou rétablie.
+// Modifications à la main des lignes du STDHL ouvert : ✎ met la ligne en saisie, ✓ l'enregistre, ✕ annule ; ✕ sur une
+// ligne la supprime (gardée barrée), « Rétablir » annule la suppression ; « Ajouter une exigence » ajoute une ligne.
+let stdhlEdit = null;   // { doc, key: "exigence|test" } de la ligne modifiée ; key null : nouvelle ligne
+async function saveStdhlChange(body) {
+  const doc = state.stdhl.find(d => d.name === stdhlTab);
+  try {
+    await request("api/stdhl/edit", jsonOptions("POST", { file_id: doc.id, ...body }));
+    $("#stdhl-status").textContent = "";
+    stdhlEdit = null;
+    await refresh();
+  } catch (err) {
+    $("#stdhl-status").textContent = err.message;
+  }
+}
+$("#stdhl-add").addEventListener("click", () => {
+  stdhlEdit = { doc: stdhlTab, key: null };
+  $("#stdhl-status").textContent = "";
+  renderStdhl();
+  document.querySelector('#stdhl-table input[data-stdhl-field="requirement"]')?.focus();
+});
+$("#stdhl-table").addEventListener("click", e => {
+  const tr = e.target.closest("tr[data-stdhl-req]");
+  if (!tr) return;
+  const old = { requirement: tr.dataset.stdhlReq, test: tr.dataset.stdhlTest };
+  const value = f => tr.querySelector(`[data-stdhl-field="${f}"]`)?.value.trim() ?? "";
   const act = e.target.closest("[data-stdhl-action]");
-  if (act) {
-    const tr = act.closest("tr");
-    const doc = state.stdhl.find(d => d.name === stdhlTab);
-    try {
-      await request("api/stdhl/edit", jsonOptions("POST", { file_id: doc.id, action: act.dataset.stdhlAction,
-                                                            requirement: tr.dataset.stdhlReq, test: tr.dataset.stdhlTest }));
-      await refresh();
-    } catch (err) {
-      showMessage(err.message);
-    }
-    return;
-  }
-  const edit = e.target.closest("[data-rename-test]");
-  if (edit) {
-    const cell = edit.closest("td");
-    const old = edit.dataset.renameTest;
-    cell.innerHTML = `<input type="text" class="mono" value="${escapeHtml(old)}" aria-label="Nouveau nom du test" spellcheck="false">
-      <button class="small primary" data-rename-ok>OK</button> <button class="small" data-rename-cancel>Annuler</button>
-      <div class="hint">Le nouveau nom s'applique à tous les STDHL et fiches d'essai qui citent ce test ; corriger aussi le
-        document, sinon il reprendra son ancien nom à sa prochaine lecture.</div><div class="cfg-status ko"></div>`;
-    cell.dataset.old = old;
-    cell.querySelector("input").focus();
-    return;
-  }
-  const cell = e.target.closest("td");
-  if (!cell) return;
-  if (e.target.closest("[data-rename-cancel]")) return renderStdhl();
-  if (e.target.closest("[data-rename-ok]")) {
-    try {
-      await request("api/tests/rename", jsonOptions("POST", { old: cell.dataset.old, new: cell.querySelector("input").value }));
-      await refresh();
-    } catch (err) {
-      cell.querySelector(".cfg-status").textContent = err.message;
-    }
+  if (act) return saveStdhlChange({ action: act.dataset.stdhlAction, ...old });
+  if (e.target.closest("[data-stdhl-edit]")) {
+    stdhlEdit = { doc: stdhlTab, key: `${old.requirement}|${old.test}` };
+    $("#stdhl-status").textContent = "";
+    renderStdhl();
+    showEditedRow(`#stdhl-table tr[data-stdhl-req="${CSS.escape(old.requirement)}"][data-stdhl-test="${CSS.escape(old.test)}"]`);
+  } else if (e.target.closest("[data-stdhl-cancel]")) {
+    stdhlEdit = null;
+    $("#stdhl-status").textContent = "";
+    renderStdhl();
+  } else if (e.target.closest("[data-stdhl-save]")) {
+    if (stdhlEdit?.key === null) saveStdhlChange({ action: "add", requirement: value("requirement"), test: value("test") });
+    else saveStdhlChange({ action: "update", ...old, new_requirement: value("requirement"), new_test: value("test") });
   }
 });
 $("#stdhl-table").addEventListener("keydown", e => {
-  if (e.target.matches(".test-cell input") && e.key === "Enter") e.target.closest("td").querySelector("[data-rename-ok]").click();
-  if (e.target.matches(".test-cell input") && e.key === "Escape") renderStdhl();
+  if (!e.target.matches("input[data-stdhl-field]")) return;
+  if (e.key === "Enter") e.target.closest("tr").querySelector("[data-stdhl-save]").click();
+  if (e.key === "Escape") e.target.closest("tr").querySelector("[data-stdhl-cancel]").click();
 });
 
 const FICHES_TAB_KEY = "nexus-v-fiches-tab";
@@ -2727,9 +2506,10 @@ async function refresh() {
   catch (e) { showMessage("Liste des fichiers indisponible : " + (e.message || e)); }
   lockRelease();   // la release ne change que tant qu'aucun fichier n'est chargé
   try {
-    [state.plansDb, state.stdhlDb, state.fichesDb, state.traceDb] =
-      // Les quatre contenus sont demandés en même temps.
-      await Promise.all([store.getPlans(), store.getStdhl(), store.getFiches(), store.getTraceability()]);
+    [state.plansDb, state.stdhlDb, state.fichesDb, state.traceDb, state.rejects] =
+      // Les contenus, et les rejets gardés par tome, sont demandés en même temps.
+      await Promise.all([store.getPlans(), store.getStdhl(), store.getFiches(), store.getTraceability(),
+                         store.getRejects()]);
   }
   catch (e) { showMessage("Base indisponible : " + (e.message || e)); }
 
@@ -2742,8 +2522,6 @@ async function refresh() {
   // Plans : contenu et lignes vérifiées donnés par le serveur ; tome et releases sont ceux choisis au chargement.
   state.plans = Object.values(state.plansDb.plans).map(p => ({ id: p.file_id, name: p.name, tome: p.tome,
                                                                 releases: p.releases, rows: p.rows }));
-  state.planChecks = {};
-  renderPlans();
   renderStats();
   // STDHL et fiches : contenu donné par le serveur.
   state.stdhl = Object.values(state.stdhlDb.stdhl).map(d => ({ id: d.file_id, name: d.name, tome: d.tome, releases: d.releases,
@@ -2770,7 +2548,7 @@ async function loadFiles(slot, files) {
   const planFiles = [];   // plans d'acceptation chargés
   // Plans, STDHL et fiches appartiennent à un tome : les exigences doivent être importées d'abord.
   if (ATTACHED.has(slot) && !Object.keys(state.reqDb.tomes).length) {
-    state.errors[slot] = `Aucun tome d'exigences : importer d'abord les Exigences, puis charger les fichiers ${SLOT_NAMES[slot]}.`;
+    state.errors[slot] = "importer d'abord les exigences";
     return refresh();
   }
   let planChoice = null;   // tome et releases du plan précédent, proposés à nouveau pour le suivant
@@ -2819,7 +2597,8 @@ async function loadFiles(slot, files) {
         state.config = await store.getConfig();   // un nouveau tome a pu rejoindre la configuration
         state.draft = toDraft(state.config);
         renderConfig();
-        setLastLoad(slot, `${file.name} → ${summary.tome}`, summary.report ? `api/files/${summary.file_id}/rapport` : null);
+        setLastLoad(slot, `${summary.mode === "complement" && !summary.created ? "complément" : "import"} ${summary.tome}`,
+                    summary.report ? `api/files/${summary.file_id}/rapport` : null, false, file.name);
         continue;
       }
       // Plan, STDHL ou fiches : refusé ici s'il est illisible ou vide, avant de rien demander.
@@ -2847,8 +2626,8 @@ async function loadFiles(slot, files) {
       const result = await store.loadFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(","),
                                                                 platform: planChoice.platform ?? "",
                                                                 ...(decisions ? { decisions: JSON.stringify(decisions) } : {}) });
-      setLastLoad(slot, `${file.name} → ${result.tome || "tous les tomes"}`,
-                  result.report ? `api/files/${result.file_id}/rapport` : null);
+      setLastLoad(slot, `${slot === "plan" ? "vérifié" : "import"} ${result.tome || "tous les tomes"}`,
+                  result.report ? `api/files/${result.file_id}/rapport` : null, false, file.name);
       // Plan : délégations qui ne correspondent pas à la colonne STDHL des exigences (seule la plateforme de niveau
       // système est dans un STDHL) : montrées sous les boîtes.
       if (result.stdhl_warnings?.length) warnings.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
@@ -2860,7 +2639,8 @@ async function loadFiles(slot, files) {
     } catch (e) {
       // Rejeté par le serveur : la boîte le dit, avec le rapport de rejet de ce type de fichier ; une autre erreur
       // (serveur injoignable) reste un message.
-      if (e.status === 400) setLastLoad(slot, `${file.name} : chargement rejeté`, `api/rejects/${REJECT_KIND[slot]}`, true);
+      if (e.status === 400) setLastLoad(slot, slot === "plan" ? "plan rejeté" : "import rejeté",
+                                        `api/rejects/${REJECT_KIND[slot]}`, true, file.name);
       else errors.push(`${file.name} — ${e.message || e}`);
     }
   }
@@ -2869,7 +2649,6 @@ async function loadFiles(slot, files) {
   state.errors[slot] = errors.join(" ; ");
   await refresh();
   if (warnings.length) showMessage(warnings.join(" ; "));
-  if (planTomes.length) await showPlanCheck(planTomes, planSkipped);
 }
 
 // Ouvre le rapport de l'import d'un fichier dans une nouvelle fenêtre.
@@ -2989,9 +2768,8 @@ async function deleteFile(id) {
 for (const card of document.querySelectorAll(".drop")) {
   const slot = card.dataset.slot;
   const input = card.querySelector("input");
-  // Bouton Rapport sous le message, toujours présent (actif quand un rapport est disponible, voir renderCards).
-  card.querySelector(".name").insertAdjacentHTML("afterend",
-    `<button class="small primary drop-report" type="button" disabled>Rapport</button>`);
+  // L'icône de l'étape, sous le type de fichier ; les rapports s'ouvrent par les chevrons des tomes.
+  card.querySelector(".step").insertAdjacentHTML("beforeend", stepIcon(SLOT_STEP[slot]));
   const take = files => [...files].slice(0, MULTI_SLOTS.has(slot) ? undefined : 1);
   card.addEventListener("click", () => input.click());
   // La boîte Fiches d'Essai : chaque fichier lu selon son format, XML (fiches) ou Excel (traçabilité des autres
@@ -3025,12 +2803,14 @@ $("#files-table").addEventListener("click", e => {
 // Variables à une seule valeur modifiées avec un champ [data-var], et leur type.
 const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str", plan_folder: "str", stdhl_folder: "str",
                       fiches_folder: "str", traceability_folder: "str", requirement_regex: "str", release_separator_regex: "str",
-                      stdhl_separator_regex: "str", code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
+                      code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
                       stdhl_name_regex: "str", plan_tome_regex: "str", requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
                       requirement_tag: "str", server_port: "int", chart_max_parts: "int", chart_max_parts_platforms: "int",
-                      open_browser: "bool", use_requirement_stdhl: "bool", system_platform: "str", stdhl2_test_regex: "str",
+                      open_browser: "bool", system_platform: "str", stdhl2_test_regex: "str",
                       stdhl2_requirements_label: "str", stdhl2_release_label: "str",
-                      stdhl2_release_regex: "str", stdhl2_test_case_regex: "str" };
+                      stdhl2_release_regex: "str", stdhl2_test_case_regex: "str", plan_validation_to_qualify: "str",
+                      plan_validation_qualified: "str", plan_validation_out_of_scope: "str", process_plan: "bool",
+                      process_stdhl: "bool", skip_unknown_req: "bool" };
 
 // Réglages des en-têtes de tableaux de la configuration : réglage -> { title, hint }. Les champs que NEXUS-V
 // lit dans les colonnes, et leur libellé, viennent du serveur (fieldsOf) : ces colonnes sont obligatoires (texte
@@ -3141,8 +2921,36 @@ function fromDraft(draft) {
 }
 
 // Dessine les listes et les champs de la page Configuration d'après le brouillon.
+// Étapes du processus : [réglage qui la retient (null : toujours là), nom, code de l'étape (son icône)].
+const PROCESS_STEPS = [[null, "Exigences", "EX"], ["process_plan", "Plan d'acceptation", "PL"],
+                       ["process_stdhl", "STDHL", "ST"], [null, "Fiches d'essai", "FE"]];
+// Des fiches d'essai déjà chargées : le STDHL ne peut plus entrer dans le processus.
+const fichesLoaded = () => state.records.some(r => r.slot === "xml" || r.slot === "traceability");
+function renderProcess() {
+  const d = state.draft;
+  $("#cfg-process").innerHTML = PROCESS_STEPS.map(([key, name, code], i) => {
+    const on = !key || !!d.vars[key];
+    const locked = key === "process_stdhl" && !on && fichesLoaded();
+    const title = !key ? "Toujours dans le processus" : locked ? "Des fiches d'essai sont déjà chargées : le STDHL ne peut plus être retenu"
+      : on ? "Retenu : cliquer pour ne plus le retenir" : "Non retenu : cliquer pour le retenir";
+    const box = key
+      ? `<button type="button" class="step-box ${on ? "on" : ""}" data-process="${key}" ${locked ? "disabled" : ""}
+           title="${escapeHtml(title)}" aria-pressed="${on}"><b>${escapeHtml(name)}</b>${stepIcon(code)}</button>`
+      : `<div class="step-box on" title="${escapeHtml(title)}"><b>${escapeHtml(name)}</b>${stepIcon(code)}</div>`;
+    return (i ? `<span class="arrow" aria-hidden="true">→</span>` : "") + box;
+  }).join("");
+}
+$("#cfg-process").addEventListener("click", e => {
+  const box = e.target.closest("[data-process]");
+  if (!box || box.disabled) return;
+  state.draft.vars[box.dataset.process] = !state.draft.vars[box.dataset.process];
+  renderProcess();
+  setConfigStatus("Modifications non enregistrées.");
+});
+
 function renderConfig() {
   const d = state.draft;
+  renderProcess();
   const remove = (list, i) => `<button class="small" data-remove="${list}:${i}" title="Supprimer">✕</button>`;
   // Règles IADT / MOC : l'IADT choisi dans la liste des codes IADT, les MOC attendus cochés parmi les codes MOC.
   const iadtCodes = d.iadt.map(r => r[0].trim().toUpperCase()).filter(Boolean);
@@ -3177,8 +2985,7 @@ function renderConfig() {
       <div class="cfg-row two">
         <input type="text" data-header="${name}:${i}" value="${escapeHtml(text)}" placeholder="Texte de l'en-tête">
         ${field in fieldsOf(name)
-          ? `<span class="hint">${field === "stdhl" ? escapeHtml(fieldsOf(name)[field])
-                                    : `colonne lue : ${escapeHtml(fieldsOf(name)[field])} (obligatoire)`}</span>`
+          ? `<span class="hint">colonne lue : ${escapeHtml(fieldsOf(name)[field])} (obligatoire)</span>`
           : `<label class="check"><input type="checkbox" data-header-check="${name}:${i}" ${field !== "ignore" ? "checked" : ""}>
                prise en compte pour valider le tableau</label>
              <button class="small" data-header-remove="${name}:${i}" title="Retirer cette colonne">✕</button>`}

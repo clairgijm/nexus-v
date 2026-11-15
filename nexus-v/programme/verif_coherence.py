@@ -123,13 +123,12 @@ def print_report(result):
     # Largeurs des colonnes du tableau texte, d'après les valeurs les plus longues (bornées).
     w_id = max([len(r["id"]) for r in rows] + [10])
     w_rel = min(20, max([len(", ".join(r["releases"])) for r in rows] + [8]))
-    w_doc = min(30, max([len(r["stdhl"]) for r in rows] + [5]))
     print(f"\n{plural(len(rows), 'exigence vérifiée', 'exigences vérifiées')}.\n")
-    print("Exigence".ljust(w_id), "Releases".ljust(w_rel), "STDHL".ljust(w_doc),
+    print("Exigence".ljust(w_id), "Releases".ljust(w_rel),
           *[n[:18].center(18) for n in names], " Perdue à l'étape", sep=" | ")
-    print("-" * (w_id + w_doc + w_rel + 21 * len(names) + 26))
+    print("-" * (w_id + w_rel + 21 * len(names) + 23))
     for r in rows:
-        print(r["id"].ljust(w_id), ", ".join(r["releases"])[:w_rel].ljust(w_rel), r["stdhl"][:w_doc].ljust(w_doc),
+        print(r["id"].ljust(w_id), ", ".join(r["releases"])[:w_rel].ljust(w_rel),
               *[labels[s].center(18) for s in r["statuses"]], " " + r["lost_at"], sep=" | ")
 
     print("\nRésumé :")

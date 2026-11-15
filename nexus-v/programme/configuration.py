@@ -35,12 +35,13 @@ Variables :
     stdhl2_release_label          libellé de la release d'un test, lue par stdhl2_release_regex (groupe 1)
     stdhl2_test_case_regex        début d'un test case : les exigences de ses phases sont la couverture du test
   release_separator_regex         séparateur des releases dans une cellule d'un fichier d'exigences
-  stdhl_separator_regex           séparateur de plusieurs valeurs dans une cellule STDHL (plusieurs valeurs : à
-  régler)
   plan_tome_regex                 tome dans le nom d'un fichier de plan : présélectionné au chargement
   code_separator_regex            séparateur des codes IADT et MOC dans une cellule d'un plan
-  delegation_separator_regex      séparateur de plusieurs plateformes dans la cellule Délégation (à régler à
-  l'import)
+  delegation_separator_regex      séparateur de plusieurs plateformes dans la cellule Délégation d'un plan
+                                  (plusieurs plateformes : différence avec l'exigence)
+  plan_validation_to_qualify      texte de la colonne Validation d'un plan pour une exigence à qualifier,
+  plan_validation_qualified       déjà qualifiée,
+  plan_validation_out_of_scope    hors scope (casse et accents ignorés ; réglages provisoires)
   iadt_moc_rules                  MOC attendus pour chaque IADT, dans le fichier d'exigences (un autre MOC le refuse)
   et
                                   dans un plan : au moins un ; un autre MOC, ou aucun, est à régler à l'import
@@ -49,15 +50,17 @@ Variables :
   requirement_tag                 la balise des exigences testées
                                   (pour fiche_regex et stdhl_name_regex : groupe 1 s'il y en a un, sinon toute la
                                   correspondance)
+  process_plan, process_stdhl     processus retenu pour la release (paramètres généraux) : étapes Plan
+                                  d'acceptation et STDHL vérifiées ou non ; le STDHL ne peut plus être retenu une fois
+                                  des fiches chargées
+  skip_unknown_req                une exigence inconnue (du tome) dans un plan, un STDHL ou des fiches : ignorée avec
+                                  un avertissement au lieu de refuser le fichier (paramètre général)
   system_platform                 la plateforme de niveau système (paramètre général) : les STDHL s'appliquent à
   elle,
                                   seules les exigences qui lui sont déléguées sont attendues dans un STDHL, seules ses
                                   fiches sont vérifiées par rapport aux tests du STDHL. Non définie par défaut (aucune
                                   exigence attendue dans un STDHL) ; seulement une plateforme des délégations des
                                   exigences importées
-  use_requirement_stdhl           prendre en compte la colonne STDHL des exigences : une exigence sans valeur n'est
-  pas
-                                  vérifiée à l'étape STDHL (NON DEMANDÉ) ; sans cette option, la colonne n'est pas lue
   release                         release unique de la base (ne change que tant qu'aucun fichier n'est chargé)
   tomes                           tomes auxquels appartiennent les fichiers d'exigences
   platforms                       plateformes de test (délégations)
@@ -112,19 +115,27 @@ DEFAULT_CONFIG = {
     "traceability_folder": "tracabilite",
     # Séparateurs dans une cellule, en expressions régulières.
     "release_separator_regex": r",",
-    "stdhl_separator_regex": r"[,;/\n]+",
     "plan_tome_regex": r"(?i)_PA_(.+?)_",
     "code_separator_regex": r"[,;+\s]+",
     "delegation_separator_regex": r"[,;/+\n]+",
+    # Valeurs de la colonne Validation d'un plan pour chaque validation d'exigence (à figer : ces réglages partiront).
+    "plan_validation_to_qualify": "à qualifier",
+    "plan_validation_qualified": "déjà qualifiée",
+    "plan_validation_out_of_scope": "hors scope",
     # Règles IADT / MOC : pour chaque code IADT, les codes MOC attendus (au moins l'un d'eux, et aucun autre).
     "iadt_moc_rules": {"D": ["MOC4"], "T": ["MOC4"], "I": ["MOC7"], "A": ["MOC2", "MOC3"]},
     # Fiches d'Essai (XML) : un test contient des test cases, qui contiennent les exigences testées.
     "test_tag": "test",
     "test_case_tag": "test_case",
     "requirement_tag": "requirements",
-    # La colonne STDHL des exigences nomme le STDHL où une exigence doit se trouver (True), ou n'est pas lue (False).
-    "use_requirement_stdhl": True,
     "system_platform": "",
+    # Processus retenu pour la release : les étapes Plan d'acceptation et STDHL sont facultatives (Exigences et Fiches
+    # d'essai toujours là). Non retenues par défaut.
+    "process_plan": False,
+    "process_stdhl": False,
+    # Exigences inconnues : cochée, un numéro qui n'est pas une exigence du tome d'un plan, d'un STDHL ou d'un fichier
+    # de fiches ne le refuse plus ; les données de ce numéro sont ignorées (un avertissement le dit).
+    "skip_unknown_req": False,
     # La release sur laquelle travaille la base : chaque exigence importée et chaque fichier chargé lui appartient.
     "release": "",
     "tomes": [],
@@ -136,9 +147,10 @@ DEFAULT_CONFIG = {
     # vérifiée).
     # Une cellule d'en-tête doit contenir le texte (casse et accents ignorés).
     "headers_requirements": {"ID": "id", "Titre": "title", "Specification releases": "releases",
-                             "Validation releases": "validation", "STDHL": "stdhl", "IADT": "iadt", "MOC": "moc",
+                             "Validation releases": "validation", "IADT": "iadt", "MOC": "moc",
                              "Délégation": "delegation"},
-    "headers_plan": {"Exigence": "exigence", "Méthode": "ignore", "IADT": "iadt", "MOC": "moc", "Délégation": "delegation"},
+    "headers_plan": {"Exigence": "exigence", "Méthode": "ignore", "IADT": "iadt", "MOC": "moc", "Délégation": "delegation",
+                     "Validation": "validation"},
     "headers_stdhl": {"Description du test": "check", "Résultat attendu": "check", "Exigences associées": "requirements"},
 }
 
@@ -152,13 +164,12 @@ HEADER_FIELDS = {
         "releases": "Specification releases (garde les exigences de la release de la base, rejette les autres ; "
                     "non enregistrée)",
         "validation": "Validation releases (à qualifier, qualifiée ou hors scope)",
-        "stdhl": "STDHL : colonne lue seulement si « Utiliser la colonne STDHL » est coché (Configuration > STDHL)",
         "iadt": "IADT",
         "moc": "MOC",
         "delegation": "Délégation",
     },
-    "headers_plan": {"exigence": "numéros d'exigence (le titre n'est pas stocké)", "iadt": "IADT", "moc": "MOC",
-                     "delegation": "Délégation"},
+    "headers_plan": {"exigence": "numéros d'exigence (le titre n'est pas lu)", "iadt": "IADT", "moc": "MOC",
+                     "delegation": "Délégation", "validation": "Validation (à qualifier, déjà qualifiée ou hors scope)"},
     "headers_stdhl": {"requirements": "Exigences associées"},
 }
 
@@ -167,17 +178,19 @@ HEADER_FIELDS = {
 # Une partie fait correspondre les noms écrits dans le fichier aux variables : dans une partie, un nom n'a pas besoin de
 # préfixe (« folder »).
 SECTIONS = {
-    "general": {n: n for n in ("release", "system_platform", "slogan", "server_port", "open_browser", "chart_max_parts",
-                               "chart_max_parts_platforms", "storage_dir")},
+    "general": {n: n for n in ("release", "system_platform", "process_plan", "process_stdhl", "skip_unknown_req",
+                               "slogan", "server_port",
+                               "open_browser", "chart_max_parts", "chart_max_parts_platforms", "storage_dir")},
     "requirements": {"folder": "requirements_folder",
                      **{n: n for n in ("requirement_regex", "requirements_tome_regex", "release_separator_regex",
-                                       "stdhl_separator_regex", "iadt_moc_rules",
+                                       "iadt_moc_rules",
                                        "headers_requirements")}},
     "plan": {"folder": "plan_folder",
              **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex",
-                               "headers_plan")}},
+                               "plan_validation_to_qualify", "plan_validation_qualified",
+                               "plan_validation_out_of_scope", "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
-              **{n: n for n in ("use_requirement_stdhl", "fiche_regex", "stdhl_name_regex", "headers_stdhl",
+              **{n: n for n in ("fiche_regex", "stdhl_name_regex", "headers_stdhl",
                                 "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                                 "stdhl2_release_regex", "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
@@ -193,7 +206,7 @@ TAG_VARIABLES = ("test_tag", "test_case_tag", "requirement_tag")
 
 # Variables qui contiennent une expression régulière.
 REGEX_VARIABLES = ("requirement_regex", "requirements_tome_regex", "fiche_regex", "stdhl_name_regex", "plan_tome_regex",
-                   "release_separator_regex", "stdhl_separator_regex", "code_separator_regex",
+                   "release_separator_regex", "code_separator_regex",
                    "delegation_separator_regex", "stdhl2_test_regex", "stdhl2_release_regex", "stdhl2_test_case_regex")
 
 # Variables gardées dans la base SQL (nexus_db.py) plutôt que dans le fichier JSON.
@@ -451,6 +464,11 @@ class Configuration:
         if "release" in clean and clean["release"] != self.get("release") and self.database is not None \
                 and self.database.scalar("SELECT COUNT(*) FROM files"):
             raise ValueError("la release ne peut changer que si aucun fichier n'est chargé : supprimer d'abord les fichiers")
+        # Le STDHL ne peut plus entrer dans le processus une fois des fiches d'essai chargées : elles n'ont pas été
+        # vérifiées par rapport à lui.
+        if clean.get("process_stdhl") and not self.get("process_stdhl") and self.database is not None \
+                and self.database.scalar("SELECT COUNT(*) FROM files WHERE source IN ('xml', 'traceability')"):
+            raise ValueError("le STDHL ne peut plus être retenu : des fiches d'essai sont déjà chargées")
         # Un code IADT ou MOC renommé garde ses règles.
         # Les règles IADT -> MOC sont écrites avec des codes : un code renommé l'est aussi dans les règles.
         moved = {kind: {o.upper(): n.upper() for o, n in (renames.get(kind) or {}).items()} for kind in ("iadt", "mocs")}
@@ -541,7 +559,7 @@ class Configuration:
         if name == "iadt_moc_rules":
             return self._check_rules(value)
         if kind in ("list", "dict"):
-            items = value.values() if kind == "dict" else value
+            items = value.mvalues() if kind == "dict" else value
             if any(isinstance(v, (list, dict)) for v in items):
                 raise ValueError(f"{name} : une liste ou un dictionnaire ne peut contenir que des valeurs simples")
         if kind == "list":
@@ -559,6 +577,9 @@ class Configuration:
             if duplicates:
                 raise ValueError(f"{'plateformes' if name == 'platforms' else 'tomes'} en double : {', '.join(duplicates)}")
         elif name in ("iadt", "mocs"):
+            # Toujours un dictionnaire ici (type vérifié plus haut) : le test le dit aussi au vérificateur de types.
+            if not isinstance(value, dict):
+                raise ValueError(f"{name} : dictionnaire attendu")
             codes = {}
             for code, label in value.items():
                 code = code.upper()
@@ -567,6 +588,8 @@ class Configuration:
                 codes[code] = label
             value = codes
         elif name in HEADER_FIELDS:
+            if not isinstance(value, dict):   # toujours un dictionnaire ici, comme ci-dessus
+                raise ValueError(f"{name} : dictionnaire attendu")
             fields = HEADER_FIELDS[name]
             # {texte d'en-tête: champ lu} ; une colonne sans champ lu est vérifiée (« check ») ou
             # seulement documentée (« ignore »).
