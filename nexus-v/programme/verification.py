@@ -411,20 +411,30 @@ class Verification:
         return charts
 
     def _result_charts(self, rows, fiches):
-        """Un camembert par plateforme qui couvre des exigences avec ses fiches : l'état de leurs tests (PASSED,
-        FAILED, NOT RUN), comme la couverture par plateforme (page Statistiques)."""
+        """Une barre par plateforme à laquelle des exigences à qualifier sont déléguées (page Statistiques, onglet
+        Résultats) : l'état des tests de ces exigences par les fiches de la plateforme, PASSED, FAILED, puis NOT RUN
+        (aucun test exécuté, ou pas encore couverte par une fiche de la plateforme). Toutes les plateformes y sont,
+        même celles dont aucune fiche n'est encore chargée."""
         if not fiches:
             return []
+        expected = [r for r in rows if r["covered_by"] is not None]   # à qualifier
         known = list(self.config.get("platforms"))
-        platforms = known + sorted({p for r in rows for p in r.get("results_by") or {}} - set(known), key=by_name)
+        platforms = known + sorted({p for r in expected for p in r["delegated_to"]} - set(known), key=by_name)
+        order = (PASSED, FAILED, NOT_RUN)
         charts = []
         for platform in platforms:
-            covered = [r for r in rows if platform in (r.get("results_by") or {})]
-            if covered:
-                charts.append(self._chart(
-                    f"Plateforme {platform}", f"Exigences couvertes par les fiches de {platform} : état de leurs tests.",
-                    [(label, [r for r in covered if r["results_by"][platform] == label])
-                     for label in (PASSED, FAILED, NOT_RUN)]))
+            delegated = [r for r in expected if platform in r["delegated_to"]]
+            if not delegated:
+                continue
+            state = lambda r: (r.get("results_by") or {}).get(platform, NOT_RUN)
+            chart = self._chart(
+                f"Plateforme {platform}", f"Exigences à qualifier déléguées à {platform} : état de leurs tests.",
+                [(PASSED, [r for r in delegated if state(r) == PASSED]),
+                 (FAILED, [r for r in delegated if state(r) == FAILED]),
+                 (NOT_RUN, [r for r in delegated if state(r) not in (PASSED, FAILED)])])
+            # Toujours dans l'ordre PASSED, FAILED, NOT RUN : les barres des plateformes se comparent.
+            chart["parts"].sort(key=lambda part: order.index(part["label"]))
+            charts.append(chart)
         return charts
 
     def _charts(self, rows, plans, fiches):

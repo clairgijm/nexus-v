@@ -155,7 +155,7 @@ class FichesDatabase:
         """Les règles de l'import sur les lignes lues dans un fichier de fiches XML : {"rows" : les lignes à
         enregistrer [(test, test case, [numéros], résultat)], "unknown" : numéros absents de la base (du `tome`),
         ignorés ; "untitled" : test cases sans titre, ignorés ; "ignored_tests" : tests qu'aucun STDHL ne demande,
-        leurs lignes ignorées ; "not_specified" : exigences dans aucun STDHL de leur tome (cela refuse le fichier) ;
+        leurs lignes ignorées ; "not_specified" : exigences citées par aucun STDHL (une information : leurs lignes sont chargées) ;
         "delegated" : exigences non déléguées à la `platform` du fichier (obligatoire), chargées sans leur résultat ;
         "ignored_cases" : test cases que le STDHL « unique » de leur test ne demande pas, ignorés}. Les règles du
         STDHL (tests et test cases demandés, exigence dans aucun STDHL) s'appliquent à une fiche de la plateforme de
@@ -224,15 +224,12 @@ class FichesDatabase:
     @staticmethod
     def refusal(found, config=None, platform=""):
         """Le message qui refuse un fichier de fiches de `platform` qui cite des numéros qui ne sont pas des exigences
-        de la base (sauf skip_unknown_req pour une autre plateforme que celle de niveau système), ou dont des
-        exigences ne sont dans aucun STDHL ; None sinon."""
+        de la base (sauf skip_unknown_req pour une autre plateforme que celle de niveau système) ; None sinon. Une
+        exigence citée par aucun STDHL ne refuse pas le fichier (une information)."""
         from file_database import FileDatabase
         parts = []
         if found["unknown"] and not FileDatabase.skip_unknown(config, platform):
             parts.append(FileDatabase.unknown_refusal(found["unknown"]).removesuffix(" : fichier non chargé"))
-        if found["not_specified"]:
-            parts.append(f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son tome : "
-                         + ", ".join(found["not_specified"]) + " (les spécifier d'abord dans le STDHL)")
         return " ; ".join(parts) + " : fichier non chargé" if parts else None
 
     @staticmethod
@@ -319,14 +316,12 @@ class FichesDatabase:
                     data = self._readable(files.content(record["id"]) or b"", config)
                 except ValueError:
                     continue
-                # Relu : les mêmes règles, une exigence désormais dans aucun STDHL laissée de côté au lieu de refuser.
+                # Relu : les mêmes règles (une exigence citée par aucun STDHL reste chargée).
                 found = self.screen(data, record["tome"], config, self.sql.scalar(
                     "SELECT l.name FROM files f JOIN list_plateformes l ON l.id = f.platform_id WHERE f.id = ?",
                     (record["id"],)) or "")
-                blocked = set(found["not_specified"])
-                rows = [(t, c, [i for i in ids if i not in blocked], r) for t, c, ids, r in found["rows"]]
                 with self.sql.transaction() as db:
-                    self._write(db, record["id"], data, [x for x in rows if x[2]])
+                    self._write(db, record["id"], data, [x for x in found["rows"] if x[2]])
                 done.append(record["name"])
         return done
 

@@ -45,7 +45,6 @@
   },
   "plan": {
     "folder": "plans",
-    "plan_tome_regex": "(?i)_PA_(.+?)_",
     "code_separator_regex": "[,;+\\s]+",
     "delegation_separator_regex": "[,;/+\\n]+",
     "plan_validation_to_qualify": "à qualifier",
@@ -63,7 +62,6 @@
   "stdhl": {
     "folder": "stdhl",
     "fiche_regex": "^\\s*(?:[\\d.]+\\s+)?(SYS_[A-Za-z0-9-]+_[A-Za-z0-9_-]+?_\\d+)(?![A-Za-z0-9_])",
-    "stdhl_name_regex": "(?i)STDHL_(.+?)_rev",
     "headers_stdhl": {
       "Description du test": "check",
       "Résultat attendu": "check",
@@ -71,8 +69,6 @@
     },
     "stdhl2_test_regex": "^\\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\\d+)\\s*:",
     "stdhl2_requirements_label": "Exigences associées",
-    "stdhl2_release_label": "Applicabilité",
-    "stdhl2_release_regex": "(?i)release\\s+(\\S+)",
     "stdhl2_test_case_regex": "(?i)^\\s*TEST CASE\\s*#\\s*\\d+"
   },
   "fiches": {

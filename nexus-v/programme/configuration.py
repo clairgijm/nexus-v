@@ -33,7 +33,6 @@ Variables :
   stdhl2_*                        STDHL de format 2 (un document, sans tableau STDHL) :
     stdhl2_test_regex             titre d'un test, groupe 1 = nom du test (« TEST-001 : ZOULOU »)
     stdhl2_requirements_label     libellé qui ouvre la liste « Exigences associées » d'un test (la liste la termine)
-    stdhl2_release_label          libellé de la release d'un test, lue par stdhl2_release_regex (groupe 1)
     stdhl2_test_case_regex        début d'un test case : les exigences de ses phases sont la couverture du test
   release_separator_regex         séparateur des releases dans une cellule d'un fichier d'exigences
   code_separator_regex            séparateur des codes IADT et MOC dans une cellule d'un plan
@@ -106,8 +105,6 @@ DEFAULT_CONFIG = {
     # ignorés).
     "stdhl2_test_regex": r"^\s*([A-Za-z][A-Za-z0-9_-]*?[_-]\d+)\s*:",
     "stdhl2_requirements_label": "Exigences associées",
-    "stdhl2_release_label": "Applicabilité",
-    "stdhl2_release_regex": r"(?i)release\s+(\S+)",
     "stdhl2_test_case_regex": r"(?i)^\s*TEST CASE\s*#\s*\d+",
     # Dossier des fichiers importés (relatif au dossier de NEXUS-V) et son sous-dossier pour chaque type de fichier.
     "storage_dir": ".",
@@ -195,8 +192,8 @@ SECTIONS = {
                                "plan_validation_out_of_scope", "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
               **{n: n for n in ("fiche_regex", "headers_stdhl",
-                                "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
-                                "stdhl2_release_regex", "stdhl2_test_case_regex")}},
+                                "stdhl2_test_regex", "stdhl2_requirements_label",
+                                "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
     "traceability": {"folder": "traceability_folder"},
 }
@@ -211,7 +208,7 @@ TAG_VARIABLES = ("test_tag", "test_case_tag", "requirement_tag")
 # Variables qui contiennent une expression régulière.
 REGEX_VARIABLES = ("requirement_regex", "requirements_tome_regex", "fiche_regex",
                    "release_separator_regex", "code_separator_regex",
-                   "delegation_separator_regex", "stdhl2_test_regex", "stdhl2_release_regex", "stdhl2_test_case_regex")
+                   "delegation_separator_regex", "stdhl2_test_regex", "stdhl2_test_case_regex")
 
 # Variables gardées dans la base SQL (nexus_db.py) plutôt que dans le fichier JSON.
 REFERENTIALS = ("tomes", "platforms", "iadt", "mocs")

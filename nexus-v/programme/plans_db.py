@@ -325,6 +325,10 @@ class PlansDatabase:
         (FileDatabase `files`) et remplace les autres plans du tome ; rien d'autre n'est gardé."""
         files.check_requirements(requirements)
         data = self.readable(content, config)
+        # Un tableau de plan incomplet (une colonne attendue manque à son en-tête) refuse le plan.
+        if data["skipped"]:
+            raise ValueError("tableau de plan incomplet : " + " ; ".join(data["skipped"])
+                             + " — compléter ses en-têtes : plan non chargé")
         entries = self.entries(data["rows"])
         tome_of = self.base_tomes()
         tome = self.cited_tome(entries, tome_of)

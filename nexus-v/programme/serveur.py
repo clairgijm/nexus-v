@@ -671,8 +671,7 @@ class Handler(SimpleHTTPRequestHandler):
             # Les valeurs avant la mise à jour, pour savoir ensuite ce qui a changé.
             folders = {name: configuration.get(name) for name in FOLDER_VARIABLES}
             settings = ("requirement_regex", "fiche_regex", "headers_stdhl", "release",
-                        "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
-                        "stdhl2_release_regex", "stdhl2_test_case_regex")
+                        "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_test_case_regex")
             tags = ("requirement_regex", "test_tag", "test_case_tag", "requirement_tag")
             before = {name: configuration.get(name) for name in settings + tags}
             result = configuration.update(json.loads(self.read_body() or b"{}"))

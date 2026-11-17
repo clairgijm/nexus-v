@@ -370,9 +370,9 @@ class FileCheck:
             entries = PlansDatabase.entries(data["rows"])
             contents.append((name, entries))
             found["facts"].append(f"{plural(len(entries), 'exigence')} lue{'s' if len(entries) > 1 else ''} dans le plan")
-            for skipped in data["skipped"]:
-                p.append(problem(CHECK, f"tableau mis de côté : {skipped}",
-                                 "compléter les en-têtes du tableau s'il fait partie du plan"))
+            for skipped in data["skipped"]:   # un tableau de plan incomplet refuse le plan, comme à l'import
+                p.append(problem(BLOCKING, f"tableau de plan incomplet : {skipped}",
+                                 "compléter les en-têtes du tableau (ou le retirer s'il ne fait pas partie du plan)"))
             # Le tome du plan : celui de ses exigences dans la base (le plus cité), comme à l'import.
             touched = {}
             for e in entries:
@@ -444,8 +444,8 @@ class FileCheck:
 
     @staticmethod
     def _between_plans(results, contents):
-        """Problèmes entre fichiers de plan : même fichier deux fois, un tome concerné par plusieurs plans (le dernier
-        importé remplacerait les autres)."""
+        """Problèmes entre fichiers de plan : même fichier deux fois ; un tome concerné par plusieurs plans de la même
+        sélection est Bloquant pour chacun de ces plans (aucun n'est chargé, comme à l'import)."""
         found = []
         names = [n for n, _ in contents]
         for n in sorted({n for n in names if names.count(n) > 1}):
@@ -456,8 +456,11 @@ class FileCheck:
                 by_tome.setdefault(r["tome"], []).append(r["name"])
         for t, files in sorted(by_tome.items()):
             if len(files) > 1:
-                found.append(problem(CHECK, f"tome {t} concerné par {len(files)} plans : {', '.join(files)}",
-                                     "un plan remplace celui de son tome : seul le dernier importé resterait"))
+                for r in results:
+                    if r["name"] in files:
+                        r["problems"].insert(0, problem(BLOCKING, f"tome {t} concerné par {len(files)} plans de la "
+                                                                  f"même sélection : {', '.join(files)}",
+                                                        "n'en charger qu'un : un tome a un seul plan"))
         return found
 
     # ------------------------------------------------------------------ #
@@ -497,9 +500,6 @@ class FileCheck:
                                  "Description du test, Résultat attendu et Exigences associées ; format unique : des "
                                  "titres de test « <nom>_<n°> : <titre> » (Configuration > STDHL)"))
                 continue
-            for refusal in data["refusals"]:
-                p.append(problem(BLOCKING, refusal, f"corriger l'applicabilité du test (RELEASE "
-                                                    f"{self.config.get('release')}) : le fichier n'est pas importable"))
             for issue in data["issues"]:
                 p.append(problem(CHECK, issue, "corriger le document"))
             # Format « unique » : les exigences associées d'un test doivent être celles de ses test cases ; un écart
@@ -526,6 +526,7 @@ class FileCheck:
                 p.append(problem(BLOCKING, f"{plural(len(unknown), 'exigence inconnue', 'exigences inconnues')} de la "
                                            f"base : " + listed(unknown) + " — le STDHL serait refusé",
                                  "corriger les numéros, ou importer d'abord ces exigences"))
+            p.extend(self._not_expected([i for i, _ in pairs], "ce STDHL"))
             elsewhere = list(dict.fromkeys(i for i, _ in pairs if i in other))
             if elsewhere:
                 p.append(problem(CHECK, f"{plural(len(elsewhere), 'exigence')} déléguée"
@@ -601,8 +602,9 @@ class FileCheck:
         between = self._between_stdhl(contents)
         return self._result("stdhl", results, between, self.requirements, self.plans,
                             "le fichier s'ajoute aux STDHL de la base, sans tome ; un fichier STDHL de même nom est "
-                            "remplacé ; une exigence inconnue de la base refuse le fichier ; format unique : la couverture d'un test est l'ensemble des exigences de ses test "
-                              "cases", stdhl=StdhlInMemory(docs))
+                            "remplacé ; une exigence inconnue de la base refuse le fichier ; format unique : la "
+                            "couverture d'un test est l'ensemble des exigences de ses test cases",
+                            stdhl=StdhlInMemory(docs))
 
     @staticmethod
     def _between_stdhl(contents):
@@ -627,6 +629,22 @@ class FileCheck:
     # ------------------------------------------------------------------ #
     # Fiches d'essai
     # ------------------------------------------------------------------ #
+
+    def _not_expected(self, ids, kind):
+        """Informations sur les exigences qualifiées ou hors scope (champ validation) citées par un STDHL ou
+        des fiches (`kind`) : elles n'y sont pas attendues. Un problème par sorte, rien quand il n'y en a pas."""
+        validation = {r["id"]: r.get("validation") for r in self.requirements.requirements() if not r["deleted"]}
+        found = []
+        for state, label in (("qualified", "qualifiée"), ("out_of_scope", "hors scope")):
+            group = [i for i in dict.fromkeys(ids) if validation.get(i) == state]
+            if group:
+                s_ = "s" if len(group) > 1 else ""
+                agreed = label + (s_ if state == "qualified" else "")   # « hors scope » ne s'accorde pas
+                found.append(problem(INFO, f"{plural(len(group), 'exigence')} {agreed} citée{s_} par {kind} : "
+                                           + listed(group),
+                                     f"une exigence {label} n'est attendue ni dans les STDHL ni dans les fiches : "
+                                     "la retirer, ou corriger sa validation dans le fichier d'exigences"))
+        return found
 
     def check_fiches(self, files):
         """Vérifie des fiches d'essai XML [(nom, octets, plateforme)], formats « balises » et « campagne », chacune
@@ -654,24 +672,28 @@ class FileCheck:
                                 "corriger le fichier (XML bien formé, balises ou format campagne)")], "facts": []})
                 continue
             found = self.fiches.screen(data, None, self.config, platform)
-            if found["not_specified"]:
-                p.append(problem(BLOCKING, f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son "
-                                           "tome : " + listed(found["not_specified"]),
-                                 "les spécifier d'abord dans le STDHL de leur tome, ou les retirer de la fiche"))
+            # Ignorés avec skip_unknown_req, seulement pour une autre plateforme que celle de niveau système.
+            skip = FileDatabase.skip_unknown(self.config, platform)
+            if found["not_specified"]:   # une information : leurs lignes sont chargées
+                s_ = "s" if len(found["not_specified"]) > 1 else ""
+                p.append(problem(INFO, f"{plural(len(found['not_specified']), 'exigence')} citée{s_} par aucun STDHL, "
+                                       f"chargée{s_} : " + listed(found["not_specified"])))
             if found["unknown"]:
-                # Ignorés avec skip_unknown_req, seulement pour une autre plateforme que celle de niveau système.
-                skip = FileDatabase.skip_unknown(self.config, platform)
                 p.append(problem(CHECK if skip else BLOCKING,
                                  f"{plural(len(found['unknown']), 'numéro')} absent"
                                  f"{'s' if len(found['unknown']) > 1 else ''} de la base des exigences : "
                                  + listed(found["unknown"]) + (" — les données liées à ces exigences seront ignorées"
                                                                if skip else " — la fiche serait refusée"),
                                  "corriger les numéros, ou importer d'abord ces exigences"))
+            p.extend(self._not_expected([i for _, _, ids, _ in found["rows"] for i in ids], "ces fiches"))
             if found["delegated"]:
-                p.append(problem(INFO, f"{plural(len(found['delegated']), 'exigence')} déléguée"
-                                       f"{'s' if len(found['delegated']) > 1 else ''} à une autre plateforme que "
-                                       f"{platform} : chargée{'s' if len(found['delegated']) > 1 else ''}, résultat non "
-                                       "conservé : " + listed(found["delegated"])))
+                # Une exigence n'est couverte que par une fiche de la plateforme à laquelle elle est déléguée.
+                s_ = "s" if len(found["delegated"]) > 1 else ""
+                p.append(problem(INFO, f"{plural(len(found['delegated']), 'exigence')} déléguée{s_} à une autre "
+                                       f"plateforme que {platform} : chargée{s_} sans résultat, elle{s_} ne compte"
+                                       f"{'nt' if s_ else ''} pas pour la couverture : " + listed(found["delegated"]),
+                                 "une exigence n'est couverte que par une fiche de la plateforme à laquelle elle est "
+                                 "déléguée (fichier d'exigences)"))
             if found["ignored_tests"]:
                 p.append(problem(INFO, f"{plural(len(found['ignored_tests']), 'test')} qu'aucun STDHL ne demande, "
                                        "ignoré" + ("s" if len(found["ignored_tests"]) > 1 else "") + " : "
@@ -699,8 +721,7 @@ class FileCheck:
                 if not_run:
                     p.append(problem(INFO, f"{plural(len(not_run), 'test case')} non exécuté"
                                            f"{'s' if len(not_run) > 1 else ''} : " + listed(not_run)))
-            kept = unique(i for _, _, ids, _ in found["rows"] for i in ids
-                          if i not in found["not_specified"])
+            kept = unique(i for _, _, ids, _ in found["rows"] for i in ids)
             touched: list[str] = sorted({tome_of[i] for i in kept if i in tome_of})
             new = [i for i in kept if i not in covered_before]
             if new:
@@ -712,7 +733,7 @@ class FileCheck:
                      plural(len(cases), "test case"), plural(len(kept), "exigence chargée", "exigences chargées")]
             # Les fiches après ce fichier : un fichier de même nom lui laisse la place ; refusé, la base reste telle
             # qu'elle était.
-            blocked = bool(found["not_specified"])
+            blocked = bool(found["unknown"]) and not skip   # refusé : un numéro inconnu de la base
             if not blocked:
                 docs = [d for d in docs if d["name"] != name]
                 rows = [{"test_id": 0, "test": t, "test_case": c, "result": r, "requirements": list(ids)}

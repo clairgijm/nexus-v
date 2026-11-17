@@ -639,7 +639,7 @@
       <p class="hint">Exigences à qualifier de chaque tome, toutes plateformes : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, NOT RUN si aucun n'est exécuté ou si aucune fiche de leur plateforme ne les couvre encore. Un clic sur une part liste ses exigences.</p>
       <div class="deleg" id="result-tomes"></div>
       <h3>État des tests, par plateforme</h3>
-      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, NOT RUN sinon (les fiches Excel des autres plateformes n'ont pas de résultat). Un clic sur une part liste ses exigences.</p>
+      <p class="hint">Exigences à qualifier déléguées à chaque plateforme, toutes les plateformes : PASSED si tous leurs tests par les fiches de la plateforme sont passés, FAILED si l'un a échoué, NOT RUN si aucun n'est exécuté ou si aucune fiche de la plateforme ne les couvre encore (les fiches Excel des autres plateformes n'ont pas de résultat). Un clic sur une part liste ses exigences.</p>
       <div class="deleg" id="result-charts"></div>
       </div>
     </section>
@@ -827,10 +827,6 @@
           <input type="text" class="mono" data-var="stdhl2_test_regex" spellcheck="false"></label>
         <label class="wide">Libellé des exigences associées
           <input type="text" data-var="stdhl2_requirements_label" spellcheck="false"></label>
-        <label class="wide">Libellé de la release d'un test
-          <input type="text" data-var="stdhl2_release_label" spellcheck="false"></label>
-        <label class="wide">Release lue après ce libellé (groupe 1)
-          <input type="text" class="mono" data-var="stdhl2_release_regex" spellcheck="false"></label>
         <label class="wide">Début d'un test case
           <input type="text" class="mono" data-var="stdhl2_test_case_regex" spellcheck="false"></label>
       </div>
@@ -2526,7 +2522,6 @@ async function loadFiles(slot, files) {
   const card = document.querySelector(`.drop[data-slot="${CARD_OF[slot] ?? slot}"]`);
   card.querySelector(".name").textContent = "Lecture…";
   const errors = [];
-  const planFiles = [];   // plans d'acceptation chargés
   // Plans, STDHL et fiches appartiennent à un tome : les exigences doivent être importées d'abord.
   if (ATTACHED.has(slot) && !Object.keys(state.reqDb.tomes).length) {
     state.errors[slot] = "importer d'abord les exigences";
@@ -2534,9 +2529,26 @@ async function loadFiles(slot, files) {
   }
   let platformChoice = null;   // plateforme du fichier de fiches précédent, proposée à nouveau pour le suivant
   const release = state.config.release;   // tout fichier est chargé dans la release de la base
-  const planTomes = [];    // tomes des plans chargés, vérifiés à la fin
-  const planSkipped = [];  // tableaux de ces plans laissés de côté (en-tête incomplet), montrés avec la vérification
+  // Plans : un tome concerné par plusieurs plans de la même sélection les fait tous refuser, comme dans la
+  // vérification avant import (le serveur donne le tome de chaque plan : celui des exigences qu'il cite).
+  const refusedPlans = new Set();
+  if (slot === "plan" && files.length > 1) {
+    const byTome = {};
+    for (const f of files) {
+      let tome = "";
+      try { tome = (await store.analyseFile(slot, f, await f.arrayBuffer())).tome_name || ""; }
+      catch { /* illisible : refusé plus bas, à son chargement */ }
+      if (tome) (byTome[tome] ??= []).push(f);
+    }
+    for (const [tome, same] of Object.entries(byTome)) {
+      if (same.length < 2) continue;
+      same.forEach(f => refusedPlans.add(f));
+      errors.push(`tome ${tome} concerné par ${same.length} plans (${same.map(f => f.name).join(", ")}) : aucun n'est `
+                  + "chargé, n'en choisir qu'un");
+    }
+  }
   for (const file of files) {
+    if (refusedPlans.has(file)) continue;
     try {
       const buffer = await file.arrayBuffer();
       if (slot === "requirements") {
@@ -2610,11 +2622,6 @@ async function loadFiles(slot, files) {
                                                                 ...(decisions ? { decisions: JSON.stringify(decisions) } : {}) });
       setLastLoad(slot, `${slot === "plan" ? "vérifié" : "import"} ${result.tome || "tous les tomes"}`,
                   result.report ? `api/files/${result.file_id}/rapport` : null, false, file.name);
-      if (slot === "plan") {
-        planFiles.push(file.name);
-        planTomes.push(result.tome);
-        result.skipped.forEach(x => planSkipped.push(`${file.name} — ${x}`));
-      }
     } catch (e) {
       // Rejeté par le serveur : la boîte le dit, avec le rapport de rejet de ce type de fichier ; une autre erreur
       // (serveur injoignable) reste un message.
@@ -2785,8 +2792,8 @@ const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str",
                       requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
                       requirement_tag: "str", server_port: "int", chart_max_parts: "int", chart_max_parts_platforms: "int",
                       open_browser: "bool", system_platform: "str", stdhl2_test_regex: "str",
-                      stdhl2_requirements_label: "str", stdhl2_release_label: "str",
-                      stdhl2_release_regex: "str", stdhl2_test_case_regex: "str", plan_validation_to_qualify: "str",
+                      stdhl2_requirements_label: "str",
+                      stdhl2_test_case_regex: "str", plan_validation_to_qualify: "str",
                       plan_validation_qualified: "str", plan_validation_out_of_scope: "str", process_plan: "bool",
                       process_stdhl: "bool", skip_unknown_req: "bool",
                       show_moc_chart: "bool" };

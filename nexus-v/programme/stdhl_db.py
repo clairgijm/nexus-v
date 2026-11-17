@@ -123,18 +123,19 @@ class StdhlDatabase:
             single = cls.read_single(content, file_name, config)
             if single["tables"]:
                 return single
-        return {"rows": rows, "tables": tables, "skipped": skipped, "issues": issues, "format": FORMATS[1], "gaps": [], "refusals": []}
+        return {"rows": rows, "tables": tables, "skipped": skipped, "issues": issues, "format": FORMATS[1], "gaps": []}
 
     @classmethod
     def _readable(cls, content, file_name, config=None) -> dict[str, Any]:
         """Contenu d'un STDHL chargeable : refusé (ValueError) quand aucun tableau n'a un en-tête correct et qu'aucun
-        test du format 2 n'est trouvé, ou quand un test du format 2 est d'une autre release que la base. Des tableaux
-        sans aucun numéro d'exigence reconnu sont une anomalie du document, pas un refus."""
+        test du format 2 n'est trouvé, ou quand un test du format 2 a une exigence dans une seule de ses deux parties
+        (liste et test cases). Des tableaux sans aucun numéro d'exigence reconnu sont une anomalie du document, pas un
+        refus. Un STDHL s'applique à la release de la base : l'applicabilité de ses tests n'est pas lue."""
         data = cls.read_docx(content, file_name, config)
         if not data["tables"]:
             raise ValueError("aucun tableau STDHL valide (format par tome) ni test du format unique trouvé (voir "
                              "Configuration > STDHL) : fichier non chargé")
-        refusals = data["refusals"] + [
+        refusals = [
             f"test {g['test']} : {g['requirement']} " + ("citée dans les test cases mais absente des exigences associées"
                                                          if g["side"] == "test case" else
                                                          "dans les exigences associées mais citée dans aucun test case")
@@ -148,21 +149,13 @@ class StdhlDatabase:
         """Un STDHL de format 2 (« unique ») sous la forme de read_docx : une ligne par test et exigence, "tables"
         étant le nombre de tests. La couverture d'un test est l'ensemble des exigences de ses test cases ; sa liste «
         Exigences associées » doit contenir exactement celles-là : une exigence dans une seule des deux parties
-        refuse le fichier ("gaps" : [{test, requirement, side « liste » ou « test case »}]), comme une release d'un
-        test qui n'est pas celle de la base ("refusals"). Un test sans release, un nom de test répété, un test sans
-        exigence sont des anomalies du document ("issues")."""
-        get = config.get if config is not None else DEFAULT_CONFIG.get
+        refuse le fichier ("gaps" : [{test, requirement, side « liste » ou « test case »}]). Un nom de test répété, un
+        test sans exigence sont des anomalies du document ("issues"). Le STDHL s'applique à la release de la base."""
         data = cls.read_text_format(content, file_name, config)
-        release = (get("release") or "").upper()
-        tests, rows, issues, refusals, gaps = data["tests"], [], [], [], []
+        tests, rows, issues, gaps = data["tests"], [], [], []
         names = [t["name"] for t in tests]
         issues += [f"test {n} présent {names.count(n)} fois" for n in sorted({n for n in names if names.count(n) > 1})]
         for t in tests:
-            if t["releases"] is None:
-                issues.append(f"test {t['name']} : applicabilité absente")
-            elif release and release not in t["releases"]:
-                refusals.append(f"test {t['name']} : applicabilité {', '.join(t['releases']) or 'illisible'}, la base "
-                                f"est en release {release}")
             covered = unique(i for c in t["cases"] for i in c["requirements"])
             listed = t["listed"]
             if not covered and not listed:
@@ -171,7 +164,7 @@ class StdhlDatabase:
             gaps += [{"test": t["name"], "requirement": i, "side": "liste"} for i in listed if i not in covered]
             rows += [{"fiche": t["name"], "requirements": [i]} for i in covered]
         return {"rows": rows, "tables": len(tests), "skipped": [], "issues": issues,
-                "format": FORMATS[2], "gaps": gaps, "refusals": refusals,
+                "format": FORMATS[2], "gaps": gaps,
                 "cases": sum(len(t["cases"]) for t in tests),
                 # Les test cases demandés, par leur nom complet : une fiche d'un autre test case est ignorée.
                 "test_cases": list(dict.fromkeys((t["name"], c["name"]) for t in tests for c in t["cases"]))}
@@ -181,17 +174,15 @@ class StdhlDatabase:
         """Lit un STDHL de format 2 (sans tableau STDHL) : ses tests, tels qu'ils sont écrits (voir read_single). Un
         test est un titre « <nom> : <titre> » (stdhl2_test_regex ; une ligne qui commence par un numéro d'exigence
         n'est jamais un test ; la table des matières, styles TM* / TOC*, est laissée de côté). Viennent ensuite des
-        parties étiquetées : sa release (stdhl2_release_label, lue par stdhl2_release_regex), la liste de ses
-        exigences associées (stdhl2_requirements_label, puis les éléments de liste qui suivent : la fin de la liste
-        la termine), puis ses test cases (stdhl2_test_case_regex), dont les phases citent des exigences. Renvoie
-        {"tests": [{name, releases (None quand elle est absente), listed: [numéros], cases: [{name,
-        requirements}]}]}."""
+        parties étiquetées : la liste de ses exigences associées (stdhl2_requirements_label, puis les éléments de
+        liste qui suivent : la fin de la liste la termine), puis ses test cases (stdhl2_test_case_regex), dont les
+        phases citent des exigences. Renvoie {"tests": [{name, listed: [numéros], cases: [{name, requirements}]}]}.
+        L'applicabilité d'un test n'est pas lue : le STDHL s'applique à la release de la base."""
         _, regex = cls._settings(config)
         get = config.get if config is not None else DEFAULT_CONFIG.get
         test_regex = re.compile(get("stdhl2_test_regex"))
         case_regex = re.compile(get("stdhl2_test_case_regex"))
-        release_regex = re.compile(get("stdhl2_release_regex"))
-        requirements_label, release_label = fold(get("stdhl2_requirements_label")), fold(get("stdhl2_release_label"))
+        requirements_label = fold(get("stdhl2_requirements_label"))
         tests, part = [], None   # part : "list" dans les exigences associées, "case" dans un test case, None ailleurs
         for style, text, item in WordDocument(content).paragraphs():
             if not text.strip() or style.upper().startswith(("TM", "TOC")):
@@ -200,7 +191,7 @@ class StdhlDatabase:
                 part = None   # la fin de la liste termine les exigences associées
             starts_with_number = (m := regex.search(text)) is not None and not text[:m.start()].strip()
             if not starts_with_number and (t := test_regex.search(text)):
-                tests.append({"name": found(t), "releases": None, "listed": [], "cases": []})
+                tests.append({"name": found(t), "listed": [], "cases": []})
                 part = None
                 continue
             if not tests:
@@ -208,10 +199,7 @@ class StdhlDatabase:
             test = tests[-1]
             label, _, value = text.partition(":")
             label = fold(label)
-            if label == release_label:
-                test["releases"] = [r.upper() for r in release_regex.findall(value)]
-                part = None
-            elif label == requirements_label:
+            if label == requirements_label:
                 part = "list"
                 test["listed"] += regex.findall(value)
             elif case_regex.search(text):
