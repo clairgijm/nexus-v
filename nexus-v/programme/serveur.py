@@ -22,6 +22,7 @@ import webbrowser
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 from nexus_db import random_platform_color
@@ -36,7 +37,7 @@ try:
     from requirements_db import RequirementsDatabase
     from stdhl_db import StdhlDatabase
     from traceability_db import TraceabilityDatabase
-    from verification import TOME_STATES, Verification
+    from verification import Verification
 except ModuleNotFoundError as missing:
     # En général, le serveur a été lancé avec un Python qui n'est pas celui du projet (.venv).
     sys.exit(f"Module Python manquant : {missing.name}\n"
@@ -278,14 +279,11 @@ class Handler(SimpleHTTPRequestHandler):
             selected = []   # une release pour la base : tout est vérifié
             if path == "/api/verification":
                 result = verification.run(selected)
-                # L'état d'avancement de chaque tome suit la vérification : enregistré dans list_tomes, puis donné à la
-                # page avec son libellé (tous les tomes, ceux sans exigence compris).
-                sql.set_tome_states(verification.tome_states(result))
-                result["tome_states"] = [{"tome": name, "state": state, "label": TOME_STATES[state]}
-                                         for name, state in sql.tome_states()]
-                # Légende des couleurs, dans l'ordre d'avancement : seulement les étapes du processus retenu.
-                skipped = {"plan": not configuration.get("process_plan"), "stdhl": not configuration.get("process_stdhl")}
-                result["tome_state_labels"] = {k: v for k, v in TOME_STATES.items() if not skipped.get(k)}
+                # Les étapes validées de chaque tome, calculées à chaque vérification : tous les tomes du référentiel,
+                # dans son ordre, ceux sans exigence compris (has_requirements faux).
+                steps = verification.tome_steps(result)
+                result["tome_states"] = [{"tome": name, "has_requirements": name in steps, "done": steps.get(name, [])}
+                                         for name in configuration.get("tomes")]
                 self.send_json(result)
                 return
             try:
@@ -427,7 +425,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 content = self.read_body()
                 # Les choix de l'utilisateur, en JSON, viennent avant le fichier.
-                # Le corps est le JSON des choix (choices_size octets : lignes, versions gardées, valeurs STDHL), suivi
+                # Le corps est le JSON des choix (choices_size octets : lignes et versions gardées), suivi
                 # des octets du fichier Excel.
                 size = int(query.get("choices_size") or 0)
                 choices = json.loads(content[:size]) if size else None
@@ -486,16 +484,6 @@ class Handler(SimpleHTTPRequestHandler):
                 if step and not configuration.get(step[0]):
                     raise ValueError(f"{step[1]} n'est pas retenu dans le processus de la release "
                                      "(Configuration > Paramètres généraux)")
-                # On ne passe pas à l'étape suivante tant que la précédente n'est pas complète pour les tomes du
-                # fichier (tous les tomes pour un fichier sans tome) : vérifié au chargement, et à l'analyse quand le
-                # tome est choisi.
-                if m[1] in ("stdhl", "fiches", "traceability") and (m[2] == "load" or query.get("tome")):
-                    kind = "stdhl" if m[1] == "stdhl" else "fiches"
-                    tome = (query.get("tome") or "").strip()
-                    late = Verification.late_tomes(kind, verification.tome_states(verification.run(())),
-                                                   [tome] if tome else None, configuration)
-                    if late:
-                        raise ValueError(Verification.late_text(kind, late, configuration))
                 if m[2] == "analyse":
                     if base is plans:   # avec tome et releases : inconnues et exigences d'un autre plan
                         self.send_json(plans.analyse(content, configuration, (query.get("tome") or "").strip(),
@@ -588,7 +576,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json({"ok": True})
 
     @staticmethod
-    def import_report(kind, name, content, platform="") -> str | None:
+    def import_report(kind, name, content, platform="") -> Optional[str]:
         """Rapport HTML de l'import d'un fichier, le même que la vérification avant import, calculé sur la base telle
         qu'elle est avant l'import ; None pour un fichier sans vérification (traçabilité Excel) ou quand le calcul
         échoue (l'import, lui, se fait quand même)."""
@@ -621,13 +609,14 @@ class Handler(SimpleHTTPRequestHandler):
             report = (f'<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rapport d\'import — '
                       f'chargement rejeté</title></head><body style="font-family: sans-serif; margin: 24px">'
                       f'<h1>Rapport d\'import — chargement rejeté</h1><p>{html.escape(name)}</p>{reason}</body></html>')
-        # Le tome du fichier : celui choisi, sinon celui que nomme le nom d'un fichier d'exigences ou d'un plan ; le
-        # rejet est gardé pour ce tome (son chevron passe au rouge), et comme dernier rejet du type (sa boîte).
-        tome = (query.get("tome") or "").strip()
+        # Le tome du fichier : celui choisi pour des exigences (sinon celui que nomme le nom du fichier), celui des
+        # exigences citées pour un plan ; le rejet est gardé pour ce tome (son chevron passe au rouge), et comme
+        # dernier rejet du type (sa boîte).
+        tome = (query.get("tome") or "").strip() if kind == "requirements" else ""
         if not tome and kind == "requirements":
             tome = requirements.tome_from_name(name, configuration) or ""
-        elif not tome and kind == "plans":
-            tome = plans.tome_from_name(name, configuration)
+        elif kind == "plans":
+            tome = plans.tome_of_content(content, configuration) if content else ""
         if not tome:
             # Rejeté avant le choix du tome (fichier illisible, par exemple) : le tome dont le nom figure dans le nom du
             # fichier, comme mot entier (fct1 ne se confond pas avec fct10).
@@ -681,7 +670,7 @@ class Handler(SimpleHTTPRequestHandler):
             # Le contenu des STDHL dépend de ces réglages : quand ils changent, les fichiers enregistrés sont relus.
             # Les valeurs avant la mise à jour, pour savoir ensuite ce qui a changé.
             folders = {name: configuration.get(name) for name in FOLDER_VARIABLES}
-            settings = ("requirement_regex", "fiche_regex", "stdhl_name_regex", "headers_stdhl", "release",
+            settings = ("requirement_regex", "fiche_regex", "headers_stdhl", "release",
                         "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                         "stdhl2_release_regex", "stdhl2_test_case_regex")
             tags = ("requirement_regex", "test_tag", "test_case_tag", "requirement_tag")

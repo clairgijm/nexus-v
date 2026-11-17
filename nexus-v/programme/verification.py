@@ -47,23 +47,21 @@ STATUS_LABELS = {OK: "OK", MISSING: "MANQUANT", NO_DOC: "DOC NON CHARGÉ", ERROR
                  QUALIFIED: "QUALIFIÉE", OUT_OF_SCOPE: "HORS SCOPE", OTHER: "AUTRE PLATEFORME",
                  TEST_MISSING: "TEST MANQUANT", STALE: "PLAN À RECHARGER"}
 
-# Camembert de couverture des Fiches d'essai, par rapport à la délégation des exigences : une part par plateforme (exigences
-# qui lui sont déléguées et couvertes par ses fiches), et les exigences non couvertes par leur plateforme de délégation.
-# Libellés courts (les aides des camemberts les expliquent).
-NOT_COVERED, NO_PLAN = "Non couvert", "Absent"
-NEUTRAL = (NO_PLAN, NOT_COVERED)   # parts « rien trouvé » des camemberts
-# Couleurs réservées (styles de la page), les mêmes dans tous les camemberts : rouge vif pour non couvert et absent des
-# plans ; vert pour la part couverte d'un camembert d'une plateforme (page Fiches d'Essai). Aucune plateforme ne les
-# prend.
+# Camembert de couverture des Fiches d'essai, par rapport à la délégation des exigences : les exigences couvertes par
+# les fiches de leur plateforme de délégation, et les autres (NOT RUN, voir plus bas). Libellés courts (les aides des
+# camemberts les expliquent).
+NO_PLAN = "Absent"
+# Couleurs réservées (styles de la page), les mêmes dans tous les camemberts : rouge vif pour absent des plans et les
+# tests FAILED ; vert pour la part couverte ; gris pour NOT RUN. Aucune plateforme ne les prend.
 COVERED_COLOR = "var(--ok)"
 COVERED = "Couvert"
 # Résultats des fiches XML : vert passé, rouge échoué, gris non exécuté (ou autre valeur).
-PASSED, FAILED, NOT_RUN = "PASSED", "FAILED", "Non exécuté"
-RESERVED = {NOT_COVERED: "var(--not-covered)", NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
+# NOT RUN : un test non exécuté, ou (couverture par les fiches) une exigence qu'aucune fiche de sa plateforme ne couvre
+# encore ; en gris, le rouge est réservé aux tests FAILED.
+PASSED, FAILED, NOT_RUN = "PASSED", "FAILED", "NOT RUN"
+NEUTRAL = (NO_PLAN, NOT_RUN)   # parts « rien trouvé » des camemberts
+RESERVED = {NO_PLAN: "var(--not-covered)", COVERED: COVERED_COLOR,
             PASSED: "var(--ok)", FAILED: "var(--not-covered)", NOT_RUN: "var(--muted)"}
-# État d'avancement d'un tome (list_tomes.state), du moins au plus avancé, et son libellé.
-TOME_STATES = {"": "rien de chargé", "requirements": "exigences chargées", "plan": "plan d'acceptation vérifié",
-               "stdhl": "STDHL vérifié", "fiches": "couverture partielle par les fiches", "done": "tout est fini"}
 REPORT_COLOURS = {OK: "C6EFCE", MISSING: "FFC7CE", STALE: "FFC7CE", NO_DOC: "FFEB9C", TEST_MISSING: "FFC7CE"}   # cellules de statut du rapport
 
 
@@ -147,68 +145,26 @@ class Verification:
                 "status_labels": STATUS_LABELS, "defects": sum(1 for r in rows if r["lost_at"]),
                 "lost": [[name, sum(1 for r in rows if r["lost_at"] == name)] for name in stages],
                 "verdict": self._verdict(rows, waiting, releases), "tiles": self._tiles(rows, waiting, releases),
-                "charts": self._charts(rows, plans, fiches), "platform_charts": self._platform_charts(rows, fiches),
-                "result_charts": self._result_charts(rows, fiches)}
+                "charts": self._charts(rows, plans, fiches), "tome_charts": self._tome_charts(rows, fiches),
+                "platform_charts": self._platform_charts(rows, fiches),
+                "result_charts": self._result_charts(rows, fiches),
+                "result_tome_charts": self._result_tome_charts(rows, fiches)}
 
     @staticmethod
-    def tome_states(result):
-        """État d'avancement de chaque tome d'après le résultat de run() : {tome: état} (TOME_STATES). Un tome passe à
-        l'état suivant quand toutes ses exigences ont franchi l'étape : chacune dans un plan (plan), chacune trouvée
-        dans un STDHL ou non attendue (stdhl), puis couverture par les fiches partielle (fiches) ou complète,
-        qualifiées et hors scope comprises (done)."""
+    def tome_steps(result):
+        """Étapes validées de chaque tome d'après le résultat de run() : {tome: [étapes]}, parmi plan, stdhl et
+        fiches (celles du processus retenu). Chaque étape est jugée seule, d'après les exigences du tome : plan quand
+        toutes sont dans un plan à jour, stdhl quand toutes celles de la plateforme de niveau système sont citées par
+        un STDHL (les autres ne sont pas attendues), fiches quand toutes celles à qualifier sont couvertes par les
+        fiches. Une étape n'attend pas la précédente."""
         names = result.get("names") or STAGES   # les étapes du processus retenu, dans l'ordre
+        passed = {STAGE_PLAN: (OK,), STAGE_STDHL: (OK, *NOT_EXPECTED, OTHER), STAGE_FICHES: (OK, *NOT_EXPECTED)}
+        keys = {STAGE_PLAN: "plan", STAGE_STDHL: "stdhl", STAGE_FICHES: "fiches"}
         by_tome = {}
         for r in result.get("rows") or []:
             by_tome.setdefault(r["tome"], []).append(dict(zip(names, r["statuses"])))
-        states = {}
-        for tome, rows in by_tome.items():
-            # Les étapes retenues, dans l'ordre : le tome avance tant que toutes ses exigences franchissent l'étape.
-            state = "requirements"
-            for name in names:
-                values = [s[name] for s in rows]
-                if name == STAGE_PLAN:
-                    if not all(v == OK for v in values):
-                        break
-                    state = "plan"
-                elif name == STAGE_STDHL:
-                    if not all(v in (OK, *NOT_EXPECTED, OTHER) for v in values):
-                        break
-                    state = "stdhl"
-                elif all(v in (OK, *NOT_EXPECTED) for v in values):
-                    state = "done"
-                elif any(v in (OK, TEST_MISSING) for v in values):
-                    state = "fiches"
-            states[tome] = state
-        return states
-
-    @staticmethod
-    def needed_state(step, config):
-        """État qu'un tome doit avoir atteint avant le chargement d'un fichier de l'étape `step` (« stdhl » ou
-        « fiches ») : celui de l'étape retenue qui la précède dans le processus (plan d'acceptation, STDHL), None
-        quand seule l'étape Exigences la précède."""
-        previous = {"stdhl": [("plan", "process_plan")],
-                    "fiches": [("stdhl", "process_stdhl"), ("plan", "process_plan")]}[step]
-        return next((state for state, key in previous if config.get(key)), None)
-
-    @classmethod
-    def late_tomes(cls, step, states, tomes, config):
-        """Tomes dont l'étape précédant `step` n'est pas complète : [(tome, état)] ; dans un tome, on ne passe pas à
-        l'étape suivante tant que la précédente ne l'est pas. La règle vaut tome par tome : `states` : {tome: état}
-        (tome_states) ; `tomes` : le tome du fichier, ou None pour un fichier sans tome (STDHL unique, fiches de tous
-        les tomes), qui n'est pas refusé : chaque tome y avance à son rythme."""
-        need = cls.needed_state(step, config)
-        if need is None or not tomes:
-            return []
-        order = list(TOME_STATES)
-        return [(t, states.get(t, "")) for t in tomes if order.index(states.get(t, "")) < order.index(need)]
-
-    @classmethod
-    def late_text(cls, step, late, config):
-        """Message du refus d'un fichier dont l'étape précédente n'est pas complète pour ses tomes."""
-        need = TOME_STATES[cls.needed_state(step, config) or ""]
-        return (f"étape précédente non complète pour {plural(len(late), 'tome')} : "
-                + ", ".join(f"{t} ({TOME_STATES[s]})" for t, s in late)
-                + f" ; il faut d'abord « {need} » pour chaque tome concerné")
+        return {tome: [keys[name] for name in names if all(s[name] in passed[name] for s in rows)]
+                for tome, rows in by_tome.items()}
 
     def stages(self):
         """Étapes du processus retenu pour la release, dans l'ordre : Plan d'acceptation et STDHL quand ils sont
@@ -289,7 +245,7 @@ class Verification:
             lost = next((name for name, s in zip(stages, statuses)
                          if s not in (OK, PENDING, *NOT_EXPECTED, OTHER)), "")
             # Résultat des tests de l'exigence, par plateforme qui la couvre : FAILED si l'un a échoué, PASSED si tous
-            # sont passés, Non exécuté sinon (les fichiers Excel des autres plateformes n'ont pas de résultat).
+            # sont passés, NOT RUN sinon (les fichiers Excel des autres plateformes n'ont pas de résultat).
             def result_of(values):
                 return FAILED if "FAILED" in values else PASSED if values and all(v == "PASSED" for v in values) \
                     else NOT_RUN
@@ -349,7 +305,7 @@ class Verification:
         """Un camembert d'après [(libellé, [lignes d'exigence])] : les parts présentes (chacune avec les numéros de
         ses exigences, listés quand la part est cliquée), les plus petites regroupées dans « Autres » au-delà de
         chart_max_parts (configuration), ou de chart_max_parts_platforms pour un camembert à une part par plateforme.
-        Les parts réservées (Non couvert, Absent) sont toujours montrées et ne comptent pas dans le maximum."""
+        Les parts réservées (NOT RUN, Absent) sont toujours montrées et ne comptent pas dans le maximum."""
         # Un camembert par plateforme peut montrer jusqu'à chart_max_parts_platforms parts (une par plateforme), les
         # autres chart_max_parts.
         maximum = self.config.get("chart_max_parts_platforms" if by_platform else "chart_max_parts")
@@ -357,7 +313,7 @@ class Verification:
         # parts vides sont laissées de côté.
         shown = [(label, [r["id"] for r in rs]) for label, rs in parts if rs]
         # Au-delà du maximum, les plus grandes parts sont gardées (une place laissée pour « Autres ») et les plus
-        # petites sont regroupées dans « Autres » ; les parts réservées (Non couvert, Absent, Couvert) ne sont jamais
+        # petites sont regroupées dans « Autres » ; les parts réservées (NOT RUN, Absent, Couvert) ne sont jamais
         # regroupées.
         categories = [(label, ids) for label, ids in shown if label not in RESERVED]
         if len(categories) > maximum:
@@ -400,16 +356,63 @@ class Verification:
                 chart = self._chart(
                     f"Plateforme {platform}", f"Exigences déléguées à {platform}.",
                     [(COVERED, [r for r in delegated if platform in r["covered_by"]]),
-                     (NOT_COVERED, [r for r in delegated if platform not in r["covered_by"]])])
-                for part in chart["parts"]:   # la part couverte en vert (couleur réservée)
-                    if part["label"] != NOT_COVERED:
+                     (NOT_RUN, [r for r in delegated if platform not in r["covered_by"]])])
+                for part in chart["parts"]:   # la part couverte en vert (couleur réservée), NOT RUN en gris
+                    if part["label"] != NOT_RUN:
                         part["color"] = COVERED_COLOR
+                charts.append(chart)
+        return charts
+
+    def _tome_charts(self, rows, fiches):
+        """Une barre par tome (page Statistiques, onglet Fiches) : ses exigences à qualifier couvertes par les fiches de
+        chaque plateforme (celle à laquelle elles sont déléguées), à la couleur de la plateforme, puis NOT RUN."""
+        if not fiches:
+            return []
+        expected = [r for r in rows if r["covered_by"] is not None]
+        tomes = list(self.config.get("tomes"))
+        tomes += sorted({r["tome"] for r in expected} - set(tomes), key=by_name)
+        known = list(self.config.get("platforms"))
+        platforms = known + sorted({p for r in expected for p in r["covered_by"]} - set(known), key=by_name)
+        charts = []
+        for tome in tomes:
+            own = [r for r in expected if r["tome"] == tome]
+            if own:
+                chart = self._chart(
+                    f"Tome {tome}", f"Exigences à qualifier du tome {tome}, par plateforme dont les fiches les couvrent.",
+                    [(p, [r for r in own if p in r["covered_by"]]) for p in platforms]
+                    + [(NOT_RUN, [r for r in own if not r["covered_by"]])], by_platform=True)
+                # NOT RUN en bout de barre : le reste à couvrir du tome.
+                chart["parts"].sort(key=lambda part: part["label"] == NOT_RUN)
+                charts.append(chart)
+        return charts
+
+    def _result_tome_charts(self, rows, fiches):
+        """Une barre par tome (page Statistiques, onglet Résultats) : ses exigences à qualifier, toutes plateformes,
+        PASSED, FAILED, puis NOT RUN (aucun test exécuté, ou pas encore couverte par une fiche de sa plateforme), comme
+        le camembert des résultats de la page d'accueil."""
+        if not fiches:
+            return []
+        expected = [r for r in rows if r["covered_by"] is not None]
+        tomes = list(self.config.get("tomes"))
+        tomes += sorted({r["tome"] for r in expected} - set(tomes), key=by_name)
+        charts = []
+        for tome in tomes:
+            own = [r for r in expected if r["tome"] == tome]
+            if own:
+                chart = self._chart(
+                    f"Tome {tome}", f"Exigences à qualifier du tome {tome} : état de leurs tests.",
+                    [(PASSED, [r for r in own if r.get("fiche_result") == PASSED]),
+                     (FAILED, [r for r in own if r.get("fiche_result") == FAILED]),
+                     (NOT_RUN, [r for r in own if r.get("fiche_result") not in (PASSED, FAILED)])])
+                # Toujours dans l'ordre PASSED, FAILED, NOT RUN : les barres des tomes se comparent.
+                order = (PASSED, FAILED, NOT_RUN)
+                chart["parts"].sort(key=lambda part: order.index(part["label"]))
                 charts.append(chart)
         return charts
 
     def _result_charts(self, rows, fiches):
         """Un camembert par plateforme qui couvre des exigences avec ses fiches : l'état de leurs tests (PASSED,
-        FAILED, Non exécuté), comme la couverture par plateforme (page Statistiques)."""
+        FAILED, NOT RUN), comme la couverture par plateforme (page Statistiques)."""
         if not fiches:
             return []
         known = list(self.config.get("platforms"))
@@ -440,31 +443,40 @@ class Verification:
             charts.append(self._chart("Exigences par plateforme", "Toutes les exigences, par plateforme de délégation "
                                       "(fichier d'exigences).", split("delegation", list(self.config.get("platforms"))),
                                       by_platform=True))
-            charts.append(self._chart("Exigences par IADT", "Toutes les exigences, par IADT (fichier d'exigences).",
-                                      split("iadt", list(self.config.get("iadt"))), colors="iadt",
-                                      names=self.config.get("iadt")))
-            charts.append(self._chart("Exigences par MOC", "Toutes les exigences, par MOC (fichier d'exigences).",
-                                      split("moc", list(self.config.get("mocs"))), colors="mocs",
-                                      names=self.config.get("mocs")))
+            # IADT et MOC : la même colonne de la page (« column »), l'un sous l'autre.
+            charts.append({**self._chart("Exigences par IADT", "Toutes les exigences, par IADT (fichier d'exigences).",
+                                         split("iadt", list(self.config.get("iadt"))), colors="iadt",
+                                         names=self.config.get("iadt")), "column": "reference"})
+            # Le camembert des MOC peut être masqué (Configuration > MOC, show_moc_chart).
+            if self.config.get("show_moc_chart"):
+                charts.append({**self._chart("Exigences par MOC", "Toutes les exigences, par MOC (fichier d'exigences).",
+                                             split("moc", list(self.config.get("mocs"))), colors="mocs",
+                                             names=self.config.get("mocs")), "column": "reference"})
         # Couverture par les fiches : couvertes (vert) ou non (rouge), les exigences qualifiées ou hors scope laissées
         # de côté. Une exigence est couverte par une fiche de la plateforme à laquelle elle est déléguée.
         tested = [r for r in rows if r["covered_by"] is not None]
         # Le camembert de couverture n'a de sens qu'une fois des fiches chargées et des exigences à tester.
         if fiches and tested:
+            # Une part par plateforme (ses exigences couvertes par ses fiches, à sa couleur), puis NOT RUN.
+            known = list(self.config.get("platforms"))
+            covering = known + sorted({p for r in tested for p in r["covered_by"]} - set(known), key=by_name)
             charts.append(self._chart(
                 "Couverture par les fiches",
-                "Exigences à qualifier : couvertes par une fiche de la plateforme à laquelle elles sont déléguées, "
-                "ou non couvertes (une fiche d'une autre plateforme ne compte pas).",
-                [(COVERED, [r for r in tested if r["covered_by"]]),
-                 (NOT_COVERED, [r for r in tested if not r["covered_by"]])]))
-        # Résultats des fiches XML : une part par exigence qu'elles citent.
-        with_result = [r for r in rows if r.get("fiche_result")]
-        if with_result:
+                "Exigences à qualifier, par plateforme dont les fiches les couvrent (celle à laquelle elles sont "
+                "déléguées ; une fiche d'une autre plateforme ne compte pas), ou NOT RUN : aucune fiche de leur "
+                "plateforme ne les couvre encore.",
+                [(p, [r for r in tested if p in r["covered_by"]]) for p in covering]
+                + [(NOT_RUN, [r for r in tested if not r["covered_by"]])], by_platform=True))
+        # Résultats des fiches : toutes les exigences à qualifier, de toutes les plateformes ; une exigence qu'aucune
+        # fiche de sa plateforme ne couvre encore, ou dont aucun test n'est exécuté, est NOT RUN.
+        if fiches and tested:
             charts.append(self._chart(
                 "Résultats des fiches d'essai",
-                "Exigences à qualifier couvertes par les fiches, toutes plateformes : PASSED si tous leurs tests sont "
-                "passés, FAILED si l'un a échoué, Non exécuté sinon.",
-                [(label, [r for r in with_result if r["fiche_result"] == label]) for label in (PASSED, FAILED, NOT_RUN)]))
+                "Exigences à qualifier, toutes plateformes : PASSED si tous leurs tests sont passés, FAILED si l'un a "
+                "échoué, NOT RUN si aucun n'est exécuté ou si aucune fiche de leur plateforme ne les couvre.",
+                [(PASSED, [r for r in tested if r.get("fiche_result") == PASSED]),
+                 (FAILED, [r for r in tested if r.get("fiche_result") == FAILED]),
+                 (NOT_RUN, [r for r in tested if r.get("fiche_result") not in (PASSED, FAILED)])]))
         return charts
 
     # ------------------------------------------------------------------ #

@@ -7,7 +7,7 @@ Le fichier est un objet JSON découpé en parties, une pour les paramètres gén
       "general": {"release": "A", "system_platform": "TOP", "server_port": 8000, ...},
       "requirements": {"requirement_regex": "...", "iadt_moc_rules": {...}, "headers_requirements": {...}},
       "plan": {"headers_plan": {...}},
-      "stdhl": {"fiche_regex": "...", "stdhl_name_regex": "...", "headers_stdhl": {...}},
+      "stdhl": {"fiche_regex": "...", "headers_stdhl": {...}},
       "fiches": {"test_tag": "test", "test_case_tag": "test_case", "requirement_tag": "requirements"}
     }
 
@@ -22,20 +22,20 @@ variable absente du fichier prend sa valeur par défaut (DEFAULT_CONFIG), puis y
 Variables :
   slogan                          slogan affiché sous le nom NEXUS-V
   server_port, open_browser       serveur.py
-  chart_max_parts                 parts au plus d'un camembert de la page Vérification, Non couvert
+  chart_max_parts                 parts au plus d'un camembert de la page Vérification, NOT RUN
                                   non compté (toujours montré) ; au-delà : « Autres »
   chart_max_parts_platforms       la même chose pour les camemberts à une part par plateforme
+  show_moc_chart                  camembert « Exigences par MOC » montré sur la page d'accueil (réglé dans
+                                  Configuration > MOC)
   requirement_regex               forme d'un numéro d'exigence
   requirements_tome_regex         tome dans le nom d'un fichier d'exigences : proposé à l'import
   fiche_regex                     nom d'une fiche (test) dans un paragraphe d'un STDHL
-  stdhl_name_regex                nom du STDHL dans le nom de son fichier
   stdhl2_*                        STDHL de format 2 (un document, sans tableau STDHL) :
     stdhl2_test_regex             titre d'un test, groupe 1 = nom du test (« TEST-001 : ZOULOU »)
     stdhl2_requirements_label     libellé qui ouvre la liste « Exigences associées » d'un test (la liste la termine)
     stdhl2_release_label          libellé de la release d'un test, lue par stdhl2_release_regex (groupe 1)
     stdhl2_test_case_regex        début d'un test case : les exigences de ses phases sont la couverture du test
   release_separator_regex         séparateur des releases dans une cellule d'un fichier d'exigences
-  plan_tome_regex                 tome dans le nom d'un fichier de plan : présélectionné au chargement
   code_separator_regex            séparateur des codes IADT et MOC dans une cellule d'un plan
   delegation_separator_regex      séparateur de plusieurs plateformes dans la cellule Délégation d'un plan
                                   (plusieurs plateformes : différence avec l'exigence)
@@ -48,13 +48,15 @@ Variables :
   test_tag                        balise XML d'un test dans les fiches ; elle contient
   test_case_tag                   la balise d'un test case, qui contient
   requirement_tag                 la balise des exigences testées
-                                  (pour fiche_regex et stdhl_name_regex : groupe 1 s'il y en a un, sinon toute la
+                                  (pour fiche_regex : groupe 1 s'il y en a un, sinon toute la
                                   correspondance)
   process_plan, process_stdhl     processus retenu pour la release (paramètres généraux) : étapes Plan
                                   d'acceptation et STDHL vérifiées ou non ; le STDHL ne peut plus être retenu une fois
                                   des fiches chargées
-  skip_unknown_req                une exigence inconnue (du tome) dans un plan, un STDHL ou des fiches : ignorée avec
-                                  un avertissement au lieu de refuser le fichier (paramètre général)
+  skip_unknown_req                une exigence inconnue de la base dans des fiches d'une autre plateforme que celle
+                                  de niveau système : ignorée avec un avertissement au lieu de refuser le fichier
+                                  (paramètre général) ; un plan, un STDHL ou des fiches de la plateforme de niveau
+                                  système sont toujours refusés
   system_platform                 la plateforme de niveau système (paramètre général) : les STDHL s'appliquent à
   elle,
                                   seules les exigences qui lui sont déléguées sont attendues dans un STDHL, seules ses
@@ -84,7 +86,7 @@ import re
 import threading
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 DEFAULT_CONFIG = {
     "slogan": "Le fil d’Ariane de la traçabilité, de la spécification à l'essai",
@@ -92,6 +94,7 @@ DEFAULT_CONFIG = {
     "open_browser": True,
     "chart_max_parts": 6,
     "chart_max_parts_platforms": 20,   # camemberts par plateforme : 20 plateformes au plus (hors parts réservées)
+    "show_moc_chart": True,   # camembert « Exigences par MOC » montré sur la page d'accueil
     # Deux formes, regroupées pour que \b borne les deux : SSS_[T<n°>_]<fonctionnalités>_REQ_<n°> (la partie T<n°>_
     # facultative), et HQ1/2_WF_<n°>[_REQ_<n°>] (la barre oblique fait partie du nom).
     "requirement_regex": r"\b(?:SSS_(?:T\d+_)?[A-Za-z0-9_-]+?_REQ_\d+|HQ1/2_WF_\d+(?:_REQ_\d+)?)\b",
@@ -106,7 +109,6 @@ DEFAULT_CONFIG = {
     "stdhl2_release_label": "Applicabilité",
     "stdhl2_release_regex": r"(?i)release\s+(\S+)",
     "stdhl2_test_case_regex": r"(?i)^\s*TEST CASE\s*#\s*\d+",
-    "stdhl_name_regex": r"(?i)STDHL_(.+?)_rev",
     # Dossier des fichiers importés (relatif au dossier de NEXUS-V) et son sous-dossier pour chaque type de fichier.
     "storage_dir": ".",
     "requirements_folder": "exigences",
@@ -116,7 +118,6 @@ DEFAULT_CONFIG = {
     "traceability_folder": "tracabilite",
     # Séparateurs dans une cellule, en expressions régulières.
     "release_separator_regex": r",",
-    "plan_tome_regex": r"(?i)_PA_(.+?)_",
     "code_separator_regex": r"[,;+\s]+",
     "delegation_separator_regex": r"[,;/+\n]+",
     # Valeurs de la colonne Validation d'un plan pour chaque validation d'exigence (à figer : ces réglages partiront).
@@ -134,8 +135,9 @@ DEFAULT_CONFIG = {
     # d'essai toujours là). Non retenues par défaut.
     "process_plan": False,
     "process_stdhl": False,
-    # Exigences inconnues : cochée, un numéro qui n'est pas une exigence du tome d'un plan, d'un STDHL ou d'un fichier
-    # de fiches ne le refuse plus ; les données de ce numéro sont ignorées (un avertissement le dit).
+    # Exigences inconnues : cochée, un numéro qui n'est pas une exigence de la base dans un fichier de fiches d'une
+    # autre plateforme que celle de niveau système ne le refuse plus ; les données de ce numéro sont ignorées (un
+    # avertissement le dit). Un plan, un STDHL ou des fiches de la plateforme de niveau système sont toujours refusés.
     "skip_unknown_req": False,
     # La release sur laquelle travaille la base : chaque exigence importée et chaque fichier chargé lui appartient.
     "release": "",
@@ -181,17 +183,18 @@ HEADER_FIELDS = {
 SECTIONS = {
     "general": {n: n for n in ("release", "system_platform", "process_plan", "process_stdhl", "skip_unknown_req",
                                "slogan", "server_port",
-                               "open_browser", "chart_max_parts", "chart_max_parts_platforms", "storage_dir")},
+                               "open_browser", "chart_max_parts", "chart_max_parts_platforms", "show_moc_chart",
+                               "storage_dir")},
     "requirements": {"folder": "requirements_folder",
                      **{n: n for n in ("requirement_regex", "requirements_tome_regex", "release_separator_regex",
                                        "iadt_moc_rules",
                                        "headers_requirements")}},
     "plan": {"folder": "plan_folder",
-             **{n: n for n in ("plan_tome_regex", "code_separator_regex", "delegation_separator_regex",
+             **{n: n for n in ("code_separator_regex", "delegation_separator_regex",
                                "plan_validation_to_qualify", "plan_validation_qualified",
                                "plan_validation_out_of_scope", "headers_plan")}},
     "stdhl": {"folder": "stdhl_folder",
-              **{n: n for n in ("fiche_regex", "stdhl_name_regex", "headers_stdhl",
+              **{n: n for n in ("fiche_regex", "headers_stdhl",
                                 "stdhl2_test_regex", "stdhl2_requirements_label", "stdhl2_release_label",
                                 "stdhl2_release_regex", "stdhl2_test_case_regex")}},
     "fiches": {"folder": "fiches_folder", **{n: n for n in ("test_tag", "test_case_tag", "requirement_tag")}},
@@ -206,7 +209,7 @@ FOLDER_VARIABLES = ("requirements_folder", "plan_folder", "stdhl_folder", "fiche
 TAG_VARIABLES = ("test_tag", "test_case_tag", "requirement_tag")
 
 # Variables qui contiennent une expression régulière.
-REGEX_VARIABLES = ("requirement_regex", "requirements_tome_regex", "fiche_regex", "stdhl_name_regex", "plan_tome_regex",
+REGEX_VARIABLES = ("requirement_regex", "requirements_tome_regex", "fiche_regex",
                    "release_separator_regex", "code_separator_regex",
                    "delegation_separator_regex", "stdhl2_test_regex", "stdhl2_release_regex", "stdhl2_test_case_regex")
 
@@ -235,7 +238,7 @@ def storage_path(config, base):
     return (folder if folder.is_absolute() else Path(base) / folder).resolve()
 
 
-def plural(n: int, singular: str, several: str | None = None) -> str:
+def plural(n: int, singular: str, several: Optional[str] = None) -> str:
     """« 1 ligne », « 3 lignes » (singulier jusqu'à 1, comme en français)."""
     return f"{n} {(several or singular + 's') if n > 1 else singular}"
 
@@ -501,11 +504,7 @@ class Configuration:
         system_platform = clean.get("system_platform", self.get("system_platform")) or ""
         system_platform = moved_platforms.get(system_platform, system_platform)
         if system_platform:
-            delegated = [moved_platforms.get(p, p) for p in self.system_platforms()]
-            if system_platform not in delegated:
-                raise ValueError(f"plateforme de niveau système « {system_platform} » : ce n'est la délégation d'aucune "
-                                 "exigence importée (choisir parmi " + (", ".join(delegated) or "aucune") + ")")
-        clean["system_platform"] = system_platform
+            clean["system_platform"] = system_platform
         # Deux types de fichiers dans le même sous-dossier mélangeraient leurs copies.
         folders: list[str] = [clean.get(name, self.get(name)) for name in FOLDER_VARIABLES]
         same = sorted({f for f in folders if [x.casefold() for x in folders].count(f.casefold()) > 1})

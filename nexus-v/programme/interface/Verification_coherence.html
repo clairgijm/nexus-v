@@ -260,6 +260,10 @@
   .release-row strong { min-width: 90px; font-family: Consolas, monospace; }
   .release-row .hint, .release-row input[type=text] { flex: 1; }
   .release-row input[type=text] { padding: 4px 8px; }
+  /* Plateformes du chargement de fiches : sur deux colonnes au-delà de 5. */
+  #plan-platforms { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  #plan-platforms.two-columns { grid-template-columns: 1fr 1fr; }
+  .plan-file-name { font-family: Consolas, monospace; font-weight: 600; word-break: break-all; }
   .tag { border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 600; }
   .tag.known { background: var(--ok-bg); color: var(--ok); }
   .tag.new { background: var(--warn-bg); color: var(--warn); }
@@ -350,7 +354,8 @@
   .verdict.ko { background: var(--ko-bg); color: var(--ko); }
   .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .tile { background: var(--surface-2); border-radius: 8px; padding: 12px; }
-  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .chart-column { display: flex; flex-direction: column; gap: 12px; }   /* camemberts empilés (IADT et MOC) */
   .chart { background: var(--surface-2); border-radius: 8px; padding: 12px; }
   .chart h3 { margin: 0 0 2px; font-size: .95rem; }
   /* Camembert en haut, légende dessous (en colonnes quand le camembert a beaucoup de parts). */
@@ -601,6 +606,7 @@
         <button class="subtab active" role="tab" aria-selected="true" data-stats-tab="tome">Tomes</button>
         <button class="subtab" role="tab" aria-selected="false" data-stats-tab="platform">Plateformes</button>
         <button class="subtab" role="tab" aria-selected="false" data-stats-tab="fiches">Fiches</button>
+        <button class="subtab" role="tab" aria-selected="false" data-stats-tab="results">Résultats</button>
       </div>
       <div data-stats-panel="tome">
       <h3>Répartition des exigences par tome</h3>
@@ -621,11 +627,19 @@
       <div class="deleg" id="platform-iadt"></div>
       </div>
       <div data-stats-panel="fiches" hidden>
+      <h3>Couverture par les fiches d'essai, par tome</h3>
+      <p class="hint">Exigences à qualifier de chaque tome : couvertes par les fiches de la plateforme à laquelle elles sont déléguées (une couleur par plateforme), ou NOT RUN. Un clic sur une part liste ses exigences.</p>
+      <div class="deleg" id="fiches-tomes"></div>
       <h3>Couverture par les fiches d'essai, par plateforme</h3>
-      <p class="hint">Exigences à qualifier déléguées à chaque plateforme dans les plans d'acceptation, couvertes ou non par ses fiches. Un clic sur une part liste ses exigences.</p>
+      <p class="hint">Exigences à qualifier déléguées à chaque plateforme dans les plans d'acceptation : couvertes par ses fiches, ou NOT RUN (aucune de ses fiches ne les couvre encore). Un clic sur une part liste ses exigences.</p>
       <div class="deleg" id="fiches-charts"></div>
+      </div>
+      <div data-stats-panel="results" hidden>
+      <h3>État des tests, par tome</h3>
+      <p class="hint">Exigences à qualifier de chaque tome, toutes plateformes : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, NOT RUN si aucun n'est exécuté ou si aucune fiche de leur plateforme ne les couvre encore. Un clic sur une part liste ses exigences.</p>
+      <div class="deleg" id="result-tomes"></div>
       <h3>État des tests, par plateforme</h3>
-      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, Non exécuté sinon (les fiches Excel des autres plateformes n'ont pas de résultat). Un clic sur une part liste ses exigences.</p>
+      <p class="hint">Exigences couvertes par les fiches de chaque plateforme : PASSED si tous leurs tests sont passés, FAILED si l'un a échoué, NOT RUN sinon (les fiches Excel des autres plateformes n'ont pas de résultat). Un clic sur une part liste ses exigences.</p>
       <div class="deleg" id="result-charts"></div>
       </div>
     </section>
@@ -695,8 +709,10 @@
       <div class="params">
         <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
           <input type="checkbox" data-var="skip_unknown_req"> Ignorer les exigences inconnues : lors de l'import,
-          un fichier qui cite une exigence inconnue n'est plus refusé ;
-          les données liées à cette exigence sont ignorées, avec un avertissement dans le rapport de vérification</label>
+          un fichier de fiches d'une autre plateforme que la plateforme de niveau système qui cite une exigence
+          inconnue n'est plus refusé ; les données liées à cette exigence sont ignorées, avec un avertissement dans le
+          rapport de vérification. Un plan d'acceptation, un STDHL ou des fiches de la plateforme de niveau système
+          sont toujours refusés</label>
       </div>
 
       <h3>Autres paramètres</h3>
@@ -714,7 +730,7 @@
           <input type="text" data-var="slogan"></label>
         <label>Port du serveur
           <input type="number" min="1" max="65535" data-var="server_port"></label>
-        <label>Parts maximum d'un camembert, hors Non couvert (au-delà, les plus petites sont regroupées dans « Autres »)
+        <label>Parts maximum d'un camembert, hors NOT RUN (au-delà, les plus petites sont regroupées dans « Autres »)
           <input type="number" min="2" max="50" data-var="chart_max_parts"></label>
         <label>Parts maximum des camemberts par plateforme (une part par plateforme)
           <input type="number" min="2" max="50" data-var="chart_max_parts_platforms"></label>
@@ -765,8 +781,6 @@
       <h3>Expressions régulières</h3>
       <p class="hint">Syntaxe des expressions régulières de Python ; <code>(?i)</code> au début ignore les majuscules. Un plan déjà vérifié n'est pas relu : le recharger après un changement.</p>
       <div class="params">
-        <label class="wide">Tome (fonction) dans le nom du fichier d'un plan, présélectionné au chargement (par exemple <code>(?i)_PA_(.+?)_</code>)
-          <input type="text" class="mono" data-var="plan_tome_regex" spellcheck="false"></label>
         <label class="wide">Séparateur des codes IADT et MOC d'un plan
           <input type="text" class="mono" data-var="code_separator_regex" spellcheck="false"></label>
         <label class="wide">Séparateur de plusieurs plateformes dans la cellule Délégation (une seule est admise : plusieurs sont une différence avec l'exigence)
@@ -802,8 +816,6 @@
       <div class="params">
         <label class="wide">Nom de la fiche d'essai (paragraphe d'un STDHL)
           <input type="text" class="mono" data-var="fiche_regex" spellcheck="false"></label>
-        <label class="wide">Nom du STDHL (dans le nom du fichier)
-          <input type="text" class="mono" data-var="stdhl_name_regex" spellcheck="false"></label>
       </div>
       <h3>Format 2 : un document pour tous les STDHL</h3>
       <p class="hint">Lu à l'import et par la vérification avant import. Chaque test est un titre « nom : titre » ;
@@ -870,6 +882,11 @@
       <p class="hint">Codes MOC (Means Of Compliance) acceptés dans la colonne MOC, avec leur description (affichée au survol dans les résultats).</p>
       <div class="cfg-list" id="cfg-mocs"></div>
       <button class="small" data-add="mocs">Ajouter un MOC</button>
+      <div class="params">
+        <label class="wide" style="flex-direction: row; align-items: center; gap: 8px">
+          <input type="checkbox" data-var="show_moc_chart"> Afficher le camembert « Exigences par MOC » sur la page
+          d'accueil</label>
+      </div>
       </div>
 
       <div data-config-pane="tomes" hidden>
@@ -947,17 +964,8 @@
 
 <dialog id="plan-dialog" aria-labelledby="plan-title">
   <h2 id="plan-title">Chargement de <span id="plan-file"></span></h2>
-  <div id="plan-tome-part">
-    <h3>Tome auquel ce fichier est rattaché</h3>
-    <p class="hint" id="plan-tome-hint">Seuls les tomes contenant des exigences sont proposés.</p>
-    <div id="plan-tomes"></div>
-  </div>
-  <div id="plan-releases-part" hidden>
-    <h3 id="plan-releases-title">Release</h3>
-    <div id="plan-releases"></div>
-  </div>
-  <div id="plan-platform-part" hidden>
-    <h3>Plateforme d'où vient ce fichier</h3>
+  <div id="plan-platform-part">
+    <h3>Plateforme d'où vient le fichier <span class="plan-file-name" id="plan-platform-file"></span></h3>
     <p class="hint">Choisir la plateforme d'où vient le fichier. Les règles du STDHL ne s'appliquent qu'aux fiches de la plateforme de niveau système (Configuration &gt; Paramètres généraux) ; une exigence non déléguée à la plateforme du fichier est chargée sans son résultat.</p>
     <div id="plan-platforms"></div>
   </div>
@@ -1037,7 +1045,7 @@ const state = {
   traceDb: { traceability: {} },   // numéros des fichiers de traçabilité (traceability_db.py)
   requirements: [],    // chaque exigence de la base : { id, title, releases, iadt, moc, delegation, validation, tome }
   plans: [],           // plans d'acceptation utilisés : { name, text, rows }
-  stdhl: [],           // documents STDHL utilisés : { name, stdhlName, rows, issues }
+  stdhl: [],           // documents STDHL utilisés : { name, tome, rows, issues }
   xml: null,           // Fiches d'Essai utilisées : { name, text }
   config: {},          // lue sur le serveur au démarrage de la page
   draft: null,         // configuration en cours de modification dans l'onglet Configuration
@@ -1160,7 +1168,7 @@ async function check() {
     return showMessage("Vérification indisponible : " + (e.message || e));
   }
   if (ticket !== checkTicket) return;
-  renderTomeStates(result.tome_states ?? [], result.tome_state_labels ?? {});
+  renderTomeStates(result.tome_states ?? []);
   if (!result.rows) {
     $results.hidden = true;
     return result.message && showMessage(result.message);
@@ -1172,22 +1180,22 @@ async function check() {
 
 // Avancement des tomes, sous les boîtes : pour chaque tome, ses étapes retenues en chevrons (exigences, plan,
 // STDHL, fiches), chacun avec l'icône de son étape et la couleur de son état (gris à faire, jaune en cours, vert validé,
-// rouge rejeté). Un chevron validé, en cours ou rejeté ouvre le rapport du dernier fichier de son étape pour ce tome ;
-// un chevron à faire ne s'ouvre pas.
-const TOME_STEPS = [   // [code, état à partir duquel l'étape est franchie, boîte du fichier, nom, réglage qui la retient,
+// rouge rejeté). Chaque étape est jugée seule, d'après les exigences du tome (le serveur donne les étapes validées) :
+// elle n'attend pas la précédente. Un chevron validé, en cours ou rejeté ouvre le rapport du dernier fichier de son
+// étape qui s'applique au tome ; un chevron à faire ne s'ouvre pas.
+const TOME_STEPS = [   // [code, étape (validée d'après le serveur), boîte du fichier, nom, réglage qui la retient,
                       //  types de fichier de l'étape (rapports de rejet)]
   ["EX", "requirements", "requirements", "Exigences", null, ["requirements"]],
   ["PL", "plan", "plan", "Plan d'acceptation", "process_plan", ["plans"]],
   ["ST", "stdhl", "stdhl", "STDHL", "process_stdhl", ["stdhl"]],
   ["FE", "fiches", "xml", "Fiches d'essai", null, ["fiches", "traceability"]]];
-const STATE_ORDER = ["", "requirements", "plan", "stdhl", "fiches", "done"];
 // Icône de chaque étape dans son chevron : celle de sa page dans le menu ; le plan d'acceptation n'a plus de page.
 const PLAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>';
 const STEP_TABS = { EX: "requirements", ST: "stdhl", FE: "fiches" };
 const SLOT_STEP = { requirements: "EX", plan: "PL", stdhl: "ST", xml: "FE" };   // boîte de l'accueil -> étape
 const stepIcon = code => code === "PL" ? PLAN_ICON
   : document.querySelector(`.nav-item[data-tab="${STEP_TABS[code]}"] svg`)?.outerHTML ?? code;
-function renderTomeStates(states, labels) {
+function renderTomeStates(states) {
   const steps = TOME_STEPS.filter(([, , , , key]) => !key || state.config?.[key]);
   // Légende : quatre couleurs, les mêmes pour toutes les étapes.
   $("#tome-states-keys").innerHTML = states.length ? "<b>Étapes de traçabilité :</b>"
@@ -1198,9 +1206,8 @@ function renderTomeStates(states, labels) {
   const reportOf = (slot, tome) => state.records
     .filter(r => r.slot === slot && r.report && (!r.tome || r.tome.toLowerCase() === tome.toLowerCase()))
     .sort((a, b) => b.id - a.id)[0];
-  $("#tome-states").innerHTML = states.map(({ tome, state: s, label }) => {
-    let started = false;   // une étape pas faite a déjà été rencontrée : les suivantes ne peuvent pas être en cours
-    const chevrons = steps.map(([code, from, slot, name, , kinds]) => {
+  $("#tome-states").innerHTML = states.map(({ tome, has_requirements: loaded, done: validated }) => {
+    const chevrons = steps.map(([code, step, slot, name, , kinds]) => {
       // Dernier import de l'étape rejeté pour ce tome : rouge, et le chevron ouvre le rapport de rejet.
       const reject = (state.rejects ?? []).find(x => kinds.includes(x.kind) && x.tome.toLowerCase() === tome.toLowerCase());
       if (reject) {
@@ -1209,22 +1216,18 @@ function renderTomeStates(states, labels) {
           data-open="api/rejects/${reject.kind}?tome=${encodeURIComponent(tome)}" title="${escapeHtml(title)}"
           aria-label="${escapeHtml(title)}">${stepIcon(code)}</button>`;
       }
-      // Fait (vert) : l'étape est complète pour le tome ; les fiches seulement quand la couverture est complète.
-      const done = from === "fiches" ? s === "done" : STATE_ORDER.indexOf(s) >= STATE_ORDER.indexOf(from);
-      // En cours (jaune) : la première étape pas faite, quand un fichier y est déjà chargé pour le tome.
-      const current = !done && !started;
-      if (!done) started = true;
-      const file = done || current ? reportOf(slot, tome) : null;
-      const doing = current && !!file;
-      const status = done ? "done" : doing ? "doing" : "todo";
+      // Validé (vert) : toutes les exigences attendues du tome ont franchi l'étape ; les exigences, dès qu'il en a.
+      const done = step === "requirements" ? loaded : validated.includes(step);
+      // En cours (jaune) : l'étape n'est pas validée, mais un fichier de l'étape s'applique déjà au tome.
+      const file = loaded ? reportOf(slot, tome) : null;
+      const status = done ? "done" : file ? "doing" : "todo";
       const title = `${name} : ${done ? (file ? `validé — rapport de ${file.name}` : "validé")
-        : doing ? `en cours, pas encore complète — rapport de ${file.name}`
-        : current ? "à faire" : "à faire : l'étape précédente n'est pas complète"}`;
+        : file ? `en cours, pas encore complète — rapport de ${file.name}` : "à faire"}`;
       return `<button type="button" class="chev" style="--chev: var(--chev-${status})"
         ${status === "todo" ? "disabled" : file ? `data-open="api/files/${file.id}/rapport"` : ""}
         title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${stepIcon(code)}</button>`;
     }).join("");
-    return `<div class="tome-state" title="${escapeHtml(tome)} : ${escapeHtml(label)}">
+    return `<div class="tome-state" title="${escapeHtml(tome)}">
       <span class="label">${escapeHtml(tome)}</span><span class="chevrons">${chevrons}</span></div>`;
   }).join("");
 }
@@ -1291,7 +1294,16 @@ function showResults() {
     : `<div class="tile ${t.value < t.expected ? "ko" : ""}"><div class="lbl">${escapeHtml(t.label)}</div>
         <div class="val">${t.value}<small> / ${t.expected}</small> <small class="pct">${t.percent} %</small></div></div>`).join("");
 
-  $("#charts").innerHTML = charts.map((c, i) => pieChart(c, `charts:${i}`)).join("");
+  // Une colonne par camembert ; ceux qui ont la même « column » (IADT et MOC) sont empilés dans la même colonne.
+  const columns = [];
+  charts.forEach((c, i) => {
+    const pie = pieChart(c, `charts:${i}`);
+    const same = c.column && columns.find(col => col.name === c.column);
+    if (same) same.pies.push(pie);
+    else columns.push({ name: c.column, pies: [pie] });
+  });
+  $("#charts").innerHTML = columns.map(col => col.pies.length > 1
+    ? `<div class="chart-column">${col.pies.join("")}</div>` : col.pies[0]).join("");
   // Page Statistiques : couverture et état des tests de chaque plateforme, en barres.
   renderStats();
 
@@ -1511,61 +1523,28 @@ function chooseImport(fileName, sheetNames, tomeName = "") {
   });
 }
 
-// Demande, au chargement d'un plan d'acceptation, le tome auquel il appartient (un tome existant avec des exigences :
-// aucun tome n'est créé ici) et les releases auxquelles il s'applique (au moins une). previous = choix faits pour le
-// plan précédent du même chargement, proposés à nouveau. Résout en { tome, releases }, ou null en cas d'annulation.
-function choosePlan(fileName, previous, slot = "plan", stdhlName = "", tomeName = "") {
+// Demande, au chargement d'un fichier de fiches (XML ou Excel), la plateforme d'où il vient : le seul choix d'un
+// chargement hors exigences (le tome ne se choisit qu'à l'import des exigences, la release est celle de la base).
+// previous = la plateforme du fichier précédent du même chargement, proposée à nouveau. Résout en la plateforme, ou
+// null en cas d'annulation.
+function choosePlatform(fileName, previous, slot) {
   const $planDialogStatus = $("#plan-dialog-status");
   return new Promise(resolve => {
     const dialog = $("#plan-dialog");
-    const tomes = Object.keys(state.reqDb.tomes);
-    const releases = Object.keys(state.config.releases ?? {}).sort(byName);
     $("#plan-file").textContent = `${fileName} (${SLOT_NAMES[slot]})`;
-    // Un STDHL ou un fichier de fiches peut n'appartenir à aucun tome : il s'applique alors à tous les tomes (un seul
-    // STDHL, par exemple).
-    const optional = slot !== "plan";
-    // Le tome nommé dans le nom du fichier : trouvé par le serveur (plan), ou le nom du STDHL ou un mot du nom du
-    // fichier égal à un tome (STDHL, fiches) ; sinon le choix précédent, sinon le seul tome.
-    const words = [stdhlName, ...fileName.split(/[_\-.\s]+/)].filter(Boolean).map(fold);
-    const named = slot === "plan" ? tomeName : tomes.find(t => words.includes(fold(t))) ?? "";
-    const tome = tomes.includes(named) ? named : tomes.includes(previous?.tome) ? previous.tome
-      : optional && previous && !previous.tome ? "" : tomes.length === 1 ? tomes[0] : null;
-    $("#plan-tome-hint").textContent = optional
-      ? "Un tome contenant des exigences, ou aucun : le fichier s'applique alors à tous les tomes."
-      : "Seuls les tomes contenant des exigences sont proposés.";
-    $("#plan-tomes").innerHTML = tomes.map(t => `<label class="release-row">
-        <input type="radio" name="plan-tome" value="${escapeHtml(t)}" ${t === tome ? "checked" : ""}><strong>${escapeHtml(t)}</strong>
-        <span class="hint">${plural(state.reqDb.tomes[t].requirements.length, "exigence")}</span></label>`).join("")
-      + (optional ? `<label class="release-row"><input type="radio" name="plan-tome" value="" ${tome === "" ? "checked" : ""}>
-        <strong>Aucun</strong><span class="hint">tous les tomes</span></label>` : "");
-    // Plans, STDHL et fiches : les releases connues sont cochées par défaut ; les fichiers suivants d'un chargement
-    // reprennent le choix précédent.
-    // Un fichier de plan, STDHL ou fiches s'applique à une seule release : un seul choix, fait par l'utilisateur pour
-    // chaque fichier (le nom du fichier ne la dit pas).
-    $("#plan-releases-title").textContent = "Release à laquelle ce fichier s'applique (une seule)";
-    $("#plan-releases").innerHTML = releases.map(r => `<label class="release-row">
-        <input type="radio" name="plan-release" value="${escapeHtml(r)}">
-        <strong>${escapeHtml(r)}</strong><span class="hint">${escapeHtml(releaseDescription(r))}</span></label>`).join("") ||
-      `<p class="hint">Aucune release déclarée : en ajouter dans Configuration &gt; Releases.</p>`;
     $planDialogStatus.textContent = "";
-    // Fichier de fiches : la plateforme d'où il vient, à choisir parmi toutes les plateformes ; le choix précédent est
-    // repris.
-    const askPlatform = slot === "traceability" || slot === "xml";
     const others = state.config.platforms ?? [];
-    const platform = others.includes(previous?.platform) ? previous.platform : others.length === 1 ? others[0] : null;
-    $("#plan-platform-part").hidden = !askPlatform;
-    // Un fichier de fiches n'a pas de tome : il s'applique à tous les tomes, seule sa plateforme est demandée.
-    $("#plan-tome-part").hidden = askPlatform;
+    const platform = others.includes(previous) ? previous : others.length === 1 ? others[0] : null;
+    $("#plan-platform-file").textContent = fileName;   // le fichier dont on demande la plateforme
+    $("#plan-platforms").classList.toggle("two-columns", others.length > 5);
     $("#plan-platforms").innerHTML = others.map(p => `<label class="release-row">
         <input type="radio" name="plan-platform" value="${escapeHtml(p)}" ${p === platform ? "checked" : ""}><strong>${escapeHtml(p)}</strong></label>`).join("")
       || `<p class="hint">Aucune autre plateforme : en ajouter dans Configuration &gt; Plateformes.</p>`;
     let result = null;
     $("#plan-ok").onclick = () => {
-      const chosenTome = askPlatform ? "" : document.querySelector("[name=plan-tome]:checked")?.value;
-      if (chosenTome === undefined) { $planDialogStatus.textContent = optional ? "Choisir le tome, ou Aucun." : "Choisir le tome."; return; }
-      const chosenPlatform = document.querySelector("[name=plan-platform]:checked")?.value ?? "";
-      if (askPlatform && !chosenPlatform) { $planDialogStatus.textContent = "Choisir la plateforme."; return; }
-      result = { tome: chosenTome, releases: [state.config.release], platform: chosenPlatform };
+      const chosen = document.querySelector("[name=plan-platform]:checked")?.value ?? "";
+      if (!chosen) { $planDialogStatus.textContent = "Choisir la plateforme."; return; }
+      result = chosen;
       dialog.close();
     };
     $("#plan-cancel").onclick = () => dialog.close();
@@ -1780,7 +1759,6 @@ function confirmPlanRows(fileName, rows, slot = "plan") {
   });
 }
 
-const releaseDescription = () => "";
 const selectedReleases = new Set();   // plus de sélection de releases : tout est vérifié
 
 // Noms triés par ordre alphabétique, nombres dans l'ordre naturel (VS2 avant VS10).
@@ -1898,9 +1876,8 @@ function renderTomes() {
     : "Aucun tome : importer un fichier d'Exigences depuis la page Vérification.";
   $("#tome-toolbar").hidden = !tome;
   if (reqEdit && reqEdit.tome !== tomeTab) reqEdit = null;
-  // Les releases et le STDHL d'une ligne en cours de modification sont choisis parmi les valeurs existantes : les
-  // releases de la configuration (une case chacune) et les valeurs de la table list_stdhl (une liste, vide admis).
-  // IADT, MOC, délégation et validation : choisis parmi les valeurs de la configuration (et du serveur).
+  // Une ligne en cours de modification : IADT, MOC, délégation et validation choisis parmi les valeurs de la
+  // configuration (et du serveur).
   const choices = (values, current, labels = {}) => values.map(v =>
     `<option value="${escapeHtml(v)}" ${v === current ? "selected" : ""}>${escapeHtml(labels[v] ?? v)}</option>`).join("");
   const referenceCells = r => `
@@ -1969,10 +1946,12 @@ function renderStats() {
   // Couverture et état des tests : les camemberts par plateforme de la vérification, en barres ; un clic sur une part
   // liste ses exigences, comme sur un camembert.
   const fromCharts = list => (state.result?.[list] ?? []).map((c, i) => ({
-    name: c.title.replace(/^Plateforme /, ""), total: c.parts.reduce((n, p) => n + p.count, 0),
+    name: c.title.replace(/^(Plateforme|Tome) /, ""), total: c.parts.reduce((n, p) => n + p.count, 0),
     parts: c.parts.map((p, j) => ({ ...p, part: `${list}:${i}:${j}` })) }));
   const noFiches = `<p class="hint">Aucune fiche d'essai chargée.</p>`;
+  $("#fiches-tomes").innerHTML = shareBars(fromCharts("tome_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
   $("#fiches-charts").innerHTML = shareBars(fromCharts("platform_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
+  $("#result-tomes").innerHTML = shareBars(fromCharts("result_tome_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
   $("#result-charts").innerHTML = shareBars(fromCharts("result_charts"), { segment: p => `data-part="${p.part}"` }) || noFiches;
 }
 
@@ -2017,7 +1996,7 @@ $("#stats-tabs").addEventListener("click", e => {
 });
 {
   const saved = (() => { try { return localStorage.getItem(STATS_TAB_KEY); } catch { return null; } })();
-  showStatsTab(["platform", "fiches"].includes(saved) ? saved : "tome");
+  showStatsTab(["platform", "fiches", "results"].includes(saved) ? saved : "tome");
 }
 
 $("#platform-tomes").addEventListener("click", e => {
@@ -2120,8 +2099,9 @@ function renderStdhl() {
   document.querySelector('.nav-item[data-tab="stdhl"]').title = "STDHL" + (docs.length ? ` : ${plural(docs.length, "document")}` : "");
   if (!docs.some(d => d.name === stdhlTab)) stdhlTab = docs[0]?.name ?? null;
   $("#stdhl-tabs").innerHTML = docs.map(d =>
-    `<button class="subtab ${d.name === stdhlTab ? "active" : ""}" role="tab" aria-selected="${d.name === stdhlTab}" data-stdhl-tab="${escapeHtml(d.name)}">` +
-    `${escapeHtml(d.stdhlName)}<span class="n">(${lines(d)})</span></button>`).join("");
+    `<button class="subtab ${d.name === stdhlTab ? "active" : ""}" role="tab" aria-selected="${d.name === stdhlTab}" data-stdhl-tab="${escapeHtml(d.name)}" title="${escapeHtml(d.name)}">` +
+    // Libellé de l'onglet : le nom du fichier, sans .docx (un STDHL n'a pas de tome).
+    `${escapeHtml(d.name.replace(/\.docx$/i, ""))}<span class="n">(${lines(d)})</span></button>`).join("");
   const doc = docs.find(d => d.name === stdhlTab);
   $("#stdhl-hint").textContent = doc
     ? `${doc.name}`
@@ -2224,7 +2204,7 @@ function renderFiches() {
   const docs = state.xmls.filter(d => inSelection(d.releases));
   $("#fiches-count").textContent = docs.length || "";
   document.querySelector('.nav-item[data-tab="fiches"]').title = "Fiches d'Essai" + (docs.length ? ` : ${plural(docs.length, "fichier")}` : "");
-  // Une ligne par exigence et test case, rangée sous la fonction de l'exigence (colonne STDHL).
+  // Une ligne par exigence et test case, rangée sous le tome de l'exigence.
   const byId = new Map(state.requirements.map(r => [r.id, r]));
   const lines = docs.flatMap(d => d.rows.flatMap(row => row.requirements.map(id => ({
     id, title: byId.get(id)?.title ?? "", fn: byId.has(id) ? byId.get(id).tome : "(exigence inconnue)",
@@ -2504,6 +2484,9 @@ async function refresh() {
   try { state.records = await store.list(); }
   catch (e) { showMessage("Liste des fichiers indisponible : " + (e.message || e)); }
   lockRelease();   // la release ne change que tant qu'aucun fichier n'est chargé
+  // La case STDHL de la configuration est verrouillée tant que des fiches d'essai sont chargées : redessinée avec la
+  // nouvelle liste des fichiers (après la suppression des fiches, elle se coche de nouveau).
+  if (state.draft) renderProcess();
   try {
     [state.plansDb, state.stdhlDb, state.fichesDb, state.traceDb, state.rejects] =
       // Les contenus, et les rejets gardés par tome, sont demandés en même temps.
@@ -2524,7 +2507,6 @@ async function refresh() {
   renderStats();
   // STDHL et fiches : contenu donné par le serveur.
   state.stdhl = Object.values(state.stdhlDb.stdhl).map(d => ({ id: d.file_id, name: d.name, tome: d.tome, releases: d.releases,
-                                                               stdhlName: d.stdhl_name,
                                                                rows: d.rows, issues: d.issues }));
   renderStdhl();
   // Fiches d'essai : fichiers XML et fichiers Excel, chacun de la plateforme choisie à son import, même contenu.
@@ -2550,10 +2532,10 @@ async function loadFiles(slot, files) {
     state.errors[slot] = "importer d'abord les exigences";
     return refresh();
   }
-  let planChoice = null;   // tome et releases du plan précédent, proposés à nouveau pour le suivant
+  let platformChoice = null;   // plateforme du fichier de fiches précédent, proposée à nouveau pour le suivant
+  const release = state.config.release;   // tout fichier est chargé dans la release de la base
   const planTomes = [];    // tomes des plans chargés, vérifiés à la fin
   const planSkipped = [];  // tableaux de ces plans laissés de côté (en-tête incomplet), montrés avec la vérification
-  const warnings = [];     // avertissements des plans chargés, montrés sous les boîtes
   for (const file of files) {
     try {
       const buffer = await file.arrayBuffer();
@@ -2561,7 +2543,7 @@ async function loadFiles(slot, files) {
         // Le serveur lit le fichier : les feuilles d'abord, puis les exigences de la feuille choisie pour le tome
         // choisi.
         // Étapes d'un import d'exigences, chacune une fenêtre que l'utilisateur peut annuler : feuille et tome, numéros
-        // répétés, conflits avec la base et valeurs STDHL, puis les différences à approuver. Après chaque choix, le
+        // répétés, conflits avec la base, puis les différences à approuver. Après chaque choix, le
         // serveur analyse à nouveau le fichier avec tous les choix faits jusque-là (`choices`), pour que la fenêtre
         // suivante montre le résultat.
         const first = await store.analyseRequirements(buffer, { name: file.name });
@@ -2580,7 +2562,7 @@ async function loadFiles(slot, files) {
           errors.push(`${file.name} — aucune exigence de la release ${state.config.release} à importer : fichier non importé`);
           continue;
         }
-        // Les lignes d'un numéro répété dans le fichier d'abord, puis les conflits avec la base et les valeurs STDHL.
+        // Les lignes d'un numéro répété dans le fichier d'abord, puis les conflits avec la base.
         let picked = await chooseConflicts(file.name, analysis, params.mode);
         if (picked?.row) {
           choices.row = picked.row;
@@ -2600,36 +2582,34 @@ async function loadFiles(slot, files) {
                     summary.report ? `api/files/${summary.file_id}/rapport` : null, false, file.name);
         continue;
       }
-      // Plan, STDHL ou fiches : refusé ici s'il est illisible ou vide, avant de rien demander.
       // Étapes d'un chargement de plan, STDHL ou fiches : une lecture pour refuser un fichier illisible avant de rien
-      // demander, puis le tome (présélectionné d'après le nom du fichier), les plateformes inconnues d'un plan, les
-      // lignes à régler, et le chargement.
+      // demander ; pour des fiches, la plateforme d'où elles viennent (le seul choix : le tome se déduit des
+      // exigences, la release est celle de la base) ; les plateformes inconnues d'un plan, les lignes à régler, et le
+      // chargement.
       const analysis = await store.analyseFile(slot, file, buffer);
-      planChoice = await choosePlan(file.name, planChoice, slot, analysis.stdhl_name ?? "", analysis.tome_name ?? "");
-      if (!planChoice) continue;   // annulé : la boîte garde son dernier chargement
+      const fichesFile = slot === "xml" || slot === "traceability";
+      if (fichesFile) {
+        platformChoice = await choosePlatform(file.name, platformChoice, slot);
+        if (!platformChoice) continue;   // annulé : la boîte garde son dernier chargement
+      }
       // Plan : les délégations inconnues de la configuration sont d'abord proposées à l'ajout ; celles non ajoutées
       // sont ensuite réglées avec les autres lignes (une autre plateforme, ou la ligne ignorée).
       if (slot === "plan" && analysis.unknown_platforms?.length) {
         openItemsDialog("platforms", file.name, analysis.unknown_platforms);
         while ($itemsDialog.open) await new Promise(r => $itemsDialog.addEventListener("close", r, { once: true }));
       }
-      // Fichier de plan ou de fiches : avec le tome choisi (aucun : toute la base), les lignes à régler (numéros
-      // inconnus du tome, valeurs hors de la configuration ou des règles IADT/MOC) : corrigées avec les valeurs
-      // attendues, ou ignorées.
-      const settle = slot === "plan" || slot === "traceability" || slot === "xml"
-        ? (await store.analyseFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(",") })).to_confirm ?? [] : [];
+      // Fichier de plan ou de fiches : les lignes à régler, corrigées avec les valeurs attendues, ou ignorées.
+      const settle = slot === "plan" || fichesFile
+        ? (await store.analyseFile(slot, file, buffer, { releases: release })).to_confirm ?? [] : [];
       const decisions = settle.length ? await confirmPlanRows(file.name, settle, slot) : null;
       if (settle.length && !decisions) continue;   // annulé
-      // Chargé avec le tome et les décisions ; un message par fichier dit ce qui a été enregistré, ignoré ou mérite une
-      // vérification.
-      const result = await store.loadFile(slot, file, buffer, { tome: planChoice.tome, releases: planChoice.releases.join(","),
-                                                                platform: planChoice.platform ?? "",
+      // Chargé avec les décisions (et la plateforme des fiches) ; un message par fichier dit ce qui a été enregistré,
+      // ignoré ou mérite une vérification.
+      const result = await store.loadFile(slot, file, buffer, { releases: release,
+                                                                platform: fichesFile ? platformChoice : "",
                                                                 ...(decisions ? { decisions: JSON.stringify(decisions) } : {}) });
       setLastLoad(slot, `${slot === "plan" ? "vérifié" : "import"} ${result.tome || "tous les tomes"}`,
                   result.report ? `api/files/${result.file_id}/rapport` : null, false, file.name);
-      // Plan : délégations qui ne correspondent pas à la colonne STDHL des exigences (seule la plateforme de niveau
-      // système est dans un STDHL) : montrées sous les boîtes.
-      if (result.stdhl_warnings?.length) warnings.push(`${file.name} — ${result.stdhl_warnings.join(" ; ")}`);
       if (slot === "plan") {
         planFiles.push(file.name);
         planTomes.push(result.tome);
@@ -2647,7 +2627,6 @@ async function loadFiles(slot, files) {
   // rafraîchissement.
   state.errors[slot] = errors.join(" ; ");
   await refresh();
-  if (warnings.length) showMessage(warnings.join(" ; "));
 }
 
 // Ouvre le rapport de l'import d'un fichier dans une nouvelle fenêtre.
@@ -2803,13 +2782,14 @@ $("#files-table").addEventListener("click", e => {
 const SCALAR_VARS = { release: "str", slogan: "str", requirements_folder: "str", plan_folder: "str", stdhl_folder: "str",
                       fiches_folder: "str", traceability_folder: "str", requirement_regex: "str", release_separator_regex: "str",
                       code_separator_regex: "str", delegation_separator_regex: "str", fiche_regex: "str",
-                      stdhl_name_regex: "str", plan_tome_regex: "str", requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
+                      requirements_tome_regex: "str", test_tag: "str", test_case_tag: "str",
                       requirement_tag: "str", server_port: "int", chart_max_parts: "int", chart_max_parts_platforms: "int",
                       open_browser: "bool", system_platform: "str", stdhl2_test_regex: "str",
                       stdhl2_requirements_label: "str", stdhl2_release_label: "str",
                       stdhl2_release_regex: "str", stdhl2_test_case_regex: "str", plan_validation_to_qualify: "str",
                       plan_validation_qualified: "str", plan_validation_out_of_scope: "str", process_plan: "bool",
-                      process_stdhl: "bool", skip_unknown_req: "bool" };
+                      process_stdhl: "bool", skip_unknown_req: "bool",
+                      show_moc_chart: "bool" };
 
 // Réglages des en-têtes de tableaux de la configuration : réglage -> { title, hint }. Les champs que NEXUS-V
 // lit dans les colonnes, et leur libellé, viennent du serveur (fieldsOf) : ces colonnes sont obligatoires (texte

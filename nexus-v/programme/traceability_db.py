@@ -80,8 +80,7 @@ class TraceabilityDatabase:
         # Le tome choisi : un numéro qui n'en est pas une exigence rend le fichier inutilisable, il est refusé.
         if tome:
             unknown = [e["key"] for e in FileDatabase.to_ignore(self.sql.db, ids, tome)]
-            if not FileDatabase.skip_unknown(config) and \
-                    (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+            if (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
                 raise ValueError(message)
         return {"ids": len(ids), "to_confirm": []}
 
@@ -95,12 +94,13 @@ class TraceabilityDatabase:
         FichesDatabase.store_tests(db, file_id, [("", "", list(dict.fromkeys(ids)))], tome_id, by_case=False)
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None, platform=""):
-        """Charge un fichier de fiches d'une autre plateforme (Excel) : rattaché à un tome qui a des exigences ou à
-        aucun ("" : tous les tomes), et à la `platform` d'où il vient. Les numéros inconnus de son tome doivent être
-        ignorés par l'utilisateur (`decisions` {"rows": {numéro: {"ignore": true}}}, ou {"accept_all": true} en ligne
-        de commande). Le fichier est enregistré, puis son contenu (le fichier est retiré en cas d'échec) ; un fichier
-        de même nom est remplacé, quel que soit son tome."""
-        tome = files.check_tome("de fiches d'une autre plateforme", requirements, tome)
+        """Charge un fichier de fiches d'une autre plateforme (Excel), de la `platform` d'où il vient. Il n'est
+        rattaché à aucun tome (`tome` est ignoré) : il vaut pour toutes les exigences qu'il cite. Un numéro qui n'est
+        pas une exigence de la base refuse le fichier (sauf skip_unknown_req, pour une autre plateforme que celle de
+        niveau système). Le fichier est enregistré, puis son
+        contenu (le fichier est retiré en cas d'échec) ; un fichier de même nom est remplacé."""
+        files.check_requirements(requirements)
+        tome = None   # rattaché à aucun tome : ce sont ses exigences qui le relient aux tomes
         # La plateforme d'où vient le fichier est obligatoire : la couverture est jugée par rapport à la délégation des
         # plans.
         if config is not None and not config.is_platform(platform or ""):
@@ -108,8 +108,10 @@ class TraceabilityDatabase:
         data = self._readable(content, config)
         # Un numéro absent du tome (de la base sans tome) rend le fichier inutilisable : refusé.
         unknown = [e["key"] for e in FileDatabase.to_ignore(self.sql.db, data["ids"], tome)]
-        # Avec skip_unknown_req, ces numéros sont ignorés (non enregistrés) au lieu de refuser.
-        if not FileDatabase.skip_unknown(config) and (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+        # Avec skip_unknown_req, pour une autre plateforme que celle de niveau système, ces numéros sont ignorés (non
+        # enregistrés) au lieu de refuser.
+        if not FileDatabase.skip_unknown(config, platform) and \
+                (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
             raise ValueError(message)
         record = files.add("traceability", name, content, tome=tome, releases=releases)
         try:

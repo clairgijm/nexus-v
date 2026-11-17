@@ -344,18 +344,6 @@ class NexusDatabase:
         """{tome: description} des tomes (ce que chacun contient, donné par l'utilisateur)."""
         return {r["name"]: r["description"] for r in self.query("SELECT name, description FROM list_tomes ORDER BY id")}
 
-    def tome_states(self):
-        """[(tome, état d'avancement)] de tous les tomes, dans l'ordre du référentiel (voir Verification.tome_states)."""
-        return [(r["name"], r["state"]) for r in self.query("SELECT name, state FROM list_tomes ORDER BY id")]
-
-    def set_tome_states(self, states):
-        """Enregistre l'état d'avancement des tomes : {tome: état} ; un tome absent n'a rien de chargé (état vide).
-        Seuls les états qui changent sont écrits."""
-        changed = [(states.get(name, ""), name) for name, state in self.tome_states() if states.get(name, "") != state]
-        if changed:
-            with self.transaction() as db:
-                db.executemany("UPDATE list_tomes SET state = ? WHERE name = ?", changed)
-
     def set_tome_descriptions(self, descriptions):
         """Descriptions des tomes : {nom: texte}."""
         with self.transaction() as db:

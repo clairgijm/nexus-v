@@ -19,10 +19,10 @@ La comparaison (differences) sert à l'import (load_file) et à la vérification
 code, pour que les deux ne divergent pas.
 """
 import re
-from typing import Any
+from typing import Any, Optional
 
 from configuration import DEFAULT_CONFIG, fold, header_column, header_text, match_header, plural, table_left_out
-from file_database import FileDatabase, WordDocument
+from file_database import WordDocument
 
 # Champs d'un tableau de plan (leurs textes d'en-tête attendus sont dans la configuration : headers_plan).
 PLAN_COLUMNS = ("exigence", "iadt", "moc", "delegation", "validation")
@@ -112,7 +112,7 @@ class PlansDatabase:
                 "validation": cells["validation"].strip()}
 
     @staticmethod
-    def _find_header(grid, headers) -> tuple[dict[str, int], list[str]] | None:
+    def _find_header(grid, headers) -> Optional[tuple[dict[str, int], list[str]]]:
         """({champ: index de colonne}, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
         ligne, ou None. Un tableau de plan est reconnu à l'en-tête de sa colonne exigence et d'au moins une autre
         colonne lue (configuration headers_plan) ; chaque en-tête attendu doit alors être là."""
@@ -241,7 +241,9 @@ class PlansDatabase:
     def difference_text(d):
         """Une différence en clair : « SSS_X_001 : MOC MOC2 dans le plan, MOC3 attendu »."""
         if d["kind"] == "unknown":
-            return f"{d['requirement']} : pas une exigence du tome"
+            return f"{d['requirement']} : pas une exigence de la base"
+        if d["kind"] == "other_tome":
+            return f"{d['requirement']} : exigence du tome {d['expected']}, un plan ne couvre qu'un tome"
         if d["kind"] == "missing":
             return f"{d['requirement']} : exigence du tome absente du plan"
         label = dict(COMPARED)[d["field"]]
@@ -261,23 +263,51 @@ class PlansDatabase:
     # Chargement d'un fichier de plan
     # ------------------------------------------------------------------ #
 
-    def tome_from_name(self, name, config):
-        """Le tome nommé dans le nom du fichier (configuration plan_tome_regex), quand c'est un tome de la base."""
-        if config is None or not name:
+    @staticmethod
+    def other_tomes(diffs, tome_of):
+        """Les différences d'un plan, un numéro d'un autre tome distingué d'un numéro inconnu de la base : un plan a
+        toutes les exigences d'un tome et uniquement de ce tome, une exigence d'un autre tome le refuse toujours
+        (kind « other_tome », expected : son tome), comme un numéro qui n'est pas une exigence de la base."""
+        return [{**d, "kind": "other_tome", "expected": tome_of[d["requirement"]]}
+                if d["kind"] == "unknown" and d["requirement"] in tome_of else d for d in diffs]
+
+    @staticmethod
+    def cited_tome(entries, tome_of):
+        """Le tome d'un plan : celui des exigences qu'il cite (`tome_of` : {numéro: tome} des exigences de la base), le
+        plus cité quand il y en a plusieurs ; None quand il n'en cite aucune. Le même calcul à l'import et dans la
+        vérification avant import."""
+        counts = {}
+        for e in entries:
+            if e["requirement"] in tome_of:
+                counts[tome_of[e["requirement"]]] = counts.get(tome_of[e["requirement"]], 0) + 1
+        return max(counts, key=counts.get) if counts else None
+
+    def base_tomes(self):
+        """{numéro: tome} des exigences de la base (celles supprimées à la main laissées de côté)."""
+        return {r["req_id"]: r["tome"] for r in self.sql.query(
+            "SELECT q.req_id, t.name AS tome FROM requirements q JOIN list_tomes t ON t.id = q.tome_id "
+            "WHERE q.deleted = 0")}
+
+    def tome_of_content(self, content, config=None):
+        """Le tome d'un fichier de plan (voir cited_tome) ; "" quand il est illisible ou ne cite aucune exigence."""
+        try:
+            entries = self.entries(self.readable(content, config)["rows"])
+        except ValueError:
             return ""
-        match = re.search(config.get("plan_tome_regex"), name)
-        found = fold(match.group(match.lastindex or 0)) if match else ""
-        return next((r["name"] for r in self.sql.query("SELECT name FROM list_tomes") if fold(r["name"]) == found), "")
+        return self.cited_tome(entries, self.base_tomes()) or ""
 
     def analyse(self, content, config=None, tome=None, releases=(), name=None):
         """Ce que ferait le chargement d'un fichier de plan : le nombre d'exigences lues, les plateformes nommées, les
-        tableaux sautés, le tome nommé dans le nom du fichier et, avec un `tome`, les différences avec ses exigences.
-        Refusé (ValueError) quand le document est illisible ou n'a aucun tableau de plan valide."""
+        tableaux sautés, son tome (celui des exigences qu'il cite, voir cited_tome ; `tome` n'est pas utilisé) et les
+        différences avec les exigences de ce tome. Refusé (ValueError) quand le document est illisible ou n'a aucun
+        tableau de plan valide."""
         data = self.readable(content, config)
         entries = self.entries(data["rows"])
-        diffs = self.differences(entries, self.tome_requirements(tome), config) if tome else []
+        tome_of = self.base_tomes()
+        tome = self.cited_tome(entries, tome_of)
+        diffs = self.other_tomes(self.differences(entries, self.tome_requirements(tome), config), tome_of) if tome else []
         return {"rows": len(entries), "platforms": data["platforms"], "skipped": data["skipped"],
-                "tome_name": self.tome_from_name(name, config), "differences": [self.difference_text(d) for d in diffs],
+                "tome_name": tome or "", "differences": [self.difference_text(d) for d in diffs],
                 "unknown_platforms": [], "to_confirm": []}
 
     @classmethod
@@ -289,16 +319,22 @@ class PlansDatabase:
                 + " ; ".join(texts[:LIMIT]) + more)
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None):
-        """Charge un plan d'acceptation rattaché à un tome qui a des exigences : il est comparé aux exigences du tome
-        (differences) et refusé (ValueError) à la moindre différence. Accepté, son fichier est enregistré
+        """Charge un plan d'acceptation. Son tome est celui des exigences qu'il cite (voir cited_tome ; `tome` n'est
+        pas utilisé : le tome ne se choisit qu'à l'import des exigences). Il est comparé à toutes les exigences de ce
+        tome (differences) et refusé (ValueError) à la moindre différence. Accepté, son fichier est enregistré
         (FileDatabase `files`) et remplace les autres plans du tome ; rien d'autre n'est gardé."""
-        files.check_attachment("Plan d'acceptation", requirements, tome)
+        files.check_requirements(requirements)
         data = self.readable(content, config)
         entries = self.entries(data["rows"])
-        diffs = self.differences(entries, self.tome_requirements(tome), config)
-        # Avec skip_unknown_req, un numéro qui n'est pas une exigence du tome ne refuse pas le plan : il est ignoré.
-        ignored = [d["requirement"] for d in diffs if d["kind"] == "unknown"] if FileDatabase.skip_unknown(config) else []
-        diffs = [d for d in diffs if not (ignored and d["kind"] == "unknown")]
+        tome_of = self.base_tomes()
+        tome = self.cited_tome(entries, tome_of)
+        if tome is None:
+            raise ValueError("aucune exigence du plan n'est dans la base : importer d'abord les exigences du tome, ou "
+                             "corriger les numéros")
+        # Toutes les exigences du tome et uniquement elles : une exigence d'un autre tome refuse toujours le plan.
+        diffs = self.other_tomes(self.differences(entries, self.tome_requirements(tome), config), tome_of)
+        # Un numéro inconnu de la base refuse aussi le plan, même avec skip_unknown_req (qui ne vaut que pour les STDHL
+        # et les fiches) : un plan a exactement les exigences de son tome.
         if diffs:
             raise ValueError(self.refusal(diffs))
         record = files.add("plan", name, content, tome=tome, releases=releases)
@@ -306,6 +342,5 @@ class PlansDatabase:
         replaced = [p["file_id"] for p in self.plans(tome=tome) if p["file_id"] != record["id"]]
         for file_id in replaced:
             files.remove(file_id)
-        return {"file_id": record["id"], "tome": tome, "rows": len(entries), "ignored": len(ignored),
-                "platforms": data["platforms"], "skipped": data["skipped"], "replaced": replaced,
-                "stdhl_warnings": []}
+        return {"file_id": record["id"], "tome": tome, "rows": len(entries), "ignored": 0,
+                "platforms": data["platforms"], "skipped": data["skipped"], "replaced": replaced}

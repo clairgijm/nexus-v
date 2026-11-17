@@ -13,10 +13,7 @@ CREATE TABLE IF NOT EXISTS list_tomes (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
     description TEXT NOT NULL DEFAULT '',     -- Contenu du tome, précisé par l'utilisateur (Configuration > Tomes)
-    color TEXT NOT NULL DEFAULT '',           -- couleur dans les camemberts (#rrggbb) ; vide : tirée à la lecture
-    state TEXT NOT NULL DEFAULT ''            -- avancement, calculé à chaque vérification : vide (rien de chargé),
-        CHECK (state IN ('', 'requirements', 'plan', 'stdhl', 'fiches', 'done'))
-        -- exigences chargées, plan d'acceptation vérifié, STDHL vérifié, couverture partielle par les fiches, fini
+    color TEXT NOT NULL DEFAULT ''            -- couleur dans les camemberts (#rrggbb) ; vide : tirée à la lecture
 );
 
 -- Référentiel : plateformes de test
@@ -49,7 +46,6 @@ CREATE TABLE IF NOT EXISTS files (
     name TEXT NOT NULL,
     stored_name TEXT NOT NULL,
     tome_id INTEGER REFERENCES list_tomes (id),
-    stdhl_name TEXT NOT NULL DEFAULT '',                                                             -- STDHL : nom tiré du nom du fichier
     issues TEXT NOT NULL DEFAULT '',                                                                 -- STDHL : anomalies du document, une par ligne
     platform_id INTEGER REFERENCES list_plateformes (id),                                            -- Fiches d'essai : plateforme d'où vient le fichier
     format TEXT NOT NULL DEFAULT '',                                                                 -- Format reconnu à l'import (STDHL : par tome, unique)

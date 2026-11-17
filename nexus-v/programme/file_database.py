@@ -20,9 +20,9 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from configuration import DEFAULT_CONFIG, plural
+from configuration import DEFAULT_CONFIG, fold, plural
 
 SLOTS = ("requirements", "plan", "stdhl", "xml", "traceability")
 # Réglage donnant le sous-dossier du dossier des fichiers pour chaque type de fichier.
@@ -207,7 +207,9 @@ class FileDatabase:
         """Chemin du rapport du dernier rejet d'un type de fichier (requirements, plans, stdhl, fiches,
         traceability) pour un tome : <dossier des fichiers>/rapport/rejet_<type>_<tome>.html ; sans tome, le dernier
         rejet du type, quel que soit le tome : rejet_<type>.html."""
-        suffix = f"_{re.sub(r'[^\w.-]', '_', tome)}" if tome else ""
+        # Le nom du tome sans caractère hors d'un nom de fichier (pas de barre oblique inverse dans une f-string :
+        # Python 3.9 la refuse).
+        suffix = "_" + re.sub(r"[^\w.-]", "_", tome) if tome else ""
         return self.directory / "rapport" / f"rejet_{kind}{suffix}.html"
 
     def save_reject(self, kind, tome, html):
@@ -274,7 +276,7 @@ class FileDatabase:
             params.append(slot)
         return self._records(("WHERE " + " AND ".join(conditions)) if conditions else "", params)
 
-    def get(self, file_id) -> dict[str, Any] | None:
+    def get(self, file_id) -> Optional[dict[str, Any]]:
         """Enregistrement de ce numéro, ou None."""
         found = self._records("WHERE id = ?", (file_id,))
         return found[0] if found else None
@@ -380,10 +382,13 @@ class FileDatabase:
         return {r["req_id"]: r["id"] for r in db.execute("SELECT id, req_id FROM requirements WHERE tome_id = ?", (tome_id,))}
 
     @staticmethod
-    def skip_unknown(config):
-        """Vrai quand la configuration demande d'ignorer les exigences inconnues (skip_unknown_req) au lieu de
-        refuser le fichier qui les cite."""
-        return bool(config.get("skip_unknown_req")) if config is not None else False
+    def skip_unknown(config, platform):
+        """Vrai quand les exigences inconnues d'un fichier de fiches de `platform` sont ignorées au lieu de le refuser :
+        seulement avec skip_unknown_req, et pour une autre plateforme que celle de niveau système. Un plan, un STDHL
+        ou des fiches de la plateforme de niveau système qui citent une exigence inconnue sont toujours refusés."""
+        if config is None or not config.get("skip_unknown_req"):
+            return False
+        return fold(platform or "") != fold(config.get("system_platform") or "")
 
     @staticmethod
     def unknown_refusal(unknown, tome=None):
@@ -398,23 +403,12 @@ class FileDatabase:
                 + " — corriger les numéros, ou importer d'abord ces exigences : fichier non chargé")
 
     @staticmethod
-    def check_attachment(kind, requirements, tome):
-        """Un plan ou un fichier de traçabilité appartient à un tome qui a des exigences : ValueError sinon. `kind` :
-        nom du type de fichier dans les messages."""
-        if not requirements.get(tome):
-            raise ValueError(f"un fichier {kind} doit être rattaché à un tome contenant des exigences")
-
-
-    @staticmethod
-    def check_tome(kind, requirements, tome):
-        """Un fichier STDHL ou de fiches appartient à un tome qui a des exigences, ou à aucun : il s'applique alors à
-        tous les tomes (un seul STDHL pour tous, par exemple). ValueError sinon. Renvoie le tome, ou None."""
+    def check_requirements(requirements):
+        """Un plan, un STDHL ou un fichier de fiches cite des exigences : elles doivent être importées d'abord.
+        ValueError sinon. Le tome ne se choisit qu'à l'import des exigences : un STDHL ou des fiches n'en ont pas, un
+        plan prend celui des exigences qu'il cite."""
         if not requirements.tomes():
             raise ValueError("importer d'abord les Exigences")
-        tome = (tome or "").strip()
-        if tome and not requirements.get(tome):
-            raise ValueError(f"un fichier {kind} est rattaché à un tome contenant des exigences, ou à aucun")
-        return tome or None
 
     def group(self, file_id):
         """Numéros des fichiers supprimés ensemble avec `file_id` : pour un fichier d'exigences, tous les fichiers

@@ -40,7 +40,7 @@ import io
 import re
 
 import openpyxl
-from typing import Any
+from typing import Any, Optional
 
 from configuration import DEFAULT_CONFIG, fold, match_header, plural
 
@@ -164,7 +164,7 @@ class RequirementsDatabase:
         return [r["name"] for r in self.sql.query(
             "SELECT name FROM list_tomes t WHERE EXISTS (SELECT 1 FROM requirements r WHERE r.tome_id = t.id) ORDER BY t.id")]
 
-    def get(self, tome) -> dict[str, Any] | None:
+    def get(self, tome) -> Optional[dict[str, Any]]:
         """Un tome : {"description", "files", "requirements"}, ou None s'il n'a pas d'exigence."""
         found = self.to_dict(tome)["tomes"]
         return next(iter(found.values()), None)
@@ -654,7 +654,7 @@ class RequirementsDatabase:
             tome_id = self.sql.tome_id(tome)
             if tome_id is None:
                 raise ValueError(f"tome inconnu : « {tome} »")
-            existing: dict[str, Any] | None = None
+            existing: Optional[dict[str, Any]] = None
             if action != "add":
                 found = self.sql.query("SELECT id, file_id, manual, deleted FROM requirements "
                                        "WHERE tome_id = ? AND req_id = ?", (tome_id, old_id))

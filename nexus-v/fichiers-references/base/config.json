@@ -10,6 +10,7 @@
     "open_browser": true,
     "chart_max_parts": 6,
     "chart_max_parts_platforms": 20,
+    "show_moc_chart": false,
     "storage_dir": "."
   },
   "requirements": {

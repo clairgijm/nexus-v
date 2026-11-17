@@ -17,13 +17,13 @@ de côté, aucun numéro d'exigence reconnu) sont enregistrées avec lui et mont
 
 Pour la page (to_dict) :
 
-    {"stdhl": {"12": {"file_id": 12, "name": "...docx", "releases": ["A"], "stdhl_name": "FCT1",
+    {"stdhl": {"12": {"file_id": 12, "name": "...docx", "releases": ["A"],
                       "tome": "fct1" (None : tous les tomes),
                       "rows": [{"requirements": [ID], "test": fiche SYS_}, ...] (une ligne par exigence et test),
                       "issues": [texte]}}}
 """
 import re
-from typing import Any
+from typing import Any, Optional
 
 from configuration import DEFAULT_CONFIG, fold, header_column, header_text, match_header, plural, table_left_out
 from file_database import FileDatabase, WordDocument
@@ -64,7 +64,7 @@ class StdhlDatabase:
         return get("headers_stdhl"), re.compile(get("requirement_regex"))
 
     @staticmethod
-    def _find_header(grid, headers) -> tuple[int, list[str]] | None:
+    def _find_header(grid, headers) -> Optional[tuple[int, list[str]]]:
         """(colonne des exigences, [textes attendus manquants]) de l'en-tête d'un tableau, toujours sa première
         ligne, ou None. Un tableau STDHL est reconnu à l'en-tête de sa colonne des exigences."""
         text = header_text(headers, "requirements")
@@ -78,14 +78,13 @@ class StdhlDatabase:
 
     @classmethod
     def read_docx(cls, content, file_name, config=None) -> dict[str, Any]:
-        """Lit un STDHL (octets .docx). Renvoie {"stdhl_name", "rows": [{fiche, requirements: [ID]}], "skipped" :
+        """Lit un STDHL (octets .docx). Renvoie {"rows": [{fiche, requirements: [ID]}], "skipped" :
         tableaux laissés de côté, "issues" : anomalies du document}. Une ligne est la cellule d'un tableau sous
         l'en-tête des exigences ; sa fiche (le test) est la dernière fiche de test SYS_ avant le tableau. Les
         tableaux sont numérotés au premier niveau."""
         headers, regex = cls._settings(config)
         get = config.get if config is not None else DEFAULT_CONFIG.get
         fiche_regex = re.compile(get("fiche_regex"))
-        match = re.search(get("stdhl_name_regex"), file_name)
         rows, skipped, orphans = [], [], []
         tables = 0   # tableaux à l'en-tête correct, quel que soit le contenu de leurs cellules
         fiche = ""
@@ -113,10 +112,9 @@ class StdhlDatabase:
                 if ids:
                     rows.append({"fiche": fiche, "requirements": ids})
         label = header_text(headers, "requirements")
-        # Anomalies du document, gardées avec lui et montrées dans la page STDHL : nom de fichier, tableaux laissés de
-        # côté, tableaux sans fiche, aucun numéro d'exigence.
-        issues = ([] if match else ["nom de fichier hors format [date]_[texte]_STDHL_[Nom du STDHL]_rev[texte].docx"]) \
-            + skipped + [f"tableau {t} « {label} » sans fiche SYS_ avant lui" for t in orphans] \
+        # Anomalies du document, gardées avec lui et montrées dans la page STDHL : tableaux laissés de côté, tableaux
+        # sans fiche, aucun numéro d'exigence.
+        issues = skipped + [f"tableau {t} « {label} » sans fiche SYS_ avant lui" for t in orphans] \
             + ([f"aucun numéro d'exigence reconnu dans {'les ' + str(tables) + ' tableaux' if tables > 1 else 'le tableau'}"
                 f" : vérifier la colonne « {label} » et le format des numéros (Configuration)"] if tables and not rows else [])
         if not tables:
@@ -125,8 +123,7 @@ class StdhlDatabase:
             single = cls.read_single(content, file_name, config)
             if single["tables"]:
                 return single
-        return {"stdhl_name": found(match) if match else file_name.rsplit(".", 1)[0], "rows": rows, "tables": tables,
-                "skipped": skipped, "issues": issues, "format": FORMATS[1], "gaps": [], "refusals": []}
+        return {"rows": rows, "tables": tables, "skipped": skipped, "issues": issues, "format": FORMATS[1], "gaps": [], "refusals": []}
 
     @classmethod
     def _readable(cls, content, file_name, config=None) -> dict[str, Any]:
@@ -173,7 +170,7 @@ class StdhlDatabase:
             gaps += [{"test": t["name"], "requirement": i, "side": "test case"} for i in covered if i not in listed]
             gaps += [{"test": t["name"], "requirement": i, "side": "liste"} for i in listed if i not in covered]
             rows += [{"fiche": t["name"], "requirements": [i]} for i in covered]
-        return {"stdhl_name": data["stdhl_name"], "rows": rows, "tables": len(tests), "skipped": [], "issues": issues,
+        return {"rows": rows, "tables": len(tests), "skipped": [], "issues": issues,
                 "format": FORMATS[2], "gaps": gaps, "refusals": refusals,
                 "cases": sum(len(t["cases"]) for t in tests),
                 # Les test cases demandés, par leur nom complet : une fiche d'un autre test case est ignorée.
@@ -187,7 +184,7 @@ class StdhlDatabase:
         parties étiquetées : sa release (stdhl2_release_label, lue par stdhl2_release_regex), la liste de ses
         exigences associées (stdhl2_requirements_label, puis les éléments de liste qui suivent : la fin de la liste
         la termine), puis ses test cases (stdhl2_test_case_regex), dont les phases citent des exigences. Renvoie
-        {"stdhl_name", "tests": [{name, releases (None quand elle est absente), listed: [numéros], cases: [{name,
+        {"tests": [{name, releases (None quand elle est absente), listed: [numéros], cases: [{name,
         requirements}]}]}."""
         _, regex = cls._settings(config)
         get = config.get if config is not None else DEFAULT_CONFIG.get
@@ -228,16 +225,14 @@ class StdhlDatabase:
             t["listed"] = unique(t["listed"])
             for c in t["cases"]:
                 c["requirements"] = unique(c["requirements"])
-        match = re.search(get("stdhl_name_regex"), file_name)
-        return {"stdhl_name": found(match) if match else file_name.rsplit(".", 1)[0], "tests": tests}
+        return {"tests": tests}
 
     @classmethod
     def analyse(cls, content, file_name, config=None):
         """Ce que ferait le chargement d'un STDHL. Refusé (ValueError) quand il est illisible ou sans tableau valide."""
         data = cls._readable(content, file_name, config)
-        return {"tables": data["tables"], "rows": len(data["rows"]), "stdhl_name": data["stdhl_name"],
-                "skipped": data["skipped"], "issues": data["issues"], "format": data["format"],
-                "gaps": data["gaps"]}
+        return {"tables": data["tables"], "rows": len(data["rows"]), "skipped": data["skipped"],
+                "issues": data["issues"], "format": data["format"], "gaps": data["gaps"]}
 
     # ------------------------------------------------------------------ #
     # Enregistrement
@@ -295,22 +290,23 @@ class StdhlDatabase:
             db.execute("INSERT OR IGNORE INTO fe_test_case (test_id, test_case) VALUES (?, ?)", (test, case))
             db.execute("INSERT OR IGNORE INTO stdhl_test_case (file_id, test_case_id) SELECT ?, id FROM fe_test_case "
                        "WHERE test_id = ? AND test_case = ?", (file_id, test, case))
-        # Le nom du STDHL et les anomalies sont gardés sur la ligne du fichier : la page STDHL les montre.
-        db.execute("UPDATE files SET stdhl_name = ?, issues = ?, format = ? WHERE id = ?",
-                   (data["stdhl_name"], "\n".join(issues), data.get("format", ""), file_id))
+        # Les anomalies et le format sont gardés sur la ligne du fichier : la page STDHL les montre.
+        db.execute("UPDATE files SET issues = ?, format = ? WHERE id = ?",
+                   ("\n".join(issues), data.get("format", ""), file_id))
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None):
-        """Charge un STDHL : il appartient au `tome` donné, ou à aucun ("" : tous les tomes). Le fichier est
-        enregistré, puis son contenu (le fichier est retiré en cas d'échec) ; un STDHL de même nom est remplacé, quel
-        que soit son tome. Un STDHL « unique » dont les exigences associées et les test cases ne correspondent pas
+        """Charge un STDHL. Il n'est rattaché à aucun tome (`tome` est ignoré) : il vaut pour toutes les exigences
+        qu'il cite. Le fichier est enregistré, puis son contenu (le fichier est retiré en cas d'échec) ; un fichier
+        STDHL de même nom est remplacé. Un STDHL « unique » dont les exigences associées et les test cases ne correspondent pas
         est refusé (voir _readable)."""
-        tome = files.check_tome("STDHL", requirements, tome)
+        files.check_requirements(requirements)
+        tome = None   # un STDHL n'est rattaché à aucun tome : ce sont ses exigences qui le relient aux tomes
         data = self._readable(content, name, config)
         # Un numéro qui n'est pas une exigence de son tome (de la base sans tome) rend le STDHL inutilisable : refusé.
         known = {r["id"] for r in requirements.requirements([tome] if tome else None) if not r["deleted"]}
         unknown = list(dict.fromkeys(i for row in data["rows"] for i in row["requirements"] if i not in known))
-        # Avec skip_unknown_req, ces numéros sont ignorés (non enregistrés, voir _write) au lieu de refuser.
-        if not FileDatabase.skip_unknown(config) and (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
+        # Toujours refusé, même avec skip_unknown_req (qui ne vaut que pour les fiches des autres plateformes).
+        if (message := FileDatabase.unknown_refusal(unknown, tome)) is not None:
             raise ValueError(message)
         # La copie est enregistrée d'abord : si l'écriture du contenu échoue, la copie est retirée, rien ne reste à
         # moitié chargé.
@@ -350,7 +346,7 @@ class StdhlDatabase:
         """Les documents STDHL avec leur tome (None : tous les tomes), leurs lignes et leurs anomalies. Les lignes
         supprimées par l'utilisateur sont laissées de côté, sauf avec `with_deleted` (page STDHL : montrées barrées,
         "deleted" vrai)."""
-        heads = self.sql.query("SELECT f.id AS file_id, f.name, f.stdhl_name, f.issues, t.name AS tome FROM files f "
+        heads = self.sql.query("SELECT f.id AS file_id, f.name, f.issues, t.name AS tome FROM files f "
                                "LEFT JOIN list_tomes t ON t.id = f.tome_id WHERE f.source = 'stdhl' ORDER BY f.id")
         rows, releases = {}, self.sql.file_releases()
         # Une ligne par exigence et test demandé, dans l'ordre du document.
@@ -361,7 +357,7 @@ class StdhlDatabase:
             rows.setdefault(r["file_id"], []).append({"requirements": [r["req_id"]], "test": r["test"] or "",
                                                      "deleted": bool(r["deleted"]), "manual": bool(r["manual"])})
         return [{"file_id": h["file_id"], "name": h["name"], "releases": releases.get(h["file_id"], []),
-                 "stdhl_name": h["stdhl_name"], "tome": h["tome"], "rows": rows.get(h["file_id"], []),
+                 "tome": h["tome"], "rows": rows.get(h["file_id"], []),
                  "issues": [i for i in h["issues"].split("\n") if i]} for h in heads]
 
     def to_dict(self) -> dict[str, Any]:

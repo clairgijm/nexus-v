@@ -222,12 +222,13 @@ class FichesDatabase:
                 "not_specified": not_specified, "delegated": delegated}
 
     @staticmethod
-    def refusal(found, config=None):
-        """Le message qui refuse un fichier de fiches qui cite des numéros qui ne sont pas des exigences de son tome
-        (de la base sans tome), ou dont des exigences ne sont dans aucun STDHL ; None sinon."""
+    def refusal(found, config=None, platform=""):
+        """Le message qui refuse un fichier de fiches de `platform` qui cite des numéros qui ne sont pas des exigences
+        de la base (sauf skip_unknown_req pour une autre plateforme que celle de niveau système), ou dont des
+        exigences ne sont dans aucun STDHL ; None sinon."""
         from file_database import FileDatabase
         parts = []
-        if found["unknown"] and not FileDatabase.skip_unknown(config):
+        if found["unknown"] and not FileDatabase.skip_unknown(config, platform):
             parts.append(FileDatabase.unknown_refusal(found["unknown"]).removesuffix(" : fichier non chargé"))
         if found["not_specified"]:
             parts.append(f"{plural(len(found['not_specified']), 'exigence')} dans aucun STDHL de son tome : "
@@ -273,11 +274,11 @@ class FichesDatabase:
                                "VALUES (?, ?, ?, ?)", [(file_id, known[i], test_id, result) for i in ids if i in known])
 
     def load_file(self, files, requirements, content, name, tome, releases, config=None, decisions=None, platform=""):
-        """Charge un fichier de fiches (XML) de la `platform` choisie : il appartient au `tome` donné, ou à aucun (""
-        : tous les tomes). Les numéros absents de son tome doivent être ignorés par l'utilisateur (`decisions`). Le
-        fichier est enregistré, puis son contenu (le fichier est retiré en cas d'échec) ; un fichier de même nom est
-        remplacé, quel que soit son tome."""
-        tome = files.check_tome("de fiches d'essai", requirements, tome)
+        """Charge un fichier de fiches (XML) de la `platform` choisie. Il n'est rattaché à aucun tome (`tome` est
+        ignoré) : il vaut pour toutes les exigences qu'il cite. Le fichier est enregistré, puis son contenu (le fichier
+        est retiré en cas d'échec) ; un fichier de même nom est remplacé."""
+        files.check_requirements(requirements)
+        tome = None   # rattaché à aucun tome : ce sont ses exigences qui le relient aux tomes
         data = self._readable(content, config)
         # Les règles de l'import (voir screen) : refusé pour une exigence dans aucun STDHL.
         # La plateforme d'où vient le fichier : obligatoire, une plateforme de la configuration.
@@ -286,7 +287,7 @@ class FichesDatabase:
         if config is not None and not config.is_platform(platform):
             raise ValueError(f"plateforme {platform} absente de la configuration")
         found = self.screen(data, tome, config, platform)
-        if (message := self.refusal(found, config)) is not None:
+        if (message := self.refusal(found, config, platform)) is not None:
             raise ValueError(message)
         # La copie est enregistrée d'abord, le contenu ensuite, dans une transaction : en cas d'échec, la copie est
         # retirée.
